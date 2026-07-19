@@ -121,7 +121,9 @@ public record CombatSettings(
   }
 
   /**
-   * Costi Stamina per azione e penalità progressive di affaticamento.
+   * Costi Stamina per azione, penalità progressive di affaticamento, recupero da riposo,
+   * soglia sotto la quale conviene riposare invece di attaccare e fattore di impatto
+   * proporzionale al danno subito da chi incassa un colpo pieno.
    */
   public record StaminaWeights(
       int attackCost,
@@ -131,10 +133,13 @@ public record CombatSettings(
       double highRatioThreshold,
       double lowRatioThreshold,
       double mediumFatiguePenalty,
-      double heavyFatiguePenalty) {
+      double heavyFatiguePenalty,
+      int restRecovery,
+      int restThreshold,
+      double impactStaminaDamageFactor) {
 
     public static StaminaWeights defaults() {
-      return new StaminaWeights(6, 4, 5, 2, 0.50, 0.25, 0.15, 0.30);
+      return new StaminaWeights(6, 4, 5, 2, 0.50, 0.25, 0.15, 0.30, 12, 11, 0.5);
     }
   }
 

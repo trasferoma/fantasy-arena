@@ -1,6 +1,8 @@
 package it.fantasyarena.combat.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -47,5 +49,40 @@ class StaminaRulesTest {
 
     state.consumeStamina(999);
     assertEquals(0, state.currentStamina(), "la Stamina ha un floor a 0, mai negativa");
+  }
+
+  @Test
+  void restAndHardRulesAtZeroStamina() {
+    CombatSettings settings = CombatSettings.defaults();
+    StaminaWeights weights = settings.staminaWeights();
+    StaminaRules staminaRules = new StaminaRules(settings);
+
+    assertEquals(12, weights.restRecovery());
+    assertEquals(11, weights.restThreshold());
+    assertEquals(12, staminaRules.restRecovery());
+    assertEquals(11, staminaRules.restThreshold());
+
+    assertTrue(staminaRules.shouldRest(0), "a Stamina 0 il riposo e' obbligatorio");
+    assertTrue(staminaRules.shouldRest(10), "sotto la soglia di riposo conviene riposare");
+    assertFalse(staminaRules.shouldRest(11), "alla soglia di riposo si puo' ancora attaccare");
+    assertFalse(staminaRules.shouldRest(20), "sopra la soglia di riposo non serve riposare");
+
+    assertFalse(staminaRules.canAttack(0), "a Stamina 0 non si puo' attaccare");
+    assertTrue(staminaRules.canAttack(1), "con almeno 1 Stamina si puo' ancora attaccare");
+
+    assertFalse(staminaRules.canDefend(0), "a Stamina 0 non ci si puo' difendere");
+    assertTrue(staminaRules.canDefend(1), "con almeno 1 Stamina ci si puo' ancora difendere");
+  }
+
+  @Test
+  void impactStaminaLoss_scalesWithDamageWithFloor() {
+    CombatSettings settings = CombatSettings.defaults();
+    StaminaRules staminaRules = new StaminaRules(settings);
+
+    assertEquals(0.5, staminaRules.impactStaminaDamageFactor(), DELTA);
+    assertEquals(2, staminaRules.impactStaminaLoss(2), "sotto il minimo il floor resta impactCost");
+    assertEquals(2, staminaRules.impactStaminaLoss(4), "al limite del minimo il floor resta impactCost");
+    assertEquals(4, staminaRules.impactStaminaLoss(8), "oltre il minimo la perdita e' proporzionale al danno");
+    assertEquals(6, staminaRules.impactStaminaLoss(12), "la perdita cresce linearmente col danno");
   }
 }

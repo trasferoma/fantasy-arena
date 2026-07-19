@@ -35,6 +35,10 @@ public class TurnOrchestrator {
   }
 
   public TurnLogEntry playTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
+    if (staminaRules.shouldRest(attacker.state().currentStamina())) {
+      return resolveRest(turnNumber, attacker);
+    }
+
     payAttackCost(attacker);
 
     DiceThrow attackThrow = diceRoller.d20();
@@ -51,6 +55,14 @@ public class TurnOrchestrator {
     attacker.state().consumeStamina(attackAction.staminaCost());
   }
 
+  private TurnLogEntry resolveRest(int turnNumber, Fighter attacker) {
+    int before = attacker.state().currentStamina();
+    attacker.state().recoverStamina(staminaRules.restRecovery());
+    int recovered = attacker.state().currentStamina() - before;
+    String description = attacker.name() + " riposa e recupera " + recovered + " stamina.";
+    return new TurnLogEntry(turnNumber, description);
+  }
+
   private TurnLogEntry resolveMiss(int turnNumber, Fighter attacker, Fighter defender) {
     applyMomentumDelta(attacker, momentumRules.deltaForMiss());
     String description = attacker.name() + " attacca " + defender.name() + " ma manca il colpo.";
@@ -60,27 +72,52 @@ public class TurnOrchestrator {
   private TurnLogEntry resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
       HitOutcome hitOutcome) {
 
-    DiceThrow defenseThrow = diceRoller.d20();
-    DefenseOutcome defenseOutcome = defenseResolver.resolveDefense(defender, attacker, defenseThrow);
-    payDefenseCost(defender, defenseOutcome);
+    boolean defenderCanDefend = staminaRules.canDefend(defender.state().currentStamina());
+    DefenseOutcome defenseOutcome = resolveDefense(defender, attacker, defenderCanDefend);
 
     DiceThrow varianceThrow = diceRoller.d100();
     int damage = damageCalculator.calculateDamage(attacker, defender, context, hitOutcome, defenseOutcome, varianceThrow);
     defender.state().applyDamage(damage);
+    applyImpactStamina(defender, defenseOutcome, damage);
 
     updateMomentumAfterHit(attacker, defender, hitOutcome, defenseOutcome);
 
-    String description = attackAction.describe(attacker, defender, context) + describeDefense(defenseOutcome, damage);
+    String description =
+        attackAction.describe(attacker, defender, context) + describeDefense(defenseOutcome, damage, defenderCanDefend);
     return new TurnLogEntry(turnNumber, description);
   }
 
+  private DefenseOutcome resolveDefense(Fighter defender, Fighter attacker, boolean defenderCanDefend) {
+    if (!defenderCanDefend) {
+      return new DefenseOutcome(DefenseOutcome.DefenseResult.HIT_TAKEN, 0.0);
+    }
+
+    DiceThrow defenseThrow = diceRoller.d20();
+    DefenseOutcome outcome = defenseResolver.resolveDefense(defender, attacker, defenseThrow);
+    payDefenseCost(defender, outcome);
+    return outcome;
+  }
+
   private void payDefenseCost(Fighter defender, DefenseOutcome defenseOutcome) {
+    // Il costo Stamina di un colpo pieno non e' piu' fisso: e' proporzionale al danno e viene
+    // applicato in applyImpactStamina, dopo il calcolo del danno stesso.
     int cost = switch (defenseOutcome.result()) {
       case DODGED -> staminaRules.dodgeCost();
       case PARRIED -> staminaRules.parryCost();
-      case HIT_TAKEN -> staminaRules.impactCost();
+      case HIT_TAKEN -> 0;
     };
     defender.state().consumeStamina(cost);
+  }
+
+  /**
+   * Su un colpo pieno, la Stamina di chi incassa cala in proporzione al danno subito (con
+   * minimo garantito): niente di piu' pesante per parata/schivata riuscite, gia' pagate in
+   * {@link #payDefenseCost}.
+   */
+  private void applyImpactStamina(Fighter defender, DefenseOutcome defenseOutcome, int damage) {
+    if (defenseOutcome.result() == DefenseOutcome.DefenseResult.HIT_TAKEN) {
+      defender.state().consumeStamina(staminaRules.impactStaminaLoss(damage));
+    }
   }
 
   private void updateMomentumAfterHit(Fighter attacker, Fighter defender, HitOutcome hitOutcome,
@@ -107,11 +144,13 @@ public class TurnOrchestrator {
     state.setMomentum(momentumRules.clamp(state.momentum() + delta));
   }
 
-  private String describeDefense(DefenseOutcome defenseOutcome, int damage) {
+  private String describeDefense(DefenseOutcome defenseOutcome, int damage, boolean defenderCanDefend) {
     return switch (defenseOutcome.result()) {
       case DODGED -> ", schivato.";
       case PARRIED -> ", parato (" + damage + " danni).";
-      case HIT_TAKEN -> ", colpo a segno (" + damage + " danni).";
+      case HIT_TAKEN -> defenderCanDefend
+          ? ", colpo a segno (" + damage + " danni)."
+          : ", colpo a segno (difensore esausto, " + damage + " danni).";
     };
   }
 }

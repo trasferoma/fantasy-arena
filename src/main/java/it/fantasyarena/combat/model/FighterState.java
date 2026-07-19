@@ -55,6 +55,11 @@ public final class FighterState {
     currentStamina = Math.max(0, Math.min(maxStamina, currentStamina - amount));
   }
 
+  public void recoverStamina(int amount) {
+    // Il cap al massimo e' un invariante del contenitore, non una regola di bilanciamento.
+    currentStamina = Math.min(maxStamina, currentStamina + amount);
+  }
+
   public void setMomentum(int momentum) {
     this.momentum = momentum;
   }

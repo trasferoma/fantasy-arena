@@ -32,6 +32,43 @@ public final class StaminaRules {
     return settings.staminaWeights().impactCost();
   }
 
+  public double impactStaminaDamageFactor() {
+    return settings.staminaWeights().impactStaminaDamageFactor();
+  }
+
+  /**
+   * Stamina persa da chi incassa un colpo pieno, proporzionale al danno subito con un minimo
+   * garantito pari a {@link #impactCost()}.
+   */
+  public int impactStaminaLoss(int damage) {
+    return Math.max(impactCost(), (int) Math.round(damage * impactStaminaDamageFactor()));
+  }
+
+  public int restRecovery() {
+    return settings.staminaWeights().restRecovery();
+  }
+
+  public int restThreshold() {
+    return settings.staminaWeights().restThreshold();
+  }
+
+  public boolean canAttack(int currentStamina) {
+    return currentStamina > 0;
+  }
+
+  public boolean canDefend(int currentStamina) {
+    return currentStamina > 0;
+  }
+
+  /**
+   * Policy a soglia con riserva difensiva: conviene riposare non solo a Stamina esaurita, ma
+   * gia' quando scende sotto {@code restThreshold} (il costo dell'attacco piu' quello della
+   * difesa), per evitare di restare senza risorse per difendersi al turno successivo.
+   */
+  public boolean shouldRest(int currentStamina) {
+    return currentStamina <= 0 || currentStamina < restThreshold();
+  }
+
   /**
    * Moltiplicatore di affaticamento applicato ad attacco e difesa: nessuna penalità sopra
    * la soglia alta, -15% nella fascia intermedia, -30% sotto la soglia bassa.

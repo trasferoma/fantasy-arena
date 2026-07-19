@@ -48,8 +48,8 @@ public class FighterFactory {
    * parta con un vantaggio di equipaggiamento sull'altro.
    */
   public Duelists createMatchedSwordWarriors() {
-    Rarity weaponRarity = randomRarity();
-    Rarity armourRarity = randomRarity();
+    Rarity weaponRarity = Rarity.UNCOMMON; // randomRarity();
+    Rarity armourRarity = Rarity.UNCOMMON; // randomRarity();
     Fighter first = createSwordWarrior(weaponRarity, armourRarity);
     Fighter second = createSwordWarrior(weaponRarity, armourRarity);
     return new Duelists(first, second);

@@ -89,6 +89,7 @@ public class CombatEngine {
   }
 
   private FighterVitals toVitals(Fighter fighter) {
-    return new FighterVitals(fighter.name(), fighter.state().currentHealth(), fighter.ratings().maxHealth());
+    return new FighterVitals(fighter.name(), fighter.state().currentHealth(), fighter.ratings().maxHealth(),
+        fighter.state().currentStamina(), fighter.ratings().maxStamina());
   }
 }

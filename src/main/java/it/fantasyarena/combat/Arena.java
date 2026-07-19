@@ -13,20 +13,23 @@ import it.fantasyarena.combat.engine.StaminaRules;
 import it.fantasyarena.combat.engine.TurnOrchestrator;
 import it.fantasyarena.combat.io.CombatLogger;
 import it.fantasyarena.combat.io.ConsoleCombatLogger;
+import it.fantasyarena.combat.io.EnterKeyTurnPacer;
+import it.fantasyarena.combat.io.TurnPacer;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatResult;
 import it.fantasyarena.combat.result.TurnLogEntry;
 
 /**
  * Facade del sottosistema di combattimento: riceve due combattenti già pronti, dispone
- * il duello dimostrativo e ne riporta l'esito. Nessuna formula qui: solo orchestrazione
- * parlante. La preparazione dei combattenti è responsabilità esterna (vedi
- * {@link it.fantasyarena.Main}).
+ * il duello dimostrativo e ne riporta l'esito, scandendo il replay dei turni con
+ * {@link TurnPacer}. Nessuna formula qui: solo orchestrazione parlante. La preparazione
+ * dei combattenti è responsabilità esterna (vedi {@link it.fantasyarena.Main}).
  */
 public class Arena {
 
   private final CombatEngine combatEngine;
   private final CombatLogger logger;
+  private final TurnPacer turnPacer;
 
   public Arena(CombatSettings settings) {
     MomentumRules momentumRules = new MomentumRules(settings);
@@ -42,22 +45,24 @@ public class Arena {
 
     this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
+    this.turnPacer = new EnterKeyTurnPacer();
   }
 
   public void run(Fighter first, Fighter second) {
     logger.reportMatchup(first, second);
     CombatResult outcome = runDuel(first, second);
-    reportOutcome(outcome);
+    replayTurns(outcome);
+    logger.reportOutcome(outcome);
   }
 
   private CombatResult runDuel(Fighter first, Fighter second) {
     return combatEngine.fight(first, second, CombatContext.empty());
   }
 
-  private void reportOutcome(CombatResult outcome) {
+  private void replayTurns(CombatResult outcome) {
     for (TurnLogEntry entry : outcome.log()) {
       logger.logTurn(entry);
+      turnPacer.awaitNextTurn();
     }
-    logger.reportOutcome(outcome);
   }
 }

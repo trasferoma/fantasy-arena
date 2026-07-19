@@ -49,13 +49,14 @@ public class ConsoleCombatLogger implements CombatLogger {
     System.out.println("Turno " + entry.turnNumber() + ": " + entry.description());
 
     if (!entry.vitals().isEmpty()) {
-      System.out.println("         Vita -> " + describeVitals(entry.vitals()));
+      System.out.println("         Stato -> " + describeVitals(entry.vitals()));
     }
   }
 
   private String describeVitals(List<FighterVitals> vitals) {
     return vitals.stream()
-        .map(vital -> vital.name() + " " + vital.currentHealth() + "/" + vital.maxHealth())
+        .map(vital -> vital.name() + ": vita " + vital.currentHealth() + "/" + vital.maxHealth()
+            + ", stamina " + vital.currentStamina() + "/" + vital.maxStamina())
         .collect(Collectors.joining(" | "));
   }
 

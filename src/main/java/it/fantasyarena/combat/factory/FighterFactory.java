@@ -1,5 +1,7 @@
 package it.fantasyarena.combat.factory;
 
+import java.util.Random;
+
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.IntrinsicRatings;
@@ -26,6 +28,7 @@ public class FighterFactory {
   private static final int TOTAL_CHARACTERISTIC_POINTS = 10;
 
   private final RatingStrategy ratingStrategy;
+  private final Random random = new Random();
 
   public FighterFactory(RatingStrategy ratingStrategy) {
     this.ratingStrategy = ratingStrategy;
@@ -39,12 +42,33 @@ public class FighterFactory {
     return new FighterFactory(new DefaultRatingStrategy(settings));
   }
 
-  public Fighter createSwordWarrior() {
+  /**
+   * Crea due combattenti equi-equipaggiati: la rarita' dell'arma e quella dell'armatura
+   * vengono estratte una sola volta e condivise da entrambi, cosi' che nessuno dei due
+   * parta con un vantaggio di equipaggiamento sull'altro.
+   */
+  public Duelists createMatchedSwordWarriors() {
+    Rarity weaponRarity = randomRarity();
+    Rarity armourRarity = randomRarity();
+    Fighter first = createSwordWarrior(weaponRarity, armourRarity);
+    Fighter second = createSwordWarrior(weaponRarity, armourRarity);
+    return new Duelists(first, second);
+  }
+
+  /**
+   * Crea un guerriero con spada e corazza della rarita' indicata.
+   */
+  public Fighter createSwordWarrior(Rarity weaponRarity, Rarity armourRarity) {
     CharacterResult character = generateWarrior();
-    WeaponResult weapon = generateSword();
-    ArmourResult armour = generateChestplate();
+    WeaponResult weapon = generateSword(weaponRarity);
+    ArmourResult armour = generateChestplate(armourRarity);
     IntrinsicRatings ratings = ratingStrategy.computeRatings(character, weapon, armour, null);
     return new Fighter(character, weapon, armour, null, ratings);
+  }
+
+  private Rarity randomRarity() {
+    Rarity[] rarities = Rarity.values();
+    return rarities[random.nextInt(rarities.length)];
   }
 
   private CharacterResult generateWarrior() {
@@ -57,19 +81,25 @@ public class FighterFactory {
         .generate();
   }
 
-  private WeaponResult generateSword() {
+  private WeaponResult generateSword(Rarity rarity) {
     return WeaponGeneratorTool.building()
         .weapon(Weapon.SWORD)
-        .rarity(Rarity.COMMON)
+        .rarity(rarity)
         .noStatusEffect()
         .generate();
   }
 
-  private ArmourResult generateChestplate() {
+  private ArmourResult generateChestplate(Rarity rarity) {
     return ArmourGeneratorTool.building()
         .armour(Armour.CHESTPLATE)
-        .rarity(Rarity.RARE)
+        .rarity(rarity)
         .noStatusEffect()
         .generate();
+  }
+
+  /**
+   * Coppia di combattenti equi-equipaggiati, pronti per disputare il duello.
+   */
+  public record Duelists(Fighter first, Fighter second) {
   }
 }

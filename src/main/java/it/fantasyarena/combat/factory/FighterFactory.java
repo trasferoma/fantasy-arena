@@ -1,7 +1,9 @@
 package it.fantasyarena.combat.factory;
 
+import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.IntrinsicRatings;
+import it.fantasyarena.combat.rating.DefaultRatingStrategy;
 import it.fantasyarena.combat.rating.RatingStrategy;
 import it.fantasytoolkit.armourgenerator.ArmourGeneratorTool;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
@@ -11,6 +13,8 @@ import it.fantasytoolkit.weapongenerator.WeaponGeneratorTool;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
 import it.fantasytoolkitcore.core.model.CharacterClass;
+import it.fantasytoolkitcore.core.model.Race;
+import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.Weapon;
 
 /**
@@ -19,12 +23,20 @@ import it.fantasytoolkitcore.core.model.Weapon;
  */
 public class FighterFactory {
 
-  private static final int TOTAL_CHARACTERISTIC_POINTS = 50;
+  private static final int TOTAL_CHARACTERISTIC_POINTS = 10;
 
   private final RatingStrategy ratingStrategy;
 
   public FighterFactory(RatingStrategy ratingStrategy) {
     this.ratingStrategy = ratingStrategy;
+  }
+
+  /**
+   * Crea una factory che calcola i Rating intrinseci con la strategia di default,
+   * tarata sugli stessi {@link CombatSettings} usati poi dall'Arena per il combattimento.
+   */
+  public static FighterFactory withDefaultRatings(CombatSettings settings) {
+    return new FighterFactory(new DefaultRatingStrategy(settings));
   }
 
   public Fighter createSwordWarrior() {
@@ -37,9 +49,9 @@ public class FighterFactory {
 
   private CharacterResult generateWarrior() {
     return CharacterGeneratorTool.building()
-        .randomRace()
+        .race(Race.HUMAN)
         .characterClass(CharacterClass.WARRIOR)
-        .addNickname()
+        // .addNickname()
         .allCharacteristics()
         .totalPoints(TOTAL_CHARACTERISTIC_POINTS)
         .generate();
@@ -48,7 +60,7 @@ public class FighterFactory {
   private WeaponResult generateSword() {
     return WeaponGeneratorTool.building()
         .weapon(Weapon.SWORD)
-        .randomRarity()
+        .rarity(Rarity.COMMON)
         .noStatusEffect()
         .generate();
   }
@@ -56,7 +68,7 @@ public class FighterFactory {
   private ArmourResult generateChestplate() {
     return ArmourGeneratorTool.building()
         .armour(Armour.CHESTPLATE)
-        .randomRarity()
+        .rarity(Rarity.RARE)
         .noStatusEffect()
         .generate();
   }

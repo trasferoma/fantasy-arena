@@ -11,6 +11,7 @@ import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
+import it.fantasyarena.combat.result.FighterVitals;
 import it.fantasyarena.combat.result.TurnLogEntry;
 
 /**
@@ -42,7 +43,8 @@ public class CombatEngine {
 
     while (turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated()) {
       turnNumber++;
-      log.add(turnOrchestrator.playTurn(turnNumber, attacker, defender, context));
+      TurnLogEntry entry = turnOrchestrator.playTurn(turnNumber, attacker, defender, context);
+      log.add(entry.withVitals(vitalsSnapshot(first, second)));
 
       Fighter nextAttacker = defender;
       defender = attacker;
@@ -80,5 +82,13 @@ public class CombatEngine {
 
   private double healthRatio(Fighter fighter) {
     return (double) fighter.state().currentHealth() / fighter.ratings().maxHealth();
+  }
+
+  private List<FighterVitals> vitalsSnapshot(Fighter first, Fighter second) {
+    return List.of(toVitals(first), toVitals(second));
+  }
+
+  private FighterVitals toVitals(Fighter fighter) {
+    return new FighterVitals(fighter.name(), fighter.state().currentHealth(), fighter.ratings().maxHealth());
   }
 }

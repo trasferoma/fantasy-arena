@@ -42,7 +42,7 @@ I tipi `*Result` (in package `.result`) sono record-like: si leggono con accesso
 Tool disponibili nella libreria (package `it.fantasytoolkit.*`): `charactergenerator`, `dicelauncher`, `namegenerator`, `weapongenerator`, `armourgenerator`, `jewelgenerator`, `potiongenerator`, `buffdebuffgenerator`, `dungeongenerator`. I modelli e le enum condivise stanno in `it.fantasytoolkitcore.core.model` (`Race`, `CharacterClass`, `Rarity`, `Weapon`, ...).
 
 Per utilizzare `fantasy-game-toolkit`, consulta la documentazione indicizzata
-da `docs/agent/INDEX.md` nel repository della versione utilizzata.
+da `C:/build/git/fantasy-game-toolkit/docs/agent/INDEX.md` nel repository della versione utilizzata.
 
 Non leggere i sorgenti e non decompilare il JAR. Se l'API necessaria non è
 documentata, segnala la lacuna.

@@ -13,6 +13,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <exec.mainClass>it.fantasyarena.Main</exec.mainClass>
+        <junit.jupiter.version>5.11.4</junit.jupiter.version>
     </properties>
 
     <dependencies>
@@ -21,9 +22,24 @@
             <artifactId>fantasytoolkit</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
+        <plugins>
+            <!-- Esegue i test JUnit 5 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+            </plugin>
+        </plugins>
+
         <pluginManagement>
             <plugins>
                 <!-- mvn exec:java per lanciare la classe Main -->

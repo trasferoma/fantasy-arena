@@ -12,26 +12,34 @@ import it.fantasyarena.combat.engine.MomentumRules;
 import it.fantasyarena.combat.engine.StaminaRules;
 import it.fantasyarena.combat.engine.TurnOrchestrator;
 import it.fantasyarena.combat.io.CombatLogger;
+import it.fantasyarena.combat.io.CombatReplay;
 import it.fantasyarena.combat.io.ConsoleCombatLogger;
 import it.fantasyarena.combat.io.EnterKeyTurnPacer;
+import it.fantasyarena.combat.io.LinearCombatReplay;
+import it.fantasyarena.combat.io.ReplayMode;
+import it.fantasyarena.combat.io.ScreenCombatReplay;
 import it.fantasyarena.combat.io.TurnPacer;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatResult;
-import it.fantasyarena.combat.result.TurnLogEntry;
 
 /**
  * Facade del sottosistema di combattimento: riceve due combattenti già pronti, dispone
  * il duello dimostrativo e ne riporta l'esito, scandendo il replay dei turni con
  * {@link TurnPacer}. Nessuna formula qui: solo orchestrazione parlante. La preparazione
- * dei combattenti è responsabilità esterna (vedi {@link it.fantasyarena.Main}).
+ * dei combattenti è responsabilità esterna (vedi {@link it.fantasyarena.Main}). La modalità di
+ * presentazione del replay ({@link ReplayMode}) è selezionabile senza toccare il motore.
  */
 public class Arena {
 
   private final CombatEngine combatEngine;
   private final CombatLogger logger;
-  private final TurnPacer turnPacer;
+  private final CombatReplay replay;
 
   public Arena(CombatSettings settings) {
+    this(settings, ReplayMode.SCREEN);
+  }
+
+  public Arena(CombatSettings settings, ReplayMode mode) {
     MomentumRules momentumRules = new MomentumRules(settings);
     StaminaRules staminaRules = new StaminaRules(settings);
     DiceRoller diceRoller = new DiceRoller();
@@ -45,24 +53,24 @@ public class Arena {
 
     this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
-    this.turnPacer = new EnterKeyTurnPacer();
+    this.replay = buildReplay(mode, logger, new EnterKeyTurnPacer());
+  }
+
+  private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer) {
+    return switch (mode) {
+      case LINEAR -> new LinearCombatReplay(logger, turnPacer);
+      case SCREEN -> new ScreenCombatReplay(turnPacer);
+    };
   }
 
   public void run(Fighter first, Fighter second) {
     logger.reportMatchup(first, second);
     CombatResult outcome = runDuel(first, second);
-    replayTurns(outcome);
+    replay.replay(outcome);
     logger.reportOutcome(outcome);
   }
 
   private CombatResult runDuel(Fighter first, Fighter second) {
     return combatEngine.fight(first, second, CombatContext.empty());
-  }
-
-  private void replayTurns(CombatResult outcome) {
-    for (TurnLogEntry entry : outcome.log()) {
-      logger.logTurn(entry);
-      turnPacer.awaitNextTurn();
-    }
   }
 }

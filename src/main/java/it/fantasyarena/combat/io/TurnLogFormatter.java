@@ -40,14 +40,17 @@ public class TurnLogFormatter {
   /**
    * Versione concisa di {@link #format}, usata dal replay a pagina: solo l'esito
    * dell'iniziativa (senza breakdown per-combattente) e la descrizione dell'azione, senza il
-   * prefisso "Turno N:" né lo stato dei combattenti né le variazioni di Stamina.
+   * prefisso "Turno N:" né lo stato dei combattenti né le variazioni di Stamina. Sotto override
+   * (nessun test a punteggio eseguito) la riga del vincitore per punteggio è omessa.
    */
   public List<String> formatCompact(TurnLogEntry entry) {
     List<String> lines = new ArrayList<>();
 
     if (entry.initiative() != null) {
       InitiativeReport initiative = entry.initiative();
-      lines.add("-> vince l'iniziativa (punteggio): " + describeScoreWinner(initiative));
+      if (!initiative.breakdowns().isEmpty()) {
+        lines.add("-> vince l'iniziativa (punteggio): " + describeScoreWinner(initiative));
+      }
       lines.add("-> primo ad agire: " + initiative.chosenName() + describeActorOverride(initiative.override()));
     }
 
@@ -73,9 +76,21 @@ public class TurnLogFormatter {
     return " Stato -> " + describeVitals(vitals);
   }
 
+  /**
+   * Sotto override (il turno precedente ha prodotto una schivata riuscita o un riposo) il test
+   * a punteggio non viene eseguito: né i breakdown per-combattente né la riga del vincitore per
+   * punteggio hanno senso, quindi vengono omessi e resta solo chi agisce.
+   */
   private List<String> formatInitiative(InitiativeReport initiative) {
     List<String> lines = new ArrayList<>();
     lines.add("         Iniziativa a inizio turno " + describeOverride(initiative.override()) + ":");
+
+    if (initiative.breakdowns().isEmpty()) {
+      lines.add("         -> primo ad agire: " + initiative.chosenName()
+          + describeActorOverride(initiative.override()));
+      return lines;
+    }
+
     for (InitiativeBreakdown breakdown : initiative.breakdowns()) {
       lines.add("           " + describeBreakdown(breakdown));
     }

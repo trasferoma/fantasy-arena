@@ -1,7 +1,9 @@
 package it.fantasyarena.combat.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,36 +45,38 @@ class InitiativeResolverTest {
   }
 
   @Test
-  void resolveNextAttacker_conDodgeSteal_sceglieIlDifensoreCorrenteIgnorandoIlPunteggio() {
+  void overriddenNextAttacker_conDodgeSteal_sceglieIlDifensoreCorrenteSenzaBreakdown() {
     b.state().consumeStamina(b.ratings().maxStamina());
 
-    InitiativeDecision decision =
-        resolver.resolveNextAttacker(a, b, InitiativeOverride.DODGE_STEAL, highJitter, lowJitter);
+    InitiativeDecision decision = resolver.overriddenNextAttacker(a, b, InitiativeOverride.DODGE_STEAL);
 
     assertSame(b, decision.chosen());
     assertEquals(InitiativeOverride.DODGE_STEAL, decision.report().override());
+    assertTrue(decision.report().breakdowns().isEmpty(),
+        "sotto override il test a punteggio non va eseguito: nessun breakdown");
   }
 
   @Test
-  void resolveNextAttacker_conRestYield_sceglieIlDifensoreCorrente() {
+  void overriddenNextAttacker_conRestYield_sceglieIlDifensoreCorrente() {
     b.state().consumeStamina(b.ratings().maxStamina());
 
-    InitiativeDecision decision =
-        resolver.resolveNextAttacker(a, b, InitiativeOverride.REST_YIELD, highJitter, lowJitter);
+    InitiativeDecision decision = resolver.overriddenNextAttacker(a, b, InitiativeOverride.REST_YIELD);
 
     assertSame(b, decision.chosen());
+    assertTrue(decision.report().breakdowns().isEmpty());
   }
 
   @Test
-  void resolveNextAttacker_senzaOverride_laStaminaPienaVinceSuQuellaEsaurita() {
+  void resolveNextAttacker_laStaminaPienaVinceSuQuellaEsaurita() {
     a.state().consumeStamina(a.ratings().maxStamina());
 
-    InitiativeDecision decision =
-        resolver.resolveNextAttacker(a, b, InitiativeOverride.NONE, lowJitter, highJitter);
+    InitiativeDecision decision = resolver.resolveNextAttacker(a, b, lowJitter, highJitter);
 
     assertSame(b, decision.chosen());
     assertEquals(b.name(), decision.report().scoreWinnerName());
     assertEquals(b.name(), decision.report().chosenName());
+    assertEquals(InitiativeOverride.NONE, decision.report().override());
+    assertFalse(decision.report().breakdowns().isEmpty(), "senza override il test a punteggio va eseguito");
   }
 
   @Test

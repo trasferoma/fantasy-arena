@@ -3,16 +3,18 @@ package it.fantasyarena.combat.io;
 import java.util.ArrayList;
 import java.util.List;
 
+import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.FighterVitals;
 import it.fantasyarena.combat.result.InitiativeReport;
 import it.fantasyarena.combat.result.TurnLogEntry;
 
 /**
  * Costruisce, come stringa multilinea pura (nessun I/O), la pagina del replay "a schermo" di
- * un turno: due pannelli ASCII con barre verticali di vita/stamina dei combattenti (stato
- * successivo al turno rivelato), il marcatore {@code *Nome*} su chi ha l'iniziativa nel turno
- * corrente, il segno +/- di variazione di vita e stamina durante il turno, affiancati dalla
- * coda del log cumulativo (in forma compatta) dei turni già rivelati. Usato da
+ * un turno, a tre colonne affiancate: i due pannelli ASCII con barre verticali di vita/stamina
+ * dei combattenti (stato successivo al turno rivelato, marcatore {@code *Nome*} su chi ha
+ * l'iniziativa nel turno corrente, segno +/- di variazione di vita e stamina durante il turno),
+ * solo gli eventi del turno corrente (in forma compatta, non il log cumulativo) e infine le
+ * schede compatte dei due combattenti prodotte da {@link FighterCardFormatter}. Usato da
  * {@link ScreenCombatReplay}, che si occupa solo di pulire lo schermo e stampare quanto
  * prodotto qui.
  */
@@ -21,16 +23,40 @@ public class CombatScreenRenderer {
   private static final int BAR_HEIGHT = 10;
   private static final int BASE_COLUMN_WIDTH = 8;
   private static final int MAX_COLUMN_WIDTH = 20;
-  private static final int RIGHT_LOG_WIDTH = 70;
+  private static final int MIN_CURRENT_TURN_COLUMN_WIDTH = 40;
+  private static final int MAX_CURRENT_TURN_COLUMN_WIDTH = 130;
   private static final String PANEL_GAP = "  ";
 
+  private final Fighter first;
+  private final Fighter second;
   private final List<TurnLogEntry> log;
   private final List<FighterVitals> finalVitals;
   private final TurnLogFormatter formatter = new TurnLogFormatter();
+  private final FighterCardFormatter cardFormatter = new FighterCardFormatter();
+  private final int currentTurnColumnWidth;
 
-  public CombatScreenRenderer(List<TurnLogEntry> log, List<FighterVitals> finalVitals) {
+  public CombatScreenRenderer(Fighter first, Fighter second, List<TurnLogEntry> log,
+      List<FighterVitals> finalVitals) {
+    this.first = first;
+    this.second = second;
     this.log = List.copyOf(log);
     this.finalVitals = List.copyOf(finalVitals);
+    this.currentTurnColumnWidth = computeCurrentTurnColumnWidth();
+  }
+
+  /**
+   * Larghezza della colonna 2 (eventi del turno): pari alla riga di evento più lunga dell'intero
+   * duello, così nessun turno viene troncato e la colonna 3 (schede) inizia sempre alla stessa
+   * posizione. Vincolata tra {@link #MIN_CURRENT_TURN_COLUMN_WIDTH} e
+   * {@link #MAX_CURRENT_TURN_COLUMN_WIDTH} per evitare colonne troppo strette o eccessive.
+   */
+  private int computeCurrentTurnColumnWidth() {
+    int longest = log.stream()
+        .flatMap(entry -> formatter.formatCompact(entry).stream())
+        .mapToInt(String::length)
+        .max()
+        .orElse(MIN_CURRENT_TURN_COLUMN_WIDTH);
+    return Math.max(MIN_CURRENT_TURN_COLUMN_WIDTH, Math.min(MAX_CURRENT_TURN_COLUMN_WIDTH, longest));
   }
 
   public String render(int turnPosition) {
@@ -38,29 +64,31 @@ public class CombatScreenRenderer {
     List<FighterVitals> vitalsBeforeTurn = vitalsBeforeTurn(turnPosition);
     String chosenName = chosenName(turnPosition);
 
-    FighterVitals first = vitals.get(0);
-    FighterVitals second = vitals.get(1);
-    boolean firstChosen = isChosen(first.name(), chosenName);
-    boolean secondChosen = isChosen(second.name(), chosenName);
+    FighterVitals firstVitals = vitals.get(0);
+    FighterVitals secondVitals = vitals.get(1);
+    boolean firstChosen = isChosen(firstVitals.name(), chosenName);
+    boolean secondChosen = isChosen(secondVitals.name(), chosenName);
     // Se lo snapshot di inizio turno non è utilizzabile, usiamo lo stato corrente come
     // riferimento: changeSign restituisce così "nessuna variazione" invece di un segno fasullo.
-    FighterVitals firstBefore = (vitalsBeforeTurn != null ? vitalsBeforeTurn.get(0) : first);
-    FighterVitals secondBefore = (vitalsBeforeTurn != null ? vitalsBeforeTurn.get(1) : second);
+    FighterVitals firstBefore = (vitalsBeforeTurn != null ? vitalsBeforeTurn.get(0) : firstVitals);
+    FighterVitals secondBefore = (vitalsBeforeTurn != null ? vitalsBeforeTurn.get(1) : secondVitals);
 
     int columnWidth = computeColumnWidth(
-        panelHeader(first.name(), firstChosen), panelHeader(second.name(), secondChosen));
+        panelHeader(firstVitals.name(), firstChosen), panelHeader(secondVitals.name(), secondChosen));
 
-    List<String> firstPanel = buildPanel(first, firstBefore, firstChosen, columnWidth);
-    List<String> secondPanel = buildPanel(second, secondBefore, secondChosen, columnWidth);
-    List<String> rightLog = buildRightLog(turnPosition, firstPanel.size());
+    List<String> firstPanel = buildPanel(firstVitals, firstBefore, firstChosen, columnWidth);
+    List<String> secondPanel = buildPanel(secondVitals, secondBefore, secondChosen, columnWidth);
+    List<String> currentTurnColumn = buildCurrentTurnColumn(turnPosition);
+    List<String> fighterCardsColumn = buildFighterCardsColumn();
 
     StringBuilder page = new StringBuilder();
     page.append("=== Duello — turno ").append(turnPosition + 1).append(" / ").append(log.size()).append(" ===\n");
 
     for (int row = 0; row < firstPanel.size(); row++) {
-      String rightLine = (row < rightLog.size() ? rightLog.get(row) : "");
+      String middleLine = middleLineAt(currentTurnColumn, row);
+      String rightLine = lineAt(fighterCardsColumn, row);
       page.append(firstPanel.get(row)).append(PANEL_GAP).append(secondPanel.get(row)).append(PANEL_GAP)
-          .append(rightLine).append('\n');
+          .append(middleLine).append(PANEL_GAP).append(rightLine).append('\n');
     }
 
     page.append("(INVIO per avanzare — turno ").append(turnPosition + 1).append("/").append(log.size()).append(")\n");
@@ -172,25 +200,57 @@ public class CombatScreenRenderer {
   }
 
   /**
-   * Coda del log cumulativo (in forma compatta) dei turni da 0 a {@code turnPosition}
-   * inclusa, limitata alle ultime {@code viewportHeight} righe così da restare allineata
-   * all'altezza dei pannelli.
+   * Colonna 2: solo gli eventi del turno corrente (in forma compatta), non il log cumulativo
+   * dei turni precedenti. Ogni riga è allineata a {@link #currentTurnColumnWidth} (dimensionata
+   * sulla riga più lunga del duello) così la colonna 3 (schede) inizia sempre alla stessa
+   * posizione; il troncamento scatta solo oltre {@link #MAX_CURRENT_TURN_COLUMN_WIDTH}.
    */
-  private List<String> buildRightLog(int turnPosition, int viewportHeight) {
-    List<String> allLines = log.subList(0, turnPosition + 1).stream()
-        .flatMap(entry -> formatter.formatCompact(entry).stream())
-        .map(this::truncate)
+  private List<String> buildCurrentTurnColumn(int turnPosition) {
+    return formatter.formatCompact(log.get(turnPosition)).stream()
+        .map(this::formatCurrentTurnLine)
         .toList();
-
-    int from = Math.max(0, allLines.size() - viewportHeight);
-    return allLines.subList(from, allLines.size());
   }
 
-  private String truncate(String line) {
-    if (line.length() <= RIGHT_LOG_WIDTH) {
-      return line;
+  private String formatCurrentTurnLine(String line) {
+    String truncated = (line.length() <= currentTurnColumnWidth
+        ? line
+        : line.substring(0, currentTurnColumnWidth - 3) + "...");
+    return padRight(truncated, currentTurnColumnWidth);
+  }
+
+  private String padRight(String text, int width) {
+    if (text.length() >= width) {
+      return text;
     }
-    return line.substring(0, RIGHT_LOG_WIDTH - 3) + "...";
+    return text + " ".repeat(width - text.length());
+  }
+
+  /**
+   * Colonna 3: le schede compatte dei due combattenti, impilate (prima il combattente 1, poi
+   * il combattente 2), uguali a ogni turno.
+   */
+  private List<String> buildFighterCardsColumn() {
+    List<String> lines = new ArrayList<>();
+    lines.addAll(cardFormatter.card(1, first));
+    lines.add("");
+    lines.addAll(cardFormatter.card(2, second));
+    return lines;
+  }
+
+  /**
+   * Riga della colonna 2 (larghezza fissa) alla posizione {@code row}, o una riga vuota della
+   * stessa larghezza se la colonna finisce prima: mantiene allineato l'inizio della colonna 3.
+   */
+  private String middleLineAt(List<String> lines, int row) {
+    return (row < lines.size() ? lines.get(row) : " ".repeat(currentTurnColumnWidth));
+  }
+
+  /**
+   * Riga generica (ultima colonna, nessun bisogno di allineamento successivo) alla posizione
+   * {@code row}, o stringa vuota se la colonna finisce prima.
+   */
+  private String lineAt(List<String> lines, int row) {
+    return (row < lines.size() ? lines.get(row) : "");
   }
 
   static int filledCells(int current, int max, int barHeight) {

@@ -76,6 +76,42 @@ class TurnLogFormatterTest {
   }
 
   @Test
+  void formatSottoOverride_saltaBreakdownERigaDelPunteggio() {
+    InitiativeReport initiative =
+        new InitiativeReport(List.of(), "Bob", "Bob", InitiativeOverride.DODGE_STEAL);
+
+    TurnLogEntry entry = new TurnLogEntry(2, "Bob attacca Alice, schivato.")
+        .withInitiative(initiative);
+
+    List<String> lines = formatter.format(entry);
+
+    List<String> expected = List.of(
+        "Turno 2:",
+        "         Iniziativa a inizio turno (schivata: ruba il tempo):",
+        "         -> primo ad agire: Bob (la schivata ruba il tempo)",
+        "         Bob attacca Alice, schivato.");
+
+    assertEquals(expected, lines);
+  }
+
+  @Test
+  void formatCompactSottoOverride_saltaLaRigaDelPunteggio() {
+    InitiativeReport initiative =
+        new InitiativeReport(List.of(), "Bob", "Bob", InitiativeOverride.REST_YIELD);
+
+    TurnLogEntry entry = new TurnLogEntry(2, "Bob riposa e recupera 4 stamina.")
+        .withInitiative(initiative);
+
+    List<String> lines = formatter.formatCompact(entry);
+
+    List<String> expected = List.of(
+        "-> primo ad agire: Bob (il riposo cede il tempo)",
+        "Bob riposa e recupera 4 stamina.");
+
+    assertEquals(expected, lines);
+  }
+
+  @Test
   void formatCompactDiUnaVoceConIniziativaProduceEsitoIniziativaEDescrizione() {
     InitiativeBreakdown aliceBreakdown =
         new InitiativeBreakdown("Alice", 10.0, 5.0, 2.5, 1.0, 18.5, 30, 40, 10, 5, 3);

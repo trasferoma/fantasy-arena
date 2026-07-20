@@ -46,24 +46,39 @@ public final class InitiativeResolver {
   }
 
   /**
-   * Decide chi attacca il turno successivo. Se {@code override} non è {@code NONE} (il
-   * difensore del turno corrente ha schivato o l'attaccante ha riposato), il difensore corrente
-   * diventa deterministicamente il prossimo attaccante, ignorando la formula; altrimenti vince
-   * chi ha lo score d'iniziativa maggiore (tie-break stabile: a parità vince l'attuale
-   * attaccante). Il breakdown di entrambi è calcolato comunque, per il log.
+   * Decide chi attacca il turno successivo quando il test a punteggio va davvero eseguito
+   * (nessun override): vince chi ha lo score d'iniziativa maggiore (tie-break stabile: a
+   * parità vince l'attuale attaccante). Il breakdown di entrambi è calcolato per il log. Quando
+   * il turno precedente ha prodotto un override, il chiamante deve usare
+   * {@link #overriddenNextAttacker} invece di questo metodo: la formula non va testata.
    */
   public InitiativeDecision resolveNextAttacker(Fighter currentAttacker, Fighter currentDefender,
-      InitiativeOverride override, DiceThrow attackerJitter, DiceThrow defenderJitter) {
+      DiceThrow attackerJitter, DiceThrow defenderJitter) {
 
     InitiativeBreakdown attackerBreakdown = breakdownOf(currentAttacker, attackerJitter);
     InitiativeBreakdown defenderBreakdown = breakdownOf(currentDefender, defenderJitter);
 
     Fighter scoreWinner = resolveByHigherScore(currentAttacker, currentDefender, attackerBreakdown, defenderBreakdown);
-    Fighter chosen = (override != InitiativeOverride.NONE) ? currentDefender : scoreWinner;
 
-    InitiativeReport report = new InitiativeReport(
-        List.of(attackerBreakdown, defenderBreakdown), scoreWinner.name(), chosen.name(), override);
-    return new InitiativeDecision(chosen, report);
+    InitiativeReport report = new InitiativeReport(List.of(attackerBreakdown, defenderBreakdown), scoreWinner.name(),
+        scoreWinner.name(), InitiativeOverride.NONE);
+    return new InitiativeDecision(scoreWinner, report);
+  }
+
+  /**
+   * Decide chi attacca il turno successivo quando il turno corrente ha prodotto un override
+   * (il difensore ha schivato o l'attaccante ha riposato): il difensore corrente diventa
+   * deterministicamente il prossimo attaccante, senza eseguire il test a punteggio. Nessun
+   * breakdown calcolato e nessun vincitore per punteggio: il report porta solo il motivo
+   * dell'override e chi agisce davvero. Il parametro {@code currentAttacker} non entra nel
+   * calcolo: resta in firma per simmetria con {@link #resolveNextAttacker}, come da SPEC.
+   */
+  public InitiativeDecision overriddenNextAttacker(Fighter currentAttacker, Fighter currentDefender,
+      InitiativeOverride override) {
+
+    InitiativeReport report =
+        new InitiativeReport(List.of(), currentDefender.name(), currentDefender.name(), override);
+    return new InitiativeDecision(currentDefender, report);
   }
 
   private Fighter resolveByHigherScore(Fighter first, Fighter second, InitiativeBreakdown firstBreakdown,

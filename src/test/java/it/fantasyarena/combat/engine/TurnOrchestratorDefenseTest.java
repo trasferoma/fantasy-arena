@@ -13,6 +13,7 @@ import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.InitiativeOverride;
+import it.fantasyarena.combat.result.TurnHighlight;
 import it.fantasyarena.combat.result.TurnResult;
 import it.fantasyarena.combat.testsupport.CombatFixtures;
 import it.fantasyarena.combat.testsupport.StubDiceRoller;
@@ -136,7 +137,12 @@ class TurnOrchestratorDefenseTest {
     TurnResult turn = playSingleTurn(diceRoller, settings, attacker, defender);
 
     assertEquals(InitiativeOverride.NONE, turn.override(), "senza Stamina per nessuna difesa il tempo non viene rubato");
-    assertTrue(turn.logEntry().description().contains("colpo a segno"), "l'esito finale deve essere un colpo pieno");
+    // il tiro d'attacco (1,20) e' anche critico: la cronaca arricchisce la coda in "colpo
+    // critico a segno" (DoD 5 della SPEC cronaca-duello), quindi l'assert cerca "a segno" e non
+    // piu' la stringa piatta "colpo a segno".
+    assertTrue(turn.logEntry().description().contains("a segno"), "l'esito finale deve essere un colpo pieno");
+    assertTrue(turn.logEntry().highlights().contains(TurnHighlight.CRITICAL),
+        "il tiro d'attacco (1,20) e' anche critico per questo attaccante");
     assertFalse(turn.logEntry().description().contains("esausto"),
         "il difensore poteva ancora tentare la difesa (Stamina > 0): non e' il caso dell'esausto");
 
@@ -149,7 +155,7 @@ class TurnOrchestratorDefenseTest {
       Fighter defender) {
     TurnOrchestrator turnOrchestrator = new TurnOrchestrator(diceRoller, new HitResolver(settings),
         new DefenseResolver(settings), new DamageCalculator(settings, new MomentumRules(settings),
-            new StaminaRules(settings)), new MomentumRules(settings), new StaminaRules(settings));
+            new StaminaRules(settings)), new MomentumRules(settings), new StaminaRules(settings), settings);
     return turnOrchestrator.playTurn(1, attacker, defender, CombatContext.empty());
   }
 }

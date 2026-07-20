@@ -49,7 +49,7 @@ public class Arena {
     DamageCalculator damageCalculator = new DamageCalculator(settings, momentumRules, staminaRules);
     InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
     TurnOrchestrator turnOrchestrator = new TurnOrchestrator(
-        diceRoller, hitResolver, defenseResolver, damageCalculator, momentumRules, staminaRules);
+        diceRoller, hitResolver, defenseResolver, damageCalculator, momentumRules, staminaRules, settings);
 
     this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
@@ -66,8 +66,8 @@ public class Arena {
   public void run(Fighter first, Fighter second) {
     logger.reportMatchup(first, second);
     CombatResult outcome = runDuel(first, second);
-    replay.replay(outcome);
-    logger.reportOutcome(outcome);
+    replay.replay(outcome, first, second);
+    logger.reportOutcome(outcome, first, second);
   }
 
   private CombatResult runDuel(Fighter first, Fighter second) {

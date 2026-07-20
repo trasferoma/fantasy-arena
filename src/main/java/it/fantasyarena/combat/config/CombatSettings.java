@@ -17,6 +17,7 @@ public record CombatSettings(
     StaminaWeights staminaWeights,
     ChanceWeights chanceWeights,
     InitiativeWeights initiativeWeights,
+    ChronicleWeights chronicleWeights,
     int maxTurns) {
 
   /**
@@ -29,6 +30,7 @@ public record CombatSettings(
         StaminaWeights.defaults(),
         ChanceWeights.defaults(),
         InitiativeWeights.defaults(),
+        ChronicleWeights.defaults(),
         30);
   }
 
@@ -200,6 +202,17 @@ public record CombatSettings(
           0.10, 200.0, 0.02, 0.50,
           0.05, 0.01, 0.05, 0.40,
           1.75, 0.70, 1.0, 0.10);
+    }
+  }
+
+  /**
+   * Soglia (percentuale della vita massima del bersaglio) oltre la quale un colpo è
+   * considerato "pesante" dal cronista del turno.
+   */
+  public record ChronicleWeights(double heavyBlowHealthRatio) {
+
+    public static ChronicleWeights defaults() {
+      return new ChronicleWeights(0.25);
     }
   }
 }

@@ -88,10 +88,19 @@ public class CombatEngine {
     return initiativeResolver.resolveFirstMover(first, second, firstJitter, secondJitter);
   }
 
+  /**
+   * Sotto override il test a punteggio non va eseguito (Parte 4 della SPEC cronaca-duello):
+   * nessun jitter lanciato, la scelta del difensore corrente come prossimo attaccante resta
+   * identica a prima, ma non si consumano più dadi per un test che non viene fatto.
+   */
   private InitiativeDecision resolveNextAttacker(Fighter attacker, Fighter defender, InitiativeOverride override) {
+    if (override != InitiativeOverride.NONE) {
+      return initiativeResolver.overriddenNextAttacker(attacker, defender, override);
+    }
+
     DiceThrow attackerJitter = rollJitter();
     DiceThrow defenderJitter = rollJitter();
-    return initiativeResolver.resolveNextAttacker(attacker, defender, override, attackerJitter, defenderJitter);
+    return initiativeResolver.resolveNextAttacker(attacker, defender, attackerJitter, defenderJitter);
   }
 
   private List<StaminaChange> staminaChanges(Fighter attacker, Fighter defender) {

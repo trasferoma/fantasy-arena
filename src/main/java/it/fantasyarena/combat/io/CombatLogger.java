@@ -17,5 +17,9 @@ public interface CombatLogger {
 
   void logTurn(TurnLogEntry entry);
 
-  void reportOutcome(CombatResult result);
+  /**
+   * Stampa l'esito finale del duello, con le schede dei due combattenti e una narrazione
+   * che ne spiega il "motivo" (favorito pre-scontro, ribaltone, eventi salienti).
+   */
+  void reportOutcome(CombatResult result, Fighter first, Fighter second);
 }

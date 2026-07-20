@@ -1,12 +1,17 @@
 package it.fantasyarena.combat.engine;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import it.fantasyarena.combat.action.AttackAction;
+import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceRoller;
 import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.FighterState;
 import it.fantasyarena.combat.result.InitiativeOverride;
+import it.fantasyarena.combat.result.TurnHighlight;
 import it.fantasyarena.combat.result.TurnLogEntry;
 import it.fantasyarena.combat.result.TurnResult;
 
@@ -25,17 +30,22 @@ public class TurnOrchestrator {
   private final DamageCalculator damageCalculator;
   private final MomentumRules momentumRules;
   private final StaminaRules staminaRules;
+  private final CombatSettings settings;
   private final AttackAction attackAction;
+  private final TurnChronicler turnChronicler;
 
   public TurnOrchestrator(DiceRoller diceRoller, HitResolver hitResolver, DefenseResolver defenseResolver,
-      DamageCalculator damageCalculator, MomentumRules momentumRules, StaminaRules staminaRules) {
+      DamageCalculator damageCalculator, MomentumRules momentumRules, StaminaRules staminaRules,
+      CombatSettings settings) {
     this.diceRoller = diceRoller;
     this.hitResolver = hitResolver;
     this.defenseResolver = defenseResolver;
     this.damageCalculator = damageCalculator;
     this.momentumRules = momentumRules;
     this.staminaRules = staminaRules;
+    this.settings = settings;
     this.attackAction = new AttackAction(staminaRules.attackCost());
+    this.turnChronicler = new TurnChronicler();
   }
 
   public TurnResult playTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
@@ -63,7 +73,7 @@ public class TurnOrchestrator {
       return resolveMiss(turnNumber, attacker, defender);
     }
 
-    return resolveHitLanded(turnNumber, attacker, defender, context, hitOutcome);
+    return resolveHitLanded(turnNumber, attacker, defender, context, hitOutcome, attackThrow);
   }
 
   private TurnResult resolveRest(int turnNumber, Fighter attacker) {
@@ -83,7 +93,7 @@ public class TurnOrchestrator {
   }
 
   private TurnResult resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
-      HitOutcome hitOutcome) {
+      HitOutcome hitOutcome, DiceThrow attackThrow) {
 
     boolean defenderCanDefend = staminaRules.canDefend(defender.state().currentStamina());
     DefenseOutcome defenseOutcome = resolveDefense(defender, attacker, defenderCanDefend);
@@ -95,11 +105,47 @@ public class TurnOrchestrator {
 
     updateMomentumAfterHit(attacker, defender, hitOutcome, defenseOutcome);
 
-    String description =
-        attackAction.describe(attacker, defender, context) + describeDefense(defenseOutcome, damage, defenderCanDefend);
+    List<TurnHighlight> highlights = collectHighlights(defenseOutcome, hitOutcome, attackThrow, damage, defender);
+    String description = attackAction.describe(attacker, defender, context)
+        + turnChronicler.describeOutcome(defenseOutcome.result(), damage, defenderCanDefend, highlights,
+            defender.name());
+
     boolean defenderDodged = defenseOutcome.result() == DefenseOutcome.DefenseResult.DODGED;
     InitiativeOverride override = defenderDodged ? InitiativeOverride.DODGE_STEAL : InitiativeOverride.NONE;
-    return new TurnResult(new TurnLogEntry(turnNumber, description), override);
+    TurnLogEntry logEntry = new TurnLogEntry(turnNumber, description).withHighlights(highlights);
+    return new TurnResult(logEntry, override);
+  }
+
+  /**
+   * Raccoglie tutti gli highlight applicabili al colpo: fonte unica di verità, letta sia dalla
+   * descrizione del turno sia (in futuro) dalla narrazione finale. Gli highlight offensivi
+   * (perfetto/critico/pesante) hanno senso solo su un colpo pieno andato a segno; il colpo di
+   * grazia si applica invece a qualunque esito di difesa, se il difensore risulta sconfitto.
+   */
+  private List<TurnHighlight> collectHighlights(DefenseOutcome defenseOutcome, HitOutcome hitOutcome,
+      DiceThrow attackThrow, int damage, Fighter defender) {
+    List<TurnHighlight> highlights = new ArrayList<>();
+    if (defenseOutcome.result() == DefenseOutcome.DefenseResult.HIT_TAKEN) {
+      collectOffensiveHighlights(highlights, hitOutcome, attackThrow, damage, defender);
+    }
+    if (defender.isDefeated()) {
+      highlights.add(TurnHighlight.KNOCKOUT);
+    }
+    return highlights;
+  }
+
+  private void collectOffensiveHighlights(List<TurnHighlight> highlights, HitOutcome hitOutcome,
+      DiceThrow attackThrow, int damage, Fighter defender) {
+    if (attackThrow.isNaturalMaximum()) {
+      highlights.add(TurnHighlight.PERFECT_HIT);
+    }
+    if (hitOutcome.critical()) {
+      highlights.add(TurnHighlight.CRITICAL);
+    }
+    double heavyBlowThreshold = settings.chronicleWeights().heavyBlowHealthRatio() * defender.ratings().maxHealth();
+    if (damage >= heavyBlowThreshold) {
+      highlights.add(TurnHighlight.HEAVY_BLOW);
+    }
   }
 
   private DefenseOutcome resolveDefense(Fighter defender, Fighter attacker, boolean defenderCanDefend) {
@@ -181,15 +227,5 @@ public class TurnOrchestrator {
   private void applyMomentumDelta(Fighter fighter, int delta) {
     FighterState state = fighter.state();
     state.setMomentum(momentumRules.clamp(state.momentum() + delta));
-  }
-
-  private String describeDefense(DefenseOutcome defenseOutcome, int damage, boolean defenderCanDefend) {
-    return switch (defenseOutcome.result()) {
-      case DODGED -> ", schivato.";
-      case PARRIED -> ", parato (" + damage + " danni).";
-      case HIT_TAKEN -> defenderCanDefend
-          ? ", colpo a segno (" + damage + " danni)."
-          : ", colpo a segno (difensore esausto, " + damage + " danni).";
-    };
   }
 }

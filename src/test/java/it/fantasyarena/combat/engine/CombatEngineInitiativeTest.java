@@ -118,7 +118,8 @@ class CombatEngineInitiativeTest {
     List<DiceThrow> sequence = List.of(
         new DiceThrow(6, 6), new DiceThrow(1, 6),   // jitter primo attore: Iniziale vince
         new DiceThrow(1, 20), new DiceThrow(1, 20), new DiceThrow(50, 100), // turno1: colpo, schivata
-        new DiceThrow(1, 6), new DiceThrow(1, 6),   // jitter di fine turno1 (ignorato: override da schivata)
+        // la schivata ruba il tempo (override): il test a punteggio non viene eseguito, quindi
+        // nessun jitter e' consumato a fine turno1 (Parte 4 della SPEC cronaca-duello).
         new DiceThrow(16, 20),                      // turno2: Schivatore attacca, manca il colpo
         new DiceThrow(1, 6), new DiceThrow(1, 6));  // jitter di fine turno2
     StubDiceRoller diceRoller = new StubDiceRoller(sequence);
@@ -201,7 +202,7 @@ class CombatEngineInitiativeTest {
   private static CombatSettings withMaxTurns(int maxTurns) {
     CombatSettings defaults = CombatSettings.defaults();
     return new CombatSettings(defaults.ratingWeights(), defaults.momentumWeights(), defaults.staminaWeights(),
-        defaults.chanceWeights(), defaults.initiativeWeights(), maxTurns);
+        defaults.chanceWeights(), defaults.initiativeWeights(), defaults.chronicleWeights(), maxTurns);
   }
 
   /**

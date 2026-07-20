@@ -83,8 +83,8 @@ public final class CombatFixtures {
     MomentumRules momentumRules = new MomentumRules(settings);
     StaminaRules staminaRules = new StaminaRules(settings);
     DamageCalculator damageCalculator = new DamageCalculator(settings, momentumRules, staminaRules);
-    TurnOrchestrator turnOrchestrator =
-        new TurnOrchestrator(diceRoller, hitResolver, defenseResolver, damageCalculator, momentumRules, staminaRules);
+    TurnOrchestrator turnOrchestrator = new TurnOrchestrator(diceRoller, hitResolver, defenseResolver,
+        damageCalculator, momentumRules, staminaRules, settings);
     InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
     return new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
   }

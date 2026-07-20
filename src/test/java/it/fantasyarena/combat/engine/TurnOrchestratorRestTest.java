@@ -100,7 +100,7 @@ class TurnOrchestratorRestTest {
       Fighter defender) {
     TurnOrchestrator turnOrchestrator = new TurnOrchestrator(diceRoller, new HitResolver(settings),
         new DefenseResolver(settings), new DamageCalculator(settings, new MomentumRules(settings),
-            new StaminaRules(settings)), new MomentumRules(settings), new StaminaRules(settings));
+            new StaminaRules(settings)), new MomentumRules(settings), new StaminaRules(settings), settings);
     return turnOrchestrator.playTurn(1, attacker, defender, CombatContext.empty());
   }
 }

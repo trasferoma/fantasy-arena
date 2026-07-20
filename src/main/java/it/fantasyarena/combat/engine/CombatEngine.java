@@ -12,6 +12,9 @@ import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
 import it.fantasyarena.combat.result.FighterVitals;
+import it.fantasyarena.combat.result.InitiativeOverride;
+import it.fantasyarena.combat.result.InitiativeReport;
+import it.fantasyarena.combat.result.StaminaChange;
 import it.fantasyarena.combat.result.TurnLogEntry;
 import it.fantasyarena.combat.result.TurnResult;
 
@@ -20,7 +23,7 @@ import it.fantasyarena.combat.result.TurnResult;
  * Nessuna formula qui: delega ogni calcolo ai resolver del core tramite
  * {@link TurnOrchestrator} e {@link InitiativeResolver}. L'iniziativa è ricalcolata a fine di
  * ogni turno (nessuno swap cieco): il prossimo attaccante è deciso dai punteggi dei resolver,
- * con override deterministico se il difensore ha appena schivato.
+ * con override deterministico se il difensore ha appena schivato o l'attaccante ha riposato.
  */
 public class CombatEngine {
 
@@ -38,44 +41,66 @@ public class CombatEngine {
   }
 
   public CombatResult fight(Fighter first, Fighter second, CombatContext context) {
-    Fighter attacker = resolveFirstMover(first, second);
+    InitiativeDecision firstMoverDecision = resolveFirstMover(first, second);
+    Fighter attacker = firstMoverDecision.chosen();
     Fighter defender = (attacker == first) ? second : first;
     applyInitiativeShift(attacker, defender);
+    InitiativeReport currentInitiativeReport = firstMoverDecision.report();
 
     List<TurnLogEntry> log = new ArrayList<>();
     int turnNumber = 0;
 
     while (turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated()) {
       turnNumber++;
+
+      attacker.state().resetTurnStaminaCounters();
+      defender.state().resetTurnStaminaCounters();
+
+      List<FighterVitals> startOfTurnVitals = vitalsSnapshot(first, second);
       TurnResult turnResult = turnOrchestrator.playTurn(turnNumber, attacker, defender, context);
-      log.add(turnResult.logEntry().withVitals(vitalsSnapshot(first, second)));
+      TurnLogEntry logEntry = turnResult.logEntry()
+          .withVitals(startOfTurnVitals)
+          .withInitiative(currentInitiativeReport)
+          .withStaminaChanges(staminaChanges(attacker, defender));
+      log.add(logEntry);
 
       boolean combatContinues = turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated();
       if (!combatContinues) {
         break;
       }
 
-      Fighter nextAttacker = resolveNextAttacker(attacker, defender, turnResult.defenderDodged());
+      InitiativeDecision nextDecision = resolveNextAttacker(attacker, defender, turnResult.override());
+      Fighter nextAttacker = nextDecision.chosen();
       Fighter nextDefender = (nextAttacker == attacker) ? defender : attacker;
       applyInitiativeShift(nextAttacker, nextDefender);
 
       attacker = nextAttacker;
       defender = nextDefender;
+      currentInitiativeReport = nextDecision.report();
     }
 
     return buildResult(first, second, turnNumber, log);
   }
 
-  private Fighter resolveFirstMover(Fighter first, Fighter second) {
+  private InitiativeDecision resolveFirstMover(Fighter first, Fighter second) {
     DiceThrow firstJitter = rollJitter();
     DiceThrow secondJitter = rollJitter();
     return initiativeResolver.resolveFirstMover(first, second, firstJitter, secondJitter);
   }
 
-  private Fighter resolveNextAttacker(Fighter attacker, Fighter defender, boolean defenderDodged) {
+  private InitiativeDecision resolveNextAttacker(Fighter attacker, Fighter defender, InitiativeOverride override) {
     DiceThrow attackerJitter = rollJitter();
     DiceThrow defenderJitter = rollJitter();
-    return initiativeResolver.resolveNextAttacker(attacker, defender, defenderDodged, attackerJitter, defenderJitter);
+    return initiativeResolver.resolveNextAttacker(attacker, defender, override, attackerJitter, defenderJitter);
+  }
+
+  private List<StaminaChange> staminaChanges(Fighter attacker, Fighter defender) {
+    return List.of(toStaminaChange(attacker), toStaminaChange(defender));
+  }
+
+  private StaminaChange toStaminaChange(Fighter fighter) {
+    return new StaminaChange(fighter.name(), fighter.state().staminaConsumedThisTurn(),
+        fighter.state().staminaRecoveredThisTurn());
   }
 
   private DiceThrow rollJitter() {
@@ -95,23 +120,25 @@ public class CombatEngine {
   }
 
   private CombatResult buildResult(Fighter first, Fighter second, int rounds, List<TurnLogEntry> log) {
+    List<FighterVitals> finalVitals = vitalsSnapshot(first, second);
     if (first.isDefeated() || second.isDefeated()) {
       Fighter winner = first.isDefeated() ? second : first;
-      return new CombatResult(CombatOutcome.VICTORY, Optional.of(winner), rounds, log);
+      return new CombatResult(CombatOutcome.VICTORY, Optional.of(winner), rounds, log, finalVitals);
     }
-    return buildTimeoutResult(first, second, rounds, log);
+    return buildTimeoutResult(first, second, rounds, log, finalVitals);
   }
 
-  private CombatResult buildTimeoutResult(Fighter first, Fighter second, int rounds, List<TurnLogEntry> log) {
+  private CombatResult buildTimeoutResult(Fighter first, Fighter second, int rounds, List<TurnLogEntry> log,
+      List<FighterVitals> finalVitals) {
     double firstHealthRatio = healthRatio(first);
     double secondHealthRatio = healthRatio(second);
 
     if (firstHealthRatio == secondHealthRatio) {
-      return new CombatResult(CombatOutcome.DRAW, Optional.empty(), rounds, log);
+      return new CombatResult(CombatOutcome.DRAW, Optional.empty(), rounds, log, finalVitals);
     }
 
     Fighter winner = (firstHealthRatio > secondHealthRatio) ? first : second;
-    return new CombatResult(CombatOutcome.TIMEOUT_DECISION, Optional.of(winner), rounds, log);
+    return new CombatResult(CombatOutcome.TIMEOUT_DECISION, Optional.of(winner), rounds, log, finalVitals);
   }
 
   private double healthRatio(Fighter fighter) {

@@ -6,6 +6,7 @@ import it.fantasyarena.combat.dice.DiceRoller;
 import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.FighterState;
+import it.fantasyarena.combat.result.InitiativeOverride;
 import it.fantasyarena.combat.result.TurnLogEntry;
 import it.fantasyarena.combat.result.TurnResult;
 
@@ -72,13 +73,13 @@ public class TurnOrchestrator {
     attacker.state().recoverStamina(staminaRules.restRecovery());
     int recovered = attacker.state().currentStamina() - before;
     String description = attacker.name() + " riposa e recupera " + recovered + " stamina.";
-    return new TurnResult(new TurnLogEntry(turnNumber, description), false);
+    return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.REST_YIELD);
   }
 
   private TurnResult resolveMiss(int turnNumber, Fighter attacker, Fighter defender) {
     applyMomentumDelta(attacker, momentumRules.deltaForMiss());
     String description = attacker.name() + " attacca " + defender.name() + " ma manca il colpo.";
-    return new TurnResult(new TurnLogEntry(turnNumber, description), false);
+    return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.NONE);
   }
 
   private TurnResult resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
@@ -97,7 +98,8 @@ public class TurnOrchestrator {
     String description =
         attackAction.describe(attacker, defender, context) + describeDefense(defenseOutcome, damage, defenderCanDefend);
     boolean defenderDodged = defenseOutcome.result() == DefenseOutcome.DefenseResult.DODGED;
-    return new TurnResult(new TurnLogEntry(turnNumber, description), defenderDodged);
+    InitiativeOverride override = defenderDodged ? InitiativeOverride.DODGE_STEAL : InitiativeOverride.NONE;
+    return new TurnResult(new TurnLogEntry(turnNumber, description), override);
   }
 
   private DefenseOutcome resolveDefense(Fighter defender, Fighter attacker, boolean defenderCanDefend) {

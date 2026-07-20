@@ -12,6 +12,9 @@ import java.util.List;
  * {@code MomentumRules}/{@code StaminaRules}). Contratto di affordabilita': un'azione non deve
  * partire se {@link #canAfford(int)} e' falso; {@link #consumeStamina(int)} resta con un floor
  * a 0 come guardia difensiva interna, non come meccanismo di pagamento parziale a debito.
+ * I contatori {@code staminaConsumedThisTurn}/{@code staminaRecoveredThisTurn} sono puro
+ * bookkeeping per il log del turno corrente, non regole di bilanciamento: vanno azzerati da chi
+ * orchestra il turno con {@link #resetTurnStaminaCounters()}.
  */
 public final class FighterState {
 
@@ -22,6 +25,8 @@ public final class FighterState {
   private int currentStamina;
   private int momentum;
   private int consecutiveInitiativeWins;
+  private int staminaConsumedThisTurn;
+  private int staminaRecoveredThisTurn;
 
   public FighterState(int maxHealth, int maxStamina) {
     this.maxStamina = maxStamina;
@@ -29,6 +34,8 @@ public final class FighterState {
     this.currentStamina = maxStamina;
     this.momentum = 0;
     this.consecutiveInitiativeWins = 0;
+    this.staminaConsumedThisTurn = 0;
+    this.staminaRecoveredThisTurn = 0;
     this.statusEffects = new ArrayList<>();
   }
 
@@ -46,6 +53,14 @@ public final class FighterState {
 
   public int consecutiveInitiativeWins() {
     return consecutiveInitiativeWins;
+  }
+
+  public int staminaConsumedThisTurn() {
+    return staminaConsumedThisTurn;
+  }
+
+  public int staminaRecoveredThisTurn() {
+    return staminaRecoveredThisTurn;
   }
 
   public List<String> statusEffects() {
@@ -69,12 +84,25 @@ public final class FighterState {
   }
 
   public void consumeStamina(int amount) {
+    int before = currentStamina;
     currentStamina = Math.max(0, Math.min(maxStamina, currentStamina - amount));
+    staminaConsumedThisTurn += before - currentStamina;
   }
 
   public void recoverStamina(int amount) {
     // Il cap al massimo e' un invariante del contenitore, non una regola di bilanciamento.
+    int before = currentStamina;
     currentStamina = Math.min(maxStamina, currentStamina + amount);
+    staminaRecoveredThisTurn += currentStamina - before;
+  }
+
+  /**
+   * Azzera i contatori di Stamina consumata/recuperata nel turno: da chiamare a inizio turno,
+   * prima di qualsiasi {@link #consumeStamina(int)}/{@link #recoverStamina(int)} su questo stato.
+   */
+  public void resetTurnStaminaCounters() {
+    staminaConsumedThisTurn = 0;
+    staminaRecoveredThisTurn = 0;
   }
 
   public void setMomentum(int momentum) {

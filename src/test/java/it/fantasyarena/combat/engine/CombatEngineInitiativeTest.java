@@ -2,20 +2,26 @@ package it.fantasyarena.combat.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
+import it.fantasyarena.combat.dice.DiceRoller;
 import it.fantasyarena.combat.dice.DiceThrow;
+import it.fantasyarena.combat.factory.FighterFactory;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.IntrinsicRatings;
 import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
+import it.fantasyarena.combat.result.InitiativeOverride;
+import it.fantasyarena.combat.result.InitiativeReport;
 import it.fantasyarena.combat.result.TurnLogEntry;
 import it.fantasyarena.combat.testsupport.CombatFixtures;
 import it.fantasyarena.combat.testsupport.StubDiceRoller;
@@ -34,6 +40,33 @@ import it.fantasytoolkitcore.core.model.Race;
  * {@link StubDiceRoller} al posto del toolkit.
  */
 class CombatEngineInitiativeTest {
+
+  /**
+   * Verifica end-to-end, su un duello reale (dadi veri, combattenti generati dal toolkit), che
+   * chi il report d'iniziativa indica come {@code chosenName} sia sempre chi agisce davvero nel
+   * turno, e che senza override il vincitore per punteggio coincida con chi agisce.
+   */
+  @RepeatedTest(20)
+  void ilFighterSceltoDallIniziativaESempreQuelloCheAgisceNelTurno() {
+    CombatSettings settings = CombatSettings.defaults();
+    FighterFactory factory = FighterFactory.withDefaultRatings(settings);
+    FighterFactory.Duelists duelists = factory.createMatchedSwordWarriors();
+
+    CombatEngine engine = CombatFixtures.buildEngine(new DiceRoller(), settings);
+    CombatResult result = engine.fight(duelists.first(), duelists.second(), CombatContext.empty());
+
+    assertFalse(result.log().isEmpty());
+    for (TurnLogEntry entry : result.log()) {
+      InitiativeReport initiative = entry.initiative();
+      assertNotNull(initiative);
+      assertTrue(entry.description().startsWith(initiative.chosenName()),
+          "Turno " + entry.turnNumber() + ": '" + entry.description() + "' non inizia con '"
+              + initiative.chosenName() + "'");
+      if (initiative.override() == InitiativeOverride.NONE) {
+        assertEquals(initiative.scoreWinnerName(), initiative.chosenName());
+      }
+    }
+  }
 
   /**
    * DoD 1 — con un vantaggio di Agilita' che domina il jitter, lo stesso combattente resta

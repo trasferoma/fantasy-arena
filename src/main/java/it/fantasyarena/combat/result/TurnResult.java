@@ -1,10 +1,11 @@
 package it.fantasyarena.combat.result;
 
 /**
- * Esito completo di un turno: la voce di log da mostrare e se il difensore ha realmente
- * schivato (dopo un eventuale ripiego per Stamina insufficiente). Il {@code Combat Engine} usa
- * {@code defenderDodged} per l'override deterministico dell'iniziativa: solo la schivata ruba
- * il tempo, non la parata.
+ * Esito completo di un turno: la voce di log da mostrare e l'eventuale override d'iniziativa
+ * prodotto da quel turno. Il {@code CombatEngine} usa {@code override} per decidere l'iniziativa
+ * del turno successivo fuori dalla formula: una schivata riuscita ({@code DODGE_STEAL}) o un
+ * riposo ({@code REST_YIELD}) forzano deterministicamente il difensore corrente come prossimo
+ * attaccante; {@code NONE} lascia decidere la formula.
  */
-public record TurnResult(TurnLogEntry logEntry, boolean defenderDodged) {
+public record TurnResult(TurnLogEntry logEntry, InitiativeOverride override) {
 }

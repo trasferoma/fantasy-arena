@@ -10,11 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 mvn compile              # compila
+mvn test                 # esegue i test JUnit 5 (surefire)
 mvn exec:java            # esegue it.fantasyarena.Main (mainClass da pom.xml, exec.mainClass)
 mvn package              # produce il jar in target/
 ```
 
-Non esistono test in questo repo: nessun comando di test è configurato.
+Il repo ha una suite di test JUnit Jupiter (5.x) sotto `src/test/java`, con surefire configurato in `pom.xml`. Le assertion usano solo `org.junit.jupiter.api.Assertions` (niente AssertJ): non aggiungere dipendenze di test se non strettamente necessario. Il supporto ai test vive in `it.fantasyarena.combat.testsupport` (es. `CombatFixtures` per costruire `Fighter` deterministici, `StubDiceRoller` per pilotare i dadi). I test coprono soprattutto il motore di combattimento (`it.fantasyarena.combat.engine`), che — a differenza del codice consumer thin — contiene logica di dominio locale al progetto.
 
 ## Dipendenza critica: fantasytoolkit
 

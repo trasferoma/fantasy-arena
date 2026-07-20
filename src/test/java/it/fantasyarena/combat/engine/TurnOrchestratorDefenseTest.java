@@ -12,6 +12,7 @@ import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
+import it.fantasyarena.combat.result.InitiativeOverride;
 import it.fantasyarena.combat.result.TurnResult;
 import it.fantasyarena.combat.testsupport.CombatFixtures;
 import it.fantasyarena.combat.testsupport.StubDiceRoller;
@@ -50,7 +51,8 @@ class TurnOrchestratorDefenseTest {
     assertEquals(attacker.ratings().maxStamina() - settings.staminaWeights().attackCost(), attacker.state().currentStamina(),
         "l'attacco consuma il costo Stamina dell'azione di attacco");
     assertEquals(1, turn.logEntry().turnNumber());
-    assertTrue(turn.defenderDodged(), "una schivata effettiva ruba il tempo: il flag va propagato");
+    assertEquals(InitiativeOverride.DODGE_STEAL, turn.override(),
+        "una schivata effettiva ruba il tempo: l'override va propagato");
   }
 
   @Test
@@ -74,7 +76,7 @@ class TurnOrchestratorDefenseTest {
 
     assertTrue(defender.state().currentHealth() < defender.ratings().maxHealth(),
         "precondizione: il difensore deve aver subito danno");
-    assertFalse(turn.defenderDodged(), "un colpo pieno non ruba il tempo");
+    assertEquals(InitiativeOverride.NONE, turn.override(), "un colpo pieno non ruba il tempo");
 
     StaminaRules staminaRules = new StaminaRules(settings);
     int damage = defender.ratings().maxHealth() - defender.state().currentHealth();
@@ -104,7 +106,8 @@ class TurnOrchestratorDefenseTest {
 
     TurnResult turn = playSingleTurn(diceRoller, settings, attacker, defender);
 
-    assertFalse(turn.defenderDodged(), "il ripiego in parata non ruba il tempo, a differenza della schivata");
+    assertEquals(InitiativeOverride.NONE, turn.override(),
+        "il ripiego in parata non ruba il tempo, a differenza della schivata");
     assertTrue(turn.logEntry().description().contains("parato"), "l'esito finale deve essere una parata");
     assertTrue(defender.state().currentHealth() < defender.ratings().maxHealth(),
         "la parata riduce il danno ma non lo azzera come farebbe la schivata");
@@ -132,7 +135,7 @@ class TurnOrchestratorDefenseTest {
 
     TurnResult turn = playSingleTurn(diceRoller, settings, attacker, defender);
 
-    assertFalse(turn.defenderDodged(), "senza Stamina per nessuna difesa il tempo non viene rubato");
+    assertEquals(InitiativeOverride.NONE, turn.override(), "senza Stamina per nessuna difesa il tempo non viene rubato");
     assertTrue(turn.logEntry().description().contains("colpo a segno"), "l'esito finale deve essere un colpo pieno");
     assertFalse(turn.logEntry().description().contains("esausto"),
         "il difensore poteva ancora tentare la difesa (Stamina > 0): non e' il caso dell'esausto");

@@ -29,6 +29,7 @@ class FavoriteEstimatorTest {
 
     assertTrue(favorite.isPresent());
     assertSame(strong, favorite.orElseThrow());
+    assertEquals(FavoriteEstimator.Basis.RATING, estimator.assess(strong, weak).basis());
   }
 
   @Test
@@ -47,6 +48,7 @@ class FavoriteEstimatorTest {
 
     assertTrue(favorite.isPresent());
     assertSame(higherHealth, favorite.orElseThrow());
+    assertEquals(FavoriteEstimator.Basis.HEALTH, estimator.assess(higherHealth, lowerHealth).basis());
   }
 
   @Test
@@ -66,6 +68,7 @@ class FavoriteEstimatorTest {
 
     assertTrue(favorite.isPresent());
     assertSame(higherStamina, favorite.orElseThrow());
+    assertEquals(FavoriteEstimator.Basis.STAMINA, estimator.assess(higherStamina, lowerStamina).basis());
   }
 
   @Test
@@ -76,6 +79,7 @@ class FavoriteEstimatorTest {
     Optional<Fighter> favorite = estimator.favorite(first, second);
 
     assertTrue(favorite.isEmpty(), "a parita' totale di rating e pool nessuno dei due e' favorito");
+    assertEquals(FavoriteEstimator.Basis.EVEN, estimator.assess(first, second).basis());
   }
 
   private static void assertEqualTotalRating(Fighter first, Fighter second) {

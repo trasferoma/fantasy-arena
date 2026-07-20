@@ -46,6 +46,29 @@ class ConsoleCombatLoggerOutcomeTest {
   }
 
   @Test
+  void mostraIlPronosticoConCorniceAInizioBattaglia() {
+    Fighter alice = strongFighter("Alice");
+    Fighter bob = weakFighter("Bob");
+
+    logger.reportMatchup(alice, bob);
+
+    String output = capturedOutput();
+    assertTrue(output.contains("Pronostico: il favorito è Alice (attacco+difesa "));
+    assertTrue(output.contains("--------------------"));
+  }
+
+  @Test
+  void ilPronosticoDichiaraEquilibrioSenzaFavoritoNetto() {
+    Fighter alice = strongFighter("Alice");
+    Fighter twin = strongFighter("Twin");
+
+    logger.reportMatchup(alice, twin);
+
+    String output = capturedOutput();
+    assertTrue(output.contains("Pronostico: scontro equilibrato, nessun favorito netto"));
+  }
+
+  @Test
   void citaIlFavoritoEIlPronosticoRispettatoQuandoVinceIlFavorito() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");

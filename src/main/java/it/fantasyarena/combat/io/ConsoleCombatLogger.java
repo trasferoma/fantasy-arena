@@ -28,6 +28,50 @@ public class ConsoleCombatLogger implements CombatLogger {
   public void reportMatchup(Fighter first, Fighter second) {
     System.out.println("=== Combattenti ===");
     printCards(first, second);
+    printPrognosis(first, second);
+  }
+
+  /**
+   * Pronostico pre-battaglia, in una cornice di trattini subito dopo le schede: il favorito
+   * stimato da {@link FavoriteEstimator} dai soli rating, prima che i dadi dicano la loro.
+   */
+  private void printPrognosis(Fighter first, Fighter second) {
+    FavoriteEstimator.Verdict verdict = favoriteEstimator.assess(first, second);
+    String content = "Pronostico: " + describePrognosis(verdict);
+    String frame = "-".repeat(content.length());
+
+    System.out.println();
+    System.out.println(frame);
+    System.out.println(content);
+    System.out.println(frame);
+  }
+
+  private String describePrognosis(FavoriteEstimator.Verdict verdict) {
+    return verdict.favorite()
+        .map(fighter -> "il favorito è " + fighter.name() + " (" + describePrognosisReason(verdict) + ")")
+        .orElse("scontro equilibrato, nessun favorito netto");
+  }
+
+  /**
+   * Motivo del pronostico: il criterio che ha deciso il favorito e i valori confrontati (del
+   * favorito e dell'avversario). Rating con un decimale, vita e stamina come interi.
+   */
+  private String describePrognosisReason(FavoriteEstimator.Verdict verdict) {
+    String favoriteValue = formatBasisValue(verdict.basis(), verdict.favoriteValue());
+    String opponentValue = formatBasisValue(verdict.basis(), verdict.opponentValue());
+    return switch (verdict.basis()) {
+      case RATING -> "attacco+difesa " + favoriteValue + " vs " + opponentValue;
+      case HEALTH -> "attacco+difesa pari, più vita " + favoriteValue + " vs " + opponentValue;
+      case STAMINA -> "attacco+difesa e vita pari, più stamina " + favoriteValue + " vs " + opponentValue;
+      case EVEN -> "nessun vantaggio netto";
+    };
+  }
+
+  private String formatBasisValue(FavoriteEstimator.Basis basis, double value) {
+    if (basis == FavoriteEstimator.Basis.RATING) {
+      return formatter.formatRating(value);
+    }
+    return Long.toString(Math.round(value));
   }
 
   @Override

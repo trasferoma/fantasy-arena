@@ -39,7 +39,7 @@ public class Arena {
     HitResolver hitResolver = new HitResolver(settings);
     DefenseResolver defenseResolver = new DefenseResolver(settings);
     DamageCalculator damageCalculator = new DamageCalculator(settings, momentumRules, staminaRules);
-    InitiativeResolver initiativeResolver = new InitiativeResolver();
+    InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
     TurnOrchestrator turnOrchestrator = new TurnOrchestrator(
         diceRoller, hitResolver, defenseResolver, damageCalculator, momentumRules, staminaRules);
 

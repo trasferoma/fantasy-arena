@@ -18,7 +18,12 @@ public class DiceRoller {
     return roll(100);
   }
 
-  private DiceThrow roll(int faces) {
+  /**
+   * Tiro parametrico di un dado a {@code faces} facce. Usato per il micro-jitter
+   * dell'iniziativa, il cui numero di facce è tarabile in {@code CombatSettings}: rompe pareggi
+   * e simmetrie senza lasciare che il caso decida da solo l'ordine dei turni.
+   */
+  public DiceThrow roll(int faces) {
     DiceRollResult result = DiceLauncherTool.building()
         .dice(1, faces)
         .roll();

@@ -85,4 +85,31 @@ class StaminaRulesTest {
     assertEquals(4, staminaRules.impactStaminaLoss(8), "oltre il minimo la perdita e' proporzionale al danno");
     assertEquals(6, staminaRules.impactStaminaLoss(12), "la perdita cresce linearmente col danno");
   }
+
+  @Test
+  void effectiveAttackCost_growsWithChain_upToCap() {
+    CombatSettings settings = CombatSettings.defaults();
+    StaminaWeights weights = settings.staminaWeights();
+    StaminaRules staminaRules = new StaminaRules(settings);
+
+    assertEquals(2, weights.chainMalusStep());
+    assertEquals(6, weights.chainMalusCap());
+    assertEquals(2, staminaRules.chainMalusStep());
+    assertEquals(6, staminaRules.chainMalusCap());
+
+    assertEquals(6, staminaRules.effectiveAttackCost(1), "primo turno d'attacco: nessun malus");
+    assertEquals(8, staminaRules.effectiveAttackCost(2), "secondo attacco consecutivo: +1 step");
+    assertEquals(10, staminaRules.effectiveAttackCost(3), "terzo attacco consecutivo: +2 step");
+    assertEquals(12, staminaRules.effectiveAttackCost(4), "quarto attacco consecutivo: malus al cap");
+    assertEquals(12, staminaRules.effectiveAttackCost(5), "oltre il cap il malus non cresce ulteriormente");
+  }
+
+  @Test
+  void passiveRecovery_readFromSettings() {
+    CombatSettings settings = CombatSettings.defaults();
+    StaminaRules staminaRules = new StaminaRules(settings);
+
+    assertEquals(4, settings.staminaWeights().passiveRecovery());
+    assertEquals(4, staminaRules.passiveRecovery());
+  }
 }

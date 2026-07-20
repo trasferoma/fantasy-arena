@@ -7,11 +7,14 @@ import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.FighterState;
 import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasyarena.combat.result.TurnResult;
 
 /**
  * Orchestra il singolo turno: lancia i dadi via {@link DiceRoller} e passa i
  * {@link DiceThrow} risultanti ai resolver puri del core, poi applica danno e aggiorna
- * stamina/momentum. Nessuna formula qui: solo orchestrazione parlante.
+ * stamina/momentum. Nessuna formula qui: solo orchestrazione parlante. Un'azione (attacco,
+ * schivata, parata) parte solo se pagabile per intero: se non lo è, si ripiega su un'azione
+ * più economica o, in ultima istanza, sul riposo/colpo pieno.
  */
 public class TurnOrchestrator {
 
@@ -34,12 +37,23 @@ public class TurnOrchestrator {
     this.attackAction = new AttackAction(staminaRules.attackCost());
   }
 
-  public TurnLogEntry playTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
-    if (staminaRules.shouldRest(attacker.state().currentStamina())) {
+  public TurnResult playTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
+    TurnResult turnResult = resolveTurn(turnNumber, attacker, defender, context);
+
+    // Chi non e' stato l'attore in questo turno recupera passivamente Stamina a fine turno:
+    // attutisce l'usura senza annullare i costi di difesa gia' pagati sopra, nello stesso turno.
+    defender.state().recoverStamina(staminaRules.passiveRecovery());
+
+    return turnResult;
+  }
+
+  private TurnResult resolveTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
+    int attackCost = staminaRules.effectiveAttackCost(attacker.state().consecutiveInitiativeWins());
+    if (staminaRules.shouldRest(attacker.state().currentStamina()) || !attacker.state().canAfford(attackCost)) {
       return resolveRest(turnNumber, attacker);
     }
 
-    payAttackCost(attacker);
+    attacker.state().consumeStamina(attackCost);
 
     DiceThrow attackThrow = diceRoller.d20();
     HitOutcome hitOutcome = hitResolver.resolveHit(attacker, defender, attackThrow);
@@ -51,25 +65,23 @@ public class TurnOrchestrator {
     return resolveHitLanded(turnNumber, attacker, defender, context, hitOutcome);
   }
 
-  private void payAttackCost(Fighter attacker) {
-    attacker.state().consumeStamina(attackAction.staminaCost());
-  }
+  private TurnResult resolveRest(int turnNumber, Fighter attacker) {
+    attacker.state().loseInitiative();
 
-  private TurnLogEntry resolveRest(int turnNumber, Fighter attacker) {
     int before = attacker.state().currentStamina();
     attacker.state().recoverStamina(staminaRules.restRecovery());
     int recovered = attacker.state().currentStamina() - before;
     String description = attacker.name() + " riposa e recupera " + recovered + " stamina.";
-    return new TurnLogEntry(turnNumber, description);
+    return new TurnResult(new TurnLogEntry(turnNumber, description), false);
   }
 
-  private TurnLogEntry resolveMiss(int turnNumber, Fighter attacker, Fighter defender) {
+  private TurnResult resolveMiss(int turnNumber, Fighter attacker, Fighter defender) {
     applyMomentumDelta(attacker, momentumRules.deltaForMiss());
     String description = attacker.name() + " attacca " + defender.name() + " ma manca il colpo.";
-    return new TurnLogEntry(turnNumber, description);
+    return new TurnResult(new TurnLogEntry(turnNumber, description), false);
   }
 
-  private TurnLogEntry resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
+  private TurnResult resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
       HitOutcome hitOutcome) {
 
     boolean defenderCanDefend = staminaRules.canDefend(defender.state().currentStamina());
@@ -84,7 +96,8 @@ public class TurnOrchestrator {
 
     String description =
         attackAction.describe(attacker, defender, context) + describeDefense(defenseOutcome, damage, defenderCanDefend);
-    return new TurnLogEntry(turnNumber, description);
+    boolean defenderDodged = defenseOutcome.result() == DefenseOutcome.DefenseResult.DODGED;
+    return new TurnResult(new TurnLogEntry(turnNumber, description), defenderDodged);
   }
 
   private DefenseOutcome resolveDefense(Fighter defender, Fighter attacker, boolean defenderCanDefend) {
@@ -94,25 +107,49 @@ public class TurnOrchestrator {
 
     DiceThrow defenseThrow = diceRoller.d20();
     DefenseOutcome outcome = defenseResolver.resolveDefense(defender, attacker, defenseThrow);
-    payDefenseCost(defender, outcome);
-    return outcome;
+    return payDefenseCostWithFallback(defender, outcome);
   }
 
-  private void payDefenseCost(Fighter defender, DefenseOutcome defenseOutcome) {
-    // Il costo Stamina di un colpo pieno non e' piu' fisso: e' proporzionale al danno e viene
-    // applicato in applyImpactStamina, dopo il calcolo del danno stesso.
-    int cost = switch (defenseOutcome.result()) {
-      case DODGED -> staminaRules.dodgeCost();
-      case PARRIED -> staminaRules.parryCost();
-      case HIT_TAKEN -> 0;
+  /**
+   * Applica il costo Stamina della difesa risolta dal tiro, con ripiego se non pagabile:
+   * schivata non pagabile -&gt; parata se pagabile -&gt; altrimenti colpo pieno. La parata
+   * risolta direttamente dal tiro segue la stessa regola: se non pagabile, colpo pieno. Nessuna
+   * azione parte se non e' interamente pagabile con la Stamina corrente.
+   */
+  private DefenseOutcome payDefenseCostWithFallback(Fighter defender, DefenseOutcome outcome) {
+    return switch (outcome.result()) {
+      case DODGED -> resolveDodgeWithFallback(defender, outcome);
+      case PARRIED -> resolveParryWithFallback(defender, outcome);
+      case HIT_TAKEN -> outcome;
     };
-    defender.state().consumeStamina(cost);
+  }
+
+  private DefenseOutcome resolveDodgeWithFallback(Fighter defender, DefenseOutcome dodgeOutcome) {
+    FighterState state = defender.state();
+    if (state.canAfford(staminaRules.dodgeCost())) {
+      state.consumeStamina(staminaRules.dodgeCost());
+      return dodgeOutcome;
+    }
+    if (state.canAfford(staminaRules.parryCost())) {
+      state.consumeStamina(staminaRules.parryCost());
+      return defenseResolver.parryFallbackOutcome();
+    }
+    return new DefenseOutcome(DefenseOutcome.DefenseResult.HIT_TAKEN, 0.0);
+  }
+
+  private DefenseOutcome resolveParryWithFallback(Fighter defender, DefenseOutcome parryOutcome) {
+    FighterState state = defender.state();
+    if (state.canAfford(staminaRules.parryCost())) {
+      state.consumeStamina(staminaRules.parryCost());
+      return parryOutcome;
+    }
+    return new DefenseOutcome(DefenseOutcome.DefenseResult.HIT_TAKEN, 0.0);
   }
 
   /**
    * Su un colpo pieno, la Stamina di chi incassa cala in proporzione al danno subito (con
    * minimo garantito): niente di piu' pesante per parata/schivata riuscite, gia' pagate in
-   * {@link #payDefenseCost}.
+   * {@link #payDefenseCostWithFallback}.
    */
   private void applyImpactStamina(Fighter defender, DefenseOutcome defenseOutcome, int damage) {
     if (defenseOutcome.result() == DefenseOutcome.DefenseResult.HIT_TAKEN) {

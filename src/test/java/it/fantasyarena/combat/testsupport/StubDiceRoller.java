@@ -35,6 +35,11 @@ public class StubDiceRoller extends DiceRoller {
     return nextThrow();
   }
 
+  @Override
+  public DiceThrow roll(int faces) {
+    return nextThrow();
+  }
+
   private DiceThrow nextThrow() {
     if (scriptedThrows.isEmpty()) {
       throw new IllegalStateException("Nessun DiceThrow programmato rimasto nello StubDiceRoller");

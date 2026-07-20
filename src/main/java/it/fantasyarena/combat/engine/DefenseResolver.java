@@ -35,6 +35,15 @@ public final class DefenseResolver {
     return new DefenseOutcome(DefenseResult.HIT_TAKEN, 0.0);
   }
 
+  /**
+   * Esito canonico di una parata riuscita, usato dal {@link TurnOrchestrator} quando il
+   * difensore ripiega dalla schivata (non pagabile) sulla parata (pagabile): stessa riduzione
+   * di danno di una parata ottenuta dal tiro di dado, senza bisogno di un nuovo tiro.
+   */
+  public DefenseOutcome parryFallbackOutcome() {
+    return new DefenseOutcome(DefenseResult.PARRIED, settings.chanceWeights().parryDamageReduction());
+  }
+
   private double computeDodgeChance(Fighter defender, Fighter attacker) {
     ChanceWeights chances = settings.chanceWeights();
     int defenderAgility = Characteristics.valueOf(defender.character(), Characteristic.AGILITY);

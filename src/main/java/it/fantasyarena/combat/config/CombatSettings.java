@@ -16,6 +16,7 @@ public record CombatSettings(
     MomentumWeights momentumWeights,
     StaminaWeights staminaWeights,
     ChanceWeights chanceWeights,
+    InitiativeWeights initiativeWeights,
     int maxTurns) {
 
   /**
@@ -27,6 +28,7 @@ public record CombatSettings(
         MomentumWeights.defaults(),
         StaminaWeights.defaults(),
         ChanceWeights.defaults(),
+        InitiativeWeights.defaults(),
         30);
   }
 
@@ -122,8 +124,10 @@ public record CombatSettings(
 
   /**
    * Costi Stamina per azione, penalità progressive di affaticamento, recupero da riposo,
-   * soglia sotto la quale conviene riposare invece di attaccare e fattore di impatto
-   * proporzionale al danno subito da chi incassa un colpo pieno.
+   * soglia sotto la quale conviene riposare invece di attaccare, fattore di impatto
+   * proporzionale al danno subito da chi incassa un colpo pieno, malus di catena sul costo
+   * d'attacco e recupero passivo di chi perde l'iniziativa. Valori del malus di catena e del
+   * recupero passivo provvisori (taratura empirica).
    */
   public record StaminaWeights(
       int attackCost,
@@ -136,10 +140,31 @@ public record CombatSettings(
       double heavyFatiguePenalty,
       int restRecovery,
       int restThreshold,
-      double impactStaminaDamageFactor) {
+      double impactStaminaDamageFactor,
+      int chainMalusStep,
+      int chainMalusCap,
+      int passiveRecovery) {
 
     public static StaminaWeights defaults() {
-      return new StaminaWeights(6, 4, 5, 2, 0.50, 0.25, 0.15, 0.30, 12, 11, 0.5);
+      return new StaminaWeights(6, 4, 5, 2, 0.50, 0.25, 0.15, 0.30, 12, 11, 0.5, 2, 6, 4);
+    }
+  }
+
+  /**
+   * Pesi della formula d'iniziativa: rapporto Stamina corrente/massima, Agilità, Intelligenza
+   * e un micro-jitter (piccolo dado) che rompe pareggi e simmetrie. Valori di default
+   * provvisori (taratura empirica): {@code wStamina} domina senza schiacciare agilità e
+   * intelligenza.
+   */
+  public record InitiativeWeights(
+      double wStamina,
+      double wAgility,
+      double wIntelligence,
+      double wJitter,
+      int jitterDiceFaces) {
+
+    public static InitiativeWeights defaults() {
+      return new InitiativeWeights(25.0, 1.0, 0.5, 0.5, 6);
     }
   }
 

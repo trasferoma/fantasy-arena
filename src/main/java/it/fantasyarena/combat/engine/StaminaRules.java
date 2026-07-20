@@ -52,6 +52,28 @@ public final class StaminaRules {
     return settings.staminaWeights().restThreshold();
   }
 
+  public int chainMalusStep() {
+    return settings.staminaWeights().chainMalusStep();
+  }
+
+  public int chainMalusCap() {
+    return settings.staminaWeights().chainMalusCap();
+  }
+
+  public int passiveRecovery() {
+    return settings.staminaWeights().passiveRecovery();
+  }
+
+  /**
+   * Costo effettivo dell'attacco, cresciuto dal malus di catena: il primo turno d'attacco dopo
+   * aver conquistato l'iniziativa costa il base {@code attackCost}, ogni turno consecutivo
+   * successivo aggiunge uno step, fino al cap.
+   */
+  public int effectiveAttackCost(int consecutiveInitiativeWins) {
+    int chainMalus = Math.min(chainMalusCap(), chainMalusStep() * (consecutiveInitiativeWins - 1));
+    return attackCost() + chainMalus;
+  }
+
   public boolean canAttack(int currentStamina) {
     return currentStamina > 0;
   }

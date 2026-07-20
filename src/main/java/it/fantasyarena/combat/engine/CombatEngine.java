@@ -13,11 +13,14 @@ import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
 import it.fantasyarena.combat.result.FighterVitals;
 import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasyarena.combat.result.TurnResult;
 
 /**
  * Orchestra l'intero duello: iniziativa, ciclo dei turni, condizione di fine ed esito.
  * Nessuna formula qui: delega ogni calcolo ai resolver del core tramite
- * {@link TurnOrchestrator}.
+ * {@link TurnOrchestrator} e {@link InitiativeResolver}. L'iniziativa è ricalcolata a fine di
+ * ogni turno (nessuno swap cieco): il prossimo attaccante è deciso dai punteggi dei resolver,
+ * con override deterministico se il difensore ha appena schivato.
  */
 public class CombatEngine {
 
@@ -37,27 +40,58 @@ public class CombatEngine {
   public CombatResult fight(Fighter first, Fighter second, CombatContext context) {
     Fighter attacker = resolveFirstMover(first, second);
     Fighter defender = (attacker == first) ? second : first;
+    applyInitiativeShift(attacker, defender);
 
     List<TurnLogEntry> log = new ArrayList<>();
     int turnNumber = 0;
 
     while (turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated()) {
       turnNumber++;
-      TurnLogEntry entry = turnOrchestrator.playTurn(turnNumber, attacker, defender, context);
-      log.add(entry.withVitals(vitalsSnapshot(first, second)));
+      TurnResult turnResult = turnOrchestrator.playTurn(turnNumber, attacker, defender, context);
+      log.add(turnResult.logEntry().withVitals(vitalsSnapshot(first, second)));
 
-      Fighter nextAttacker = defender;
-      defender = attacker;
+      boolean combatContinues = turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated();
+      if (!combatContinues) {
+        break;
+      }
+
+      Fighter nextAttacker = resolveNextAttacker(attacker, defender, turnResult.defenderDodged());
+      Fighter nextDefender = (nextAttacker == attacker) ? defender : attacker;
+      applyInitiativeShift(nextAttacker, nextDefender);
+
       attacker = nextAttacker;
+      defender = nextDefender;
     }
 
     return buildResult(first, second, turnNumber, log);
   }
 
   private Fighter resolveFirstMover(Fighter first, Fighter second) {
-    DiceThrow firstThrow = diceRoller.d20();
-    DiceThrow secondThrow = diceRoller.d20();
-    return initiativeResolver.resolveFirstMover(first, second, firstThrow, secondThrow);
+    DiceThrow firstJitter = rollJitter();
+    DiceThrow secondJitter = rollJitter();
+    return initiativeResolver.resolveFirstMover(first, second, firstJitter, secondJitter);
+  }
+
+  private Fighter resolveNextAttacker(Fighter attacker, Fighter defender, boolean defenderDodged) {
+    DiceThrow attackerJitter = rollJitter();
+    DiceThrow defenderJitter = rollJitter();
+    return initiativeResolver.resolveNextAttacker(attacker, defender, defenderDodged, attackerJitter, defenderJitter);
+  }
+
+  private DiceThrow rollJitter() {
+    int jitterDiceFaces = settings.initiativeWeights().jitterDiceFaces();
+    return diceRoller.roll(jitterDiceFaces);
+  }
+
+  /**
+   * Applica lo shift d'iniziativa: chi attacca il prossimo turno prosegue/avvia la sua catena
+   * di attacchi consecutivi, chi la perde la azzera. Il recupero passivo di Stamina di chi non
+   * è l'attore è responsabilità di {@link TurnOrchestrator#playTurn}, scoped al turno in cui
+   * si verifica.
+   */
+  private void applyInitiativeShift(Fighter nextAttacker, Fighter nextDefender) {
+    nextAttacker.state().winInitiative();
+    nextDefender.state().loseInitiative();
   }
 
   private CombatResult buildResult(Fighter first, Fighter second, int rounds, List<TurnLogEntry> log) {

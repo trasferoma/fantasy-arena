@@ -29,13 +29,15 @@ class CombatEngineTest {
   /**
    * Sequenza truccata che garantisce sempre un colpo a segno (tiro basso, sotto qualunque
    * hitChance minima), sempre nessuna schivata/parata (tiro massimo, sopra dodge+parry) e
-   * varianza neutra sul danno. I primi due tiri sono consumati da {@code CombatEngine} per
-   * l'iniziativa: il pattern dei turni viene dopo, per non disallineare le chiamate.
+   * varianza neutra sul danno. I primi due tiri sono il jitter consumato da {@code CombatEngine}
+   * per il primo attore: il pattern dei turni viene dopo, per non disallineare le chiamate. Il
+   * colpo abbatte l'avversario al primo turno, quindi non serve alcun jitter successivo (il
+   * duello finisce prima del ricalcolo di fine turno).
    */
   private static List<DiceThrow> guaranteedHitSequence(int turns) {
     List<DiceThrow> sequence = new ArrayList<>();
-    sequence.add(new DiceThrow(1, 20));  // iniziativa primo combattente
-    sequence.add(new DiceThrow(20, 20)); // iniziativa secondo combattente
+    sequence.add(new DiceThrow(1, 6));  // jitter iniziativa primo combattente
+    sequence.add(new DiceThrow(6, 6)); // jitter iniziativa secondo combattente
     for (int i = 0; i < turns; i++) {
       sequence.add(new DiceThrow(1, 20));   // attacco: colpo garantito
       sequence.add(new DiceThrow(20, 20));  // difesa: né schivata né parata
@@ -46,19 +48,33 @@ class CombatEngineTest {
 
   private static List<DiceThrow> alwaysMissSequence(int turns) {
     List<DiceThrow> sequence = new ArrayList<>();
-    sequence.add(new DiceThrow(20, 20)); // iniziativa primo combattente
-    sequence.add(new DiceThrow(20, 20)); // iniziativa secondo combattente
+    sequence.add(new DiceThrow(3, 6)); // jitter iniziativa primo combattente
+    sequence.add(new DiceThrow(3, 6)); // jitter iniziativa secondo combattente
     for (int i = 0; i < turns; i++) {
       // 19 (non massimo naturale) con normalized 0.95 > hitChance 0.75 (agilità pari): mancato
       // garantito. Il 20 naturale ora è sempre colpo critico per SPEC, quindi non va usato qui.
       sequence.add(new DiceThrow(19, 20));
+      // nessuno dei due combattenti e' mai stato colpito ne' ha subito danno: il duello non
+      // termina in questo turno, quindi il Combat Engine ricalcola l'iniziativa a fine turno.
+      sequence.add(new DiceThrow(3, 6)); // jitter iniziativa attaccante
+      sequence.add(new DiceThrow(3, 6)); // jitter iniziativa difensore
     }
     return sequence;
   }
 
   private static CombatResult runDuel(List<DiceThrow> sequence) {
-    Fighter first = CombatFixtures.createFighter("Guerriero A", 30, 10, 5, 5, 5, 20, 0);
-    Fighter second = CombatFixtures.createFighter("Guerriero B", 30, 10, 5, 5, 5, 20, 0);
+    return runDuel(sequence, 5);
+  }
+
+  /**
+   * @param staminaCharacteristic caratteristica Stamina di entrambi i combattenti: un pool
+   *     ampio evita che scattino riposi imprevisti nei turni lunghi, mantenendo allineata la
+   *     sequenza di dadi truccata (un riposo salterebbe il tiro d'attacco, disallineando i
+   *     tiri programmati successivi).
+   */
+  private static CombatResult runDuel(List<DiceThrow> sequence, int staminaCharacteristic) {
+    Fighter first = CombatFixtures.createFighter("Guerriero A", 30, 10, 5, staminaCharacteristic, 5, 20, 0);
+    Fighter second = CombatFixtures.createFighter("Guerriero B", 30, 10, 5, staminaCharacteristic, 5, 20, 0);
     CombatSettings settings = CombatSettings.defaults();
     StubDiceRoller diceRoller = new StubDiceRoller(sequence);
     CombatEngine engine = CombatFixtures.buildEngine(diceRoller, settings);
@@ -86,7 +102,9 @@ class CombatEngineTest {
     CombatSettings settings = CombatSettings.defaults();
     List<DiceThrow> sequence = alwaysMissSequence(settings.maxTurns() + 5);
 
-    CombatResult result = runDuel(sequence);
+    // Pool di Stamina molto ampio: il consumo dell'attacco (anche mancato) non deve mai
+    // costringere nessuno dei due a riposare durante l'intero test.
+    CombatResult result = runDuel(sequence, 200);
 
     assertEquals(settings.maxTurns(), result.rounds(), "senza colpi a segno lo scontro deve fermarsi al tetto di turni");
     assertEquals(CombatOutcome.DRAW, result.outcome(), "a parità di Health invariata l'esito di timeout è un pareggio");

@@ -28,7 +28,7 @@ class TurnOrchestratorDefenseTest {
 
   @Test
   void successfulDefense_reducesDamageAndUpdatesMomentum() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
     attacker.state().winInitiative();
@@ -58,7 +58,7 @@ class TurnOrchestratorDefenseTest {
 
   @Test
   void fullHitTaken_consumesStaminaProportionallyToDamage() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     // Rating offensivi/difensivi contenuti apposta: il tiro d'attacco (1,20) genera sempre un
     // critico (critChance minima 0.05 = normalized di 1/20), qui il danno risultante resta
     // comunque ben sotto Salute e Stamina massime del difensore, cosi' l'assert puo' derivare
@@ -95,7 +95,7 @@ class TurnOrchestratorDefenseTest {
    */
   @Test
   void dodgeUnaffordable_fallsBackToParry() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
     attacker.state().winInitiative();
@@ -124,7 +124,7 @@ class TurnOrchestratorDefenseTest {
    */
   @Test
   void neitherDodgeNorParryAffordable_takesFullHit() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
     attacker.state().winInitiative();

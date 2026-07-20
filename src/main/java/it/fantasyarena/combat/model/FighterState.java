@@ -6,15 +6,18 @@ import java.util.List;
 
 /**
  * Stato mutabile del combattente durante lo scontro: Health e Stamina correnti, Momentum,
- * catena di vittorie d'iniziativa consecutive e status effect attivi (lista vuota in v1).
- * Separato dai Rating intrinseci, che restano sempre immutabili. Nessuna formula qui: i floor
- * a 0/max sono semplici invarianti del contenitore, non regole di bilanciamento (che vivono in
- * {@code MomentumRules}/{@code StaminaRules}). Contratto di affordabilita': un'azione non deve
- * partire se {@link #canAfford(int)} e' falso; {@link #consumeStamina(int)} resta con un floor
- * a 0 come guardia difensiva interna, non come meccanismo di pagamento parziale a debito.
- * I contatori {@code staminaConsumedThisTurn}/{@code staminaRecoveredThisTurn} sono puro
- * bookkeeping per il log del turno corrente, non regole di bilanciamento: vanno azzerati da chi
- * orchestra il turno con {@link #resetTurnStaminaCounters()}.
+ * catena di vittorie d'iniziativa consecutive, cooldown del colpo potente e status effect
+ * attivi (lista vuota in v1). Separato dai Rating intrinseci, che restano sempre immutabili.
+ * Nessuna formula qui: i floor a 0/max sono semplici invarianti del contenitore, non regole di
+ * bilanciamento (che vivono in {@code MomentumRules}/{@code StaminaRules}). Contratto di
+ * affordabilita': un'azione non deve partire se {@link #canAfford(int)} e' falso;
+ * {@link #consumeStamina(int)} resta con un floor a 0 come guardia difensiva interna, non come
+ * meccanismo di pagamento parziale a debito. I contatori
+ * {@code staminaConsumedThisTurn}/{@code staminaRecoveredThisTurn} sono puro bookkeeping per il
+ * log del turno corrente, non regole di bilanciamento: vanno azzerati da chi orchestra il turno
+ * con {@link #resetTurnStaminaCounters()}. Il contatore {@code powerStrikeCooldown} (0 = pronto)
+ * e' semplice bookkeeping del contenitore: la semantica verifica-poi-decrementa e l'avvio del
+ * cooldown all'esecuzione del colpo potente sono responsabilita' di chi orchestra il turno.
  */
 public final class FighterState {
 
@@ -27,6 +30,7 @@ public final class FighterState {
   private int consecutiveInitiativeWins;
   private int staminaConsumedThisTurn;
   private int staminaRecoveredThisTurn;
+  private int powerStrikeCooldown;
 
   public FighterState(int maxHealth, int maxStamina) {
     this.maxStamina = maxStamina;
@@ -36,6 +40,7 @@ public final class FighterState {
     this.consecutiveInitiativeWins = 0;
     this.staminaConsumedThisTurn = 0;
     this.staminaRecoveredThisTurn = 0;
+    this.powerStrikeCooldown = 0;
     this.statusEffects = new ArrayList<>();
   }
 
@@ -69,6 +74,14 @@ public final class FighterState {
 
   public boolean isDefeated() {
     return currentHealth <= 0;
+  }
+
+  /**
+   * Vero sse il cooldown del colpo potente e' esaurito: da verificare PRIMA di decrementarlo
+   * con {@link #tickPowerStrikeCooldown()}, secondo la semantica verifica-poi-decrementa.
+   */
+  public boolean powerStrikeReady() {
+    return powerStrikeCooldown == 0;
   }
 
   public void applyDamage(int amount) {
@@ -123,5 +136,23 @@ public final class FighterState {
    */
   public void loseInitiative() {
     consecutiveInitiativeWins = 0;
+  }
+
+  /**
+   * Decrementa il cooldown del colpo potente di 1, se ancora attivo: avanza anche nei turni di
+   * riposo, non solo in quelli in cui il combattente attacca.
+   */
+  public void tickPowerStrikeCooldown() {
+    if (powerStrikeCooldown > 0) {
+      powerStrikeCooldown--;
+    }
+  }
+
+  /**
+   * Avvia il cooldown del colpo potente dopo un'esecuzione: per {@code turns} turni d'azione
+   * successivi {@link #powerStrikeReady()} restera' falso.
+   */
+  public void startPowerStrikeCooldown(int turns) {
+    powerStrikeCooldown = turns;
   }
 }

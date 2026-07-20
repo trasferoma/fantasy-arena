@@ -124,6 +124,40 @@ class ConsoleCombatLoggerOutcomeTest {
   }
 
   @Test
+  void citaIlColpoPotenteQuandoENelPrimoHighlightNotevole() {
+    Fighter alice = strongFighter("Alice");
+    Fighter bob = weakFighter("Bob");
+    TurnLogEntry highlightedTurn = new TurnLogEntry(7, "Alice tenta un colpo potente su Bob e lo colpisce")
+        .withInitiative(initiativeChosenBy("Alice"))
+        .withHighlights(List.of(TurnHighlight.POWER_STRIKE, TurnHighlight.HEAVY_BLOW));
+    CombatResult result = new CombatResult(
+        CombatOutcome.VICTORY, Optional.of(alice), 7, List.of(highlightedTurn), finalVitals(alice, bob));
+
+    logger.reportOutcome(result, alice, bob);
+
+    String output = capturedOutput();
+    assertTrue(output.contains("Da ricordare: il colpo potente di Alice al turno 7."),
+        "il colpo potente prevale sul colpo pesante quando entrambi sono presenti");
+  }
+
+  @Test
+  void ilColpoCriticoPrevaleSulColpoPotenteQuandoCompresenti() {
+    Fighter alice = strongFighter("Alice");
+    Fighter bob = weakFighter("Bob");
+    TurnLogEntry highlightedTurn = new TurnLogEntry(9, "Alice tenta un colpo potente su Bob e lo colpisce")
+        .withInitiative(initiativeChosenBy("Alice"))
+        .withHighlights(List.of(TurnHighlight.CRITICAL, TurnHighlight.POWER_STRIKE));
+    CombatResult result = new CombatResult(
+        CombatOutcome.VICTORY, Optional.of(alice), 9, List.of(highlightedTurn), finalVitals(alice, bob));
+
+    logger.reportOutcome(result, alice, bob);
+
+    String output = capturedOutput();
+    assertTrue(output.contains("Da ricordare: il colpo critico di Alice al turno 9."),
+        "il critico prevale sul colpo potente nella precedenza della citazione");
+  }
+
+  @Test
   void gestisceIlPareggioSenzaConfermareOSmentireIlPronostico() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");

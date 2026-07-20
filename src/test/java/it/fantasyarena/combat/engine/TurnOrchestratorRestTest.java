@@ -28,7 +28,7 @@ class TurnOrchestratorRestTest {
 
   @Test
   void attackerBelowThreshold_restsInsteadOfAttacking() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
     attacker.state().consumeStamina(attacker.ratings().maxStamina() - 5);
@@ -45,7 +45,7 @@ class TurnOrchestratorRestTest {
 
   @Test
   void exhaustedDefender_takesFullHitWithoutDefending() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
     attacker.state().winInitiative();
@@ -64,13 +64,14 @@ class TurnOrchestratorRestTest {
 
   /**
    * DoD 6 — il costo effettivo dell'attacco cresce con la catena fino al cap (12 con i
-   * default): a Stamina 11 (sopra la soglia di riposo generica, quindi {@code shouldRest} da
-   * solo direbbe di attaccare) l'attacco non e' comunque pagabile e l'attaccante riposa.
+   * default): a Stamina 9 su un pool massimo di 22 (9 e' sopra la soglia generica di riposo,
+   * 40% di 22 = 8.8, quindi {@code shouldRest} da solo direbbe di attaccare) l'attacco non e'
+   * comunque pagabile e l'attaccante riposa.
    */
   @Test
   void unaffordableAttack_restsInsteadOfAttacking() {
-    CombatSettings settings = CombatSettings.defaults();
-    Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 20, 5, 20, 0);
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
+    Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 4, 5, 20, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
 
     // Quarto attacco consecutivo: il malus di catena e' al cap (effectiveAttackCost = 12).
@@ -79,9 +80,11 @@ class TurnOrchestratorRestTest {
     attacker.state().winInitiative();
     attacker.state().winInitiative();
     assertEquals(4, attacker.state().consecutiveInitiativeWins());
-    attacker.state().consumeStamina(attacker.ratings().maxStamina() - settings.staminaWeights().restThreshold());
-    assertEquals(settings.staminaWeights().restThreshold(), attacker.state().currentStamina());
-    assertFalse(new StaminaRules(settings).shouldRest(attacker.state().currentStamina()),
+    int maxStamina = attacker.ratings().maxStamina();
+    int currentStamina = 9;
+    attacker.state().consumeStamina(maxStamina - currentStamina);
+    assertEquals(currentStamina, attacker.state().currentStamina());
+    assertFalse(new StaminaRules(settings).shouldRest(attacker.state().currentStamina(), maxStamina),
         "precondizione: la soglia generica di riposo da sola non basterebbe a far riposare");
 
     StubDiceRoller diceRoller = new StubDiceRoller(List.of());

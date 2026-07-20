@@ -199,10 +199,16 @@ class CombatEngineInitiativeTest {
         "la Stamina resta sempre entro il pool massimo, mai presa in prestito");
   }
 
+  /**
+   * Il colpo potente e' reso strutturalmente non pagabile: questi test verificano dinamiche di
+   * iniziativa/schivata/parata con sequenze di dadi scriptate, non il colpo potente, e vanno
+   * preservate identiche a oggi (nessun jitter di decisione consumato).
+   */
   private static CombatSettings withMaxTurns(int maxTurns) {
-    CombatSettings defaults = CombatSettings.defaults();
+    CombatSettings defaults = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     return new CombatSettings(defaults.ratingWeights(), defaults.momentumWeights(), defaults.staminaWeights(),
-        defaults.chanceWeights(), defaults.initiativeWeights(), defaults.chronicleWeights(), maxTurns);
+        defaults.chanceWeights(), defaults.initiativeWeights(), defaults.chronicleWeights(),
+        defaults.powerStrikeWeights(), maxTurns);
   }
 
   /**

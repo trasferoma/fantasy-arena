@@ -33,6 +33,7 @@ public class TurnOrchestrator {
   private final CombatSettings settings;
   private final AttackAction attackAction;
   private final TurnChronicler turnChronicler;
+  private final PowerStrikeResolver powerStrikeResolver;
 
   public TurnOrchestrator(DiceRoller diceRoller, HitResolver hitResolver, DefenseResolver defenseResolver,
       DamageCalculator damageCalculator, MomentumRules momentumRules, StaminaRules staminaRules,
@@ -46,6 +47,7 @@ public class TurnOrchestrator {
     this.settings = settings;
     this.attackAction = new AttackAction(staminaRules.attackCost());
     this.turnChronicler = new TurnChronicler();
+    this.powerStrikeResolver = new PowerStrikeResolver(settings);
   }
 
   public TurnResult playTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
@@ -59,21 +61,49 @@ public class TurnOrchestrator {
   }
 
   private TurnResult resolveTurn(int turnNumber, Fighter attacker, Fighter defender, CombatContext context) {
+    // Verifica-poi-decrementa: il cooldown avanza anche nei turni di riposo, non solo quando si
+    // attacca davvero.
+    boolean powerReady = attacker.state().powerStrikeReady();
+    attacker.state().tickPowerStrikeCooldown();
+
     int attackCost = staminaRules.effectiveAttackCost(attacker.state().consecutiveInitiativeWins());
-    if (staminaRules.shouldRest(attacker.state().currentStamina()) || !attacker.state().canAfford(attackCost)) {
+    if (staminaRules.shouldRest(attacker.state().currentStamina(), attacker.ratings().maxStamina())
+        || !attacker.state().canAfford(attackCost)) {
       return resolveRest(turnNumber, attacker);
     }
 
-    attacker.state().consumeStamina(attackCost);
+    int powerCost = powerCost(attackCost);
+    boolean powerStrike = decidePowerStrike(attacker, powerReady, powerCost);
+    attacker.state().consumeStamina(powerStrike ? powerCost : attackCost);
+    if (powerStrike) {
+      attacker.state().startPowerStrikeCooldown(settings.powerStrikeWeights().cooldownTurns());
+    }
 
     DiceThrow attackThrow = diceRoller.d20();
     HitOutcome hitOutcome = hitResolver.resolveHit(attacker, defender, attackThrow);
 
     if (!hitOutcome.hit()) {
-      return resolveMiss(turnNumber, attacker, defender);
+      return resolveMiss(turnNumber, attacker, defender, powerStrike);
     }
 
-    return resolveHitLanded(turnNumber, attacker, defender, context, hitOutcome, attackThrow);
+    return resolveHitLanded(turnNumber, attacker, defender, context, hitOutcome, attackThrow, powerStrike);
+  }
+
+  /**
+   * Decide se l'attaccante tenta il colpo potente: il jitter di decisione è tirato SOLO se il
+   * costo raddoppiato è pagabile E il cooldown è esaurito, cosi' un colpo potente non tentabile
+   * (per costo o per cooldown attivo) non consuma alcun dado in più.
+   */
+  private boolean decidePowerStrike(Fighter attacker, boolean powerReady, int powerCost) {
+    if (!powerReady || !attacker.state().canAfford(powerCost)) {
+      return false;
+    }
+    DiceThrow powerJitter = diceRoller.roll(settings.powerStrikeWeights().jitterDiceFaces());
+    return powerStrikeResolver.decide(attacker, powerJitter);
+  }
+
+  private int powerCost(int attackCost) {
+    return settings.powerStrikeWeights().costMultiplier() * attackCost;
   }
 
   private TurnResult resolveRest(int turnNumber, Fighter attacker) {
@@ -86,29 +116,31 @@ public class TurnOrchestrator {
     return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.REST_YIELD);
   }
 
-  private TurnResult resolveMiss(int turnNumber, Fighter attacker, Fighter defender) {
+  private TurnResult resolveMiss(int turnNumber, Fighter attacker, Fighter defender, boolean powerStrike) {
     applyMomentumDelta(attacker, momentumRules.deltaForMiss());
-    String description = attacker.name() + " attacca " + defender.name() + " ma manca il colpo.";
+    String description = turnChronicler.describeMiss(attacker.name(), defender.name(), powerStrike);
     return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.NONE);
   }
 
   private TurnResult resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
-      HitOutcome hitOutcome, DiceThrow attackThrow) {
+      HitOutcome hitOutcome, DiceThrow attackThrow, boolean powerStrike) {
 
     boolean defenderCanDefend = staminaRules.canDefend(defender.state().currentStamina());
     DefenseOutcome defenseOutcome = resolveDefense(defender, attacker, defenderCanDefend);
 
     DiceThrow varianceThrow = diceRoller.d100();
-    int damage = damageCalculator.calculateDamage(attacker, defender, context, hitOutcome, defenseOutcome, varianceThrow);
+    int damage = damageCalculator.calculateDamage(attacker, defender, context, hitOutcome, defenseOutcome,
+        varianceThrow, powerStrike);
     defender.state().applyDamage(damage);
     applyImpactStamina(defender, defenseOutcome, damage);
 
     updateMomentumAfterHit(attacker, defender, hitOutcome, defenseOutcome);
 
-    List<TurnHighlight> highlights = collectHighlights(defenseOutcome, hitOutcome, attackThrow, damage, defender);
+    List<TurnHighlight> highlights =
+        collectHighlights(defenseOutcome, hitOutcome, attackThrow, damage, defender, powerStrike);
     String description = attackAction.describe(attacker, defender, context)
         + turnChronicler.describeOutcome(defenseOutcome.result(), damage, defenderCanDefend, highlights,
-            defender.name());
+            defender.name(), powerStrike);
 
     boolean defenderDodged = defenseOutcome.result() == DefenseOutcome.DefenseResult.DODGED;
     InitiativeOverride override = defenderDodged ? InitiativeOverride.DODGE_STEAL : InitiativeOverride.NONE;
@@ -119,14 +151,18 @@ public class TurnOrchestrator {
   /**
    * Raccoglie tutti gli highlight applicabili al colpo: fonte unica di verità, letta sia dalla
    * descrizione del turno sia (in futuro) dalla narrazione finale. Gli highlight offensivi
-   * (perfetto/critico/pesante) hanno senso solo su un colpo pieno andato a segno; il colpo di
-   * grazia si applica invece a qualunque esito di difesa, se il difensore risulta sconfitto.
+   * (perfetto/critico/pesante/colpo potente) hanno senso solo su un colpo pieno andato a segno;
+   * il colpo di grazia si applica invece a qualunque esito di difesa, se il difensore risulta
+   * sconfitto.
    */
   private List<TurnHighlight> collectHighlights(DefenseOutcome defenseOutcome, HitOutcome hitOutcome,
-      DiceThrow attackThrow, int damage, Fighter defender) {
+      DiceThrow attackThrow, int damage, Fighter defender, boolean powerStrike) {
     List<TurnHighlight> highlights = new ArrayList<>();
     if (defenseOutcome.result() == DefenseOutcome.DefenseResult.HIT_TAKEN) {
       collectOffensiveHighlights(highlights, hitOutcome, attackThrow, damage, defender);
+      if (powerStrike) {
+        highlights.add(TurnHighlight.POWER_STRIKE);
+      }
     }
     if (defender.isDefeated()) {
       highlights.add(TurnHighlight.KNOCKOUT);

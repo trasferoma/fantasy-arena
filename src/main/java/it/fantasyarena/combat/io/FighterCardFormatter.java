@@ -30,6 +30,8 @@ public class FighterCardFormatter {
     List<String> lines = new ArrayList<>();
     lines.add(truncate("[" + index + "] " + fighter.name()));
     lines.add(truncate(character.race() + " " + character.characterClass()));
+    character.characteristics()
+        .forEach(characteristic -> lines.add(truncate(characteristic.characteristic().name() + " " + characteristic.value())));
     lines.add(truncate("Arma  " + weapon.weapon() + " (" + weapon.rarity() + ") atk " + weapon.attack()));
     lines.add(truncate("Arm.  " + armour.armour() + " (" + armour.rarity() + ") def " + armour.defense()));
     lines.add(truncate("VIT " + ratings.maxHealth() + "  STA " + ratings.maxStamina()));

@@ -26,7 +26,7 @@ public class ConsoleCombatLogger implements CombatLogger {
 
   @Override
   public void reportMatchup(Fighter first, Fighter second) {
-    System.out.println("=== Combattenti ===");
+    System.out.println("=== Combattenti ===\n");
     printCards(first, second);
     printPrognosis(first, second);
   }
@@ -44,6 +44,7 @@ public class ConsoleCombatLogger implements CombatLogger {
     System.out.println(frame);
     System.out.println(content);
     System.out.println(frame);
+    System.out.println();
   }
 
   private String describePrognosis(FavoriteEstimator.Verdict verdict) {
@@ -101,7 +102,10 @@ public class ConsoleCombatLogger implements CombatLogger {
 
   private void printCards(Fighter first, Fighter second) {
     cardFormatter.card(1, first).forEach(System.out::println);
+    System.out.println();
+
     cardFormatter.card(2, second).forEach(System.out::println);
+    System.out.println();
   }
 
   private void printWinner(String label, CombatResult result) {
@@ -162,8 +166,8 @@ public class ConsoleCombatLogger implements CombatLogger {
 
   /**
    * Un turno può avere più highlight compresenti (es. un 20 naturale è anche un critico): qui
-   * si sceglie un'unica etichetta dominante per la citazione, con la stessa precedenza usata
-   * dal cronista di turno (colpo di grazia dominante, poi perfetto, poi critico, poi pesante).
+   * si sceglie un'unica etichetta dominante per la citazione, con precedenza {@code KNOCKOUT >
+   * PERFECT_HIT > CRITICAL > POWER_STRIKE > HEAVY_BLOW}.
    */
   private String describeHighlightLabel(List<TurnHighlight> highlights) {
     if (highlights.contains(TurnHighlight.KNOCKOUT)) {
@@ -174,6 +178,9 @@ public class ConsoleCombatLogger implements CombatLogger {
     }
     if (highlights.contains(TurnHighlight.CRITICAL)) {
       return "il colpo critico";
+    }
+    if (highlights.contains(TurnHighlight.POWER_STRIKE)) {
+      return "il colpo potente";
     }
     return "il colpo pesante";
   }

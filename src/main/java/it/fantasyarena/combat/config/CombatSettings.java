@@ -18,6 +18,7 @@ public record CombatSettings(
     ChanceWeights chanceWeights,
     InitiativeWeights initiativeWeights,
     ChronicleWeights chronicleWeights,
+    PowerStrikeWeights powerStrikeWeights,
     int maxTurns) {
 
   /**
@@ -31,6 +32,7 @@ public record CombatSettings(
         ChanceWeights.defaults(),
         InitiativeWeights.defaults(),
         ChronicleWeights.defaults(),
+        PowerStrikeWeights.defaults(),
         30);
   }
 
@@ -126,10 +128,10 @@ public record CombatSettings(
 
   /**
    * Costi Stamina per azione, penalità progressive di affaticamento, recupero da riposo,
-   * soglia sotto la quale conviene riposare invece di attaccare, fattore di impatto
-   * proporzionale al danno subito da chi incassa un colpo pieno, malus di catena sul costo
-   * d'attacco e recupero passivo di chi perde l'iniziativa. Valori del malus di catena e del
-   * recupero passivo provvisori (taratura empirica).
+   * percentuale del pool massimo di Stamina sotto la quale conviene riposare invece di
+   * attaccare, fattore di impatto proporzionale al danno subito da chi incassa un colpo pieno,
+   * malus di catena sul costo d'attacco e recupero passivo di chi perde l'iniziativa. Valori
+   * del malus di catena e del recupero passivo provvisori (taratura empirica).
    */
   public record StaminaWeights(
       int attackCost,
@@ -141,14 +143,14 @@ public record CombatSettings(
       double mediumFatiguePenalty,
       double heavyFatiguePenalty,
       int restRecovery,
-      int restThreshold,
+      double restThresholdRatio,
       double impactStaminaDamageFactor,
       int chainMalusStep,
       int chainMalusCap,
       int passiveRecovery) {
 
     public static StaminaWeights defaults() {
-      return new StaminaWeights(6, 4, 5, 2, 0.50, 0.25, 0.15, 0.30, 12, 11, 0.5, 2, 6, 4);
+      return new StaminaWeights(6, 4, 5, 2, 0.50, 0.25, 0.15, 0.30, 6, 0.40, 0.5, 2, 6, 4);
     }
   }
 
@@ -213,6 +215,31 @@ public record CombatSettings(
 
     public static ChronicleWeights defaults() {
       return new ChronicleWeights(0.25);
+    }
+  }
+
+  /**
+   * Pesi e soglia del colpo potente: quanto costa/danneggia in più, quanto pesano stamina e
+   * vita residue nella parte razionale della decisione, quanto pesa l'overconfidence generata
+   * dal momentum, l'intelligenza di riferimento che la attenua, il micro-jitter che rompe i
+   * casi borderline, la soglia dello score oltre la quale il colpo potente viene tentato e i
+   * turni d'azione di ricarica (cooldown) dopo un colpo potente eseguito. Valori di default
+   * provvisori (taratura empirica), come gli altri sotto-record.
+   */
+  public record PowerStrikeWeights(
+      int costMultiplier,
+      double damageMultiplier,
+      double staminaWeight,
+      double healthWeight,
+      double overconfidenceWeight,
+      double intelligenceReference,
+      double jitterWeight,
+      int jitterDiceFaces,
+      double decisionThreshold,
+      int cooldownTurns) {
+
+    public static PowerStrikeWeights defaults() {
+      return new PowerStrikeWeights(2, 1.3, 0.5, 0.5, 0.5, 18.0, 0.2, 6, 0.6, 4);
     }
   }
 }

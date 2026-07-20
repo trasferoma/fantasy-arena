@@ -41,10 +41,10 @@ class DamageCalculatorContextTest {
 
     CombatContext neutralContext = CombatContext.of(List.of(new ContextModifier(1.0, 1.0)));
 
-    int damageWithEmptyContext =
-        damageCalculator.calculateDamage(attacker, defender, emptyContext, hitOutcome, defenseOutcome, varianceThrow);
+    int damageWithEmptyContext = damageCalculator.calculateDamage(attacker, defender, emptyContext, hitOutcome,
+        defenseOutcome, varianceThrow, false);
     int damageWithNeutralContext = damageCalculator.calculateDamage(attacker, defender, neutralContext, hitOutcome,
-        defenseOutcome, varianceThrow);
+        defenseOutcome, varianceThrow, false);
 
     assertEquals(damageWithNeutralContext, damageWithEmptyContext,
         "un context vuoto deve produrre lo stesso danno di un context con modificatore neutro");

@@ -39,9 +39,9 @@ class ResolverPurityTest {
         new DamageCalculator(settings, new MomentumRules(settings), new StaminaRules(settings));
     DiceThrow varianceThrow = new DiceThrow(50, 100);
     int firstDamage = damageCalculator.calculateDamage(attacker, defender, CombatContext.empty(), firstHit,
-        firstDefense, varianceThrow);
+        firstDefense, varianceThrow, false);
     int secondDamage = damageCalculator.calculateDamage(attacker, defender, CombatContext.empty(), firstHit,
-        firstDefense, varianceThrow);
+        firstDefense, varianceThrow, false);
     assertEquals(firstDamage, secondDamage, "stesso DiceThrow in input deve produrre lo stesso danno calcolato");
   }
 }

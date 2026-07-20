@@ -48,8 +48,8 @@ public final class StaminaRules {
     return settings.staminaWeights().restRecovery();
   }
 
-  public int restThreshold() {
-    return settings.staminaWeights().restThreshold();
+  public double restThresholdRatio() {
+    return settings.staminaWeights().restThresholdRatio();
   }
 
   public int chainMalusStep() {
@@ -84,11 +84,13 @@ public final class StaminaRules {
 
   /**
    * Policy a soglia con riserva difensiva: conviene riposare non solo a Stamina esaurita, ma
-   * gia' quando scende sotto {@code restThreshold} (il costo dell'attacco piu' quello della
-   * difesa), per evitare di restare senza risorse per difendersi al turno successivo.
+   * gia' quando scende sotto {@code restThresholdRatio} del pool massimo di Stamina, per
+   * evitare di restare senza risorse per difendersi al turno successivo. Espressa come
+   * percentuale (anziche' soglia assoluta) la regola scala correttamente sia su pool piccoli
+   * sia su pool grandi.
    */
-  public boolean shouldRest(int currentStamina) {
-    return currentStamina <= 0 || currentStamina < restThreshold();
+  public boolean shouldRest(int currentStamina, int maxStamina) {
+    return currentStamina <= 0 || currentStamina < restThresholdRatio() * maxStamina;
   }
 
   /**

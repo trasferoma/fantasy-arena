@@ -35,16 +35,34 @@ import it.fantasytoolkitcore.core.model.Weapon;
  */
 public final class CombatFixtures {
 
+  /**
+   * Moltiplicatore di costo del colpo potente usato da {@link #withPowerStrikeUnaffordable}:
+   * abbastanza grande da restare irraggiungibile per qualunque pool di Stamina di questi
+   * fixture.
+   */
+  private static final int UNAFFORDABLE_POWER_STRIKE_COST_MULTIPLIER = 1_000_000;
+
   private CombatFixtures() {
   }
 
   /**
    * Costruisce un {@link Fighter} guerriero umano con spada e corazza, con Rating calcolati
-   * dalla {@link DefaultRatingStrategy} reale sulle caratteristiche fisse fornite.
+   * dalla {@link DefaultRatingStrategy} reale sulle caratteristiche fisse fornite. Intelligenza
+   * fissa a 10 (per varianti con Intelligenza configurabile, vedi l'overload dedicato).
    */
   public static Fighter createFighter(String name, int strength, int agility, int resistance, int stamina, int luck,
       int weaponAttack, int armourDefense) {
-    CharacterResult character = createWarrior(name, strength, agility, resistance, stamina, luck);
+    return createFighter(name, strength, agility, resistance, stamina, luck, 10, weaponAttack, armourDefense);
+  }
+
+  /**
+   * Come {@link #createFighter(String, int, int, int, int, int, int, int)}, con Intelligenza
+   * configurabile: utile per i test del {@code PowerStrikeResolver}, la cui decisione dipende
+   * anche da questa caratteristica.
+   */
+  public static Fighter createFighter(String name, int strength, int agility, int resistance, int stamina, int luck,
+      int intelligence, int weaponAttack, int armourDefense) {
+    CharacterResult character = createWarrior(name, strength, agility, resistance, stamina, luck, intelligence);
     WeaponResult weapon = createSword(weaponAttack);
     ArmourResult armour = createChestplate(armourDefense);
     RatingStrategy ratingStrategy = new DefaultRatingStrategy(CombatSettings.defaults());
@@ -54,13 +72,18 @@ public final class CombatFixtures {
 
   public static CharacterResult createWarrior(String name, int strength, int agility, int resistance, int stamina,
       int luck) {
+    return createWarrior(name, strength, agility, resistance, stamina, luck, 10);
+  }
+
+  public static CharacterResult createWarrior(String name, int strength, int agility, int resistance, int stamina,
+      int luck, int intelligence) {
     List<CharacterCharacteristic> characteristics = List.of(
         new CharacterCharacteristic(Characteristic.STRENGTH, strength),
         new CharacterCharacteristic(Characteristic.AGILITY, agility),
         new CharacterCharacteristic(Characteristic.RESISTANCE, resistance),
         new CharacterCharacteristic(Characteristic.STAMINA, stamina),
         new CharacterCharacteristic(Characteristic.LUCK, luck),
-        new CharacterCharacteristic(Characteristic.INTELLIGENCE, 10),
+        new CharacterCharacteristic(Characteristic.INTELLIGENCE, intelligence),
         new CharacterCharacteristic(Characteristic.CHARISMA, 10));
     return new CharacterResult(Race.HUMAN, CharacterClass.WARRIOR, name, characteristics);
   }
@@ -87,5 +110,22 @@ public final class CombatFixtures {
         damageCalculator, momentumRules, staminaRules, settings);
     InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
     return new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
+  }
+
+  /**
+   * Rende il costo del colpo potente strutturalmente non pagabile, qualunque sia la Stamina del
+   * combattente: usato dai test che non riguardano il colpo potente per preservare, dado per
+   * dado, la sequenza e gli esiti di oggi (nessun jitter di decisione consumato, nessun effetto
+   * di costo/danno/highlight/descrizione del colpo potente).
+   */
+  public static CombatSettings withPowerStrikeUnaffordable(CombatSettings settings) {
+    CombatSettings.PowerStrikeWeights base = settings.powerStrikeWeights();
+    CombatSettings.PowerStrikeWeights unaffordable = new CombatSettings.PowerStrikeWeights(
+        UNAFFORDABLE_POWER_STRIKE_COST_MULTIPLIER, base.damageMultiplier(), base.staminaWeight(),
+        base.healthWeight(), base.overconfidenceWeight(), base.intelligenceReference(), base.jitterWeight(),
+        base.jitterDiceFaces(), base.decisionThreshold(), base.cooldownTurns());
+    return new CombatSettings(settings.ratingWeights(), settings.momentumWeights(), settings.staminaWeights(),
+        settings.chanceWeights(), settings.initiativeWeights(), settings.chronicleWeights(), unaffordable,
+        settings.maxTurns());
   }
 }

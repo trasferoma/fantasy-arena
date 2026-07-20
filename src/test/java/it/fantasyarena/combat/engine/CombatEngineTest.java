@@ -75,7 +75,7 @@ class CombatEngineTest {
   private static CombatResult runDuel(List<DiceThrow> sequence, int staminaCharacteristic) {
     Fighter first = CombatFixtures.createFighter("Guerriero A", 30, 10, 5, staminaCharacteristic, 5, 20, 0);
     Fighter second = CombatFixtures.createFighter("Guerriero B", 30, 10, 5, staminaCharacteristic, 5, 20, 0);
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     StubDiceRoller diceRoller = new StubDiceRoller(sequence);
     CombatEngine engine = CombatFixtures.buildEngine(diceRoller, settings);
     return engine.fight(first, second, CombatContext.empty());

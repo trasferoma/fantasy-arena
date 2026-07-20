@@ -62,4 +62,25 @@ class FighterStateStaminaTest {
 
     assertEquals(0, state.consecutiveInitiativeWins(), "la perdita dell'iniziativa azzera la catena");
   }
+
+  @Test
+  void powerStrikeCooldown_readyTickAndStart() {
+    FighterState state = new FighterState(100, 20);
+
+    assertTrue(state.powerStrikeReady(), "senza cooldown avviato il colpo potente e' pronto");
+
+    state.startPowerStrikeCooldown(4);
+    assertFalse(state.powerStrikeReady(), "dopo l'avvio il cooldown non e' esaurito");
+
+    state.tickPowerStrikeCooldown();
+    state.tickPowerStrikeCooldown();
+    state.tickPowerStrikeCooldown();
+    assertFalse(state.powerStrikeReady(), "al terzo tick su 4 il cooldown non e' ancora esaurito");
+
+    state.tickPowerStrikeCooldown();
+    assertTrue(state.powerStrikeReady(), "al quarto tick il cooldown e' esaurito");
+
+    state.tickPowerStrikeCooldown();
+    assertTrue(state.powerStrikeReady(), "il tick oltre lo zero non deve andare in negativo ne' alterare la prontezza");
+  }
 }

@@ -27,7 +27,7 @@ class TurnOrchestratorHighlightsTest {
 
   @Test
   void colpoCritico_emetteCriticalNonPerfect() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 10, 5, 5, 5, 5, 5, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 10, 5, 10, 5, 5, 5, 5);
     attacker.state().winInitiative();
@@ -47,7 +47,7 @@ class TurnOrchestratorHighlightsTest {
 
   @Test
   void ventiNaturale_emettePerfectHit_conCriticalCompresente() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 10, 5, 5, 5, 5, 5, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 10, 5, 10, 5, 5, 5, 5);
     attacker.state().winInitiative();
@@ -66,7 +66,7 @@ class TurnOrchestratorHighlightsTest {
 
   @Test
   void colpoDiGrazia_emetteKnockout() {
-    CombatSettings settings = CombatSettings.defaults();
+    CombatSettings settings = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     Fighter attacker = CombatFixtures.createFighter("Attaccante", 10, 5, 5, 5, 5, 5, 0);
     Fighter defender = CombatFixtures.createFighter("Difensore", 10, 5, 10, 5, 5, 5, 5);
     attacker.state().winInitiative();
@@ -94,7 +94,7 @@ class TurnOrchestratorHighlightsTest {
     List<DiceThrow> scriptedThrows =
         List.of(new DiceThrow(15, 20), new DiceThrow(20, 20), new DiceThrow(50, 100));
 
-    CombatSettings defaultThreshold = CombatSettings.defaults();
+    CombatSettings defaultThreshold = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     TurnLogEntry withDefaultThreshold =
         playSingleTurn(new StubDiceRoller(scriptedThrows), defaultThreshold, attacker, defender);
 
@@ -119,7 +119,8 @@ class TurnOrchestratorHighlightsTest {
 
   private static CombatSettings withChronicleWeights(CombatSettings settings, ChronicleWeights chronicleWeights) {
     return new CombatSettings(settings.ratingWeights(), settings.momentumWeights(), settings.staminaWeights(),
-        settings.chanceWeights(), settings.initiativeWeights(), chronicleWeights, settings.maxTurns());
+        settings.chanceWeights(), settings.initiativeWeights(), chronicleWeights, settings.powerStrikeWeights(),
+        settings.maxTurns());
   }
 
   private static TurnLogEntry playSingleTurn(StubDiceRoller diceRoller, CombatSettings settings, Fighter attacker,

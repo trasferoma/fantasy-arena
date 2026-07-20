@@ -1,2 +1,6 @@
-Iniziativa ricalcolata ogni volta
-Attacco rapido, attacco potente
+- movimento nell'arena
+- più avversari
+- più avversari a squadre (2 vs 1, 2 vs 2, ecc)
+- combattimento a distanza
+- magia
+- resa

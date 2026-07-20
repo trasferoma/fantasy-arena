@@ -26,5 +26,11 @@ public enum TurnHighlight {
    * Colpo pesante: danno oltre la soglia percentuale configurata della vita massima del
    * bersaglio.
    */
-  HEAVY_BLOW
+  HEAVY_BLOW,
+
+  /**
+   * Colpo potente andato a segno: l'attaccante ha rischiato il doppio della Stamina per il
+   * doppio del danno.
+   */
+  POWER_STRIKE
 }

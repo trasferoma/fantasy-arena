@@ -57,15 +57,16 @@ class StaminaRulesTest {
     StaminaWeights weights = settings.staminaWeights();
     StaminaRules staminaRules = new StaminaRules(settings);
 
-    assertEquals(12, weights.restRecovery());
-    assertEquals(11, weights.restThreshold());
-    assertEquals(12, staminaRules.restRecovery());
-    assertEquals(11, staminaRules.restThreshold());
+    assertEquals(6, weights.restRecovery());
+    assertEquals(0.40, weights.restThresholdRatio(), DELTA);
+    assertEquals(6, staminaRules.restRecovery());
+    assertEquals(0.40, staminaRules.restThresholdRatio(), DELTA);
 
-    assertTrue(staminaRules.shouldRest(0), "a Stamina 0 il riposo e' obbligatorio");
-    assertTrue(staminaRules.shouldRest(10), "sotto la soglia di riposo conviene riposare");
-    assertFalse(staminaRules.shouldRest(11), "alla soglia di riposo si puo' ancora attaccare");
-    assertFalse(staminaRules.shouldRest(20), "sopra la soglia di riposo non serve riposare");
+    int maxStamina = 20;
+    assertTrue(staminaRules.shouldRest(0, maxStamina), "a Stamina 0 il riposo e' obbligatorio");
+    assertTrue(staminaRules.shouldRest(7, maxStamina), "sotto la soglia di riposo (40% di 20 = 8) conviene riposare");
+    assertFalse(staminaRules.shouldRest(8, maxStamina), "alla soglia di riposo si puo' ancora attaccare");
+    assertFalse(staminaRules.shouldRest(maxStamina, maxStamina), "sopra la soglia di riposo non serve riposare");
 
     assertFalse(staminaRules.canAttack(0), "a Stamina 0 non si puo' attaccare");
     assertTrue(staminaRules.canAttack(1), "con almeno 1 Stamina si puo' ancora attaccare");

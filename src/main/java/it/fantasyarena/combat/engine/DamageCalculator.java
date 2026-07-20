@@ -26,7 +26,7 @@ public final class DamageCalculator {
   }
 
   public int calculateDamage(Fighter attacker, Fighter defender, CombatContext context, HitOutcome hitOutcome,
-      DefenseOutcome defenseOutcome, DiceThrow varianceThrow) {
+      DefenseOutcome defenseOutcome, DiceThrow varianceThrow, boolean powerStrike) {
 
     if (!hitOutcome.hit()) {
       return 0;
@@ -38,7 +38,8 @@ public final class DamageCalculator {
 
     double variedDamage = applyVariance(rawDamage, varianceThrow);
     double criticalDamage = applyCritical(variedDamage, hitOutcome);
-    double finalDamage = criticalDamage * (1.0 - defenseOutcome.damageReduction());
+    double poweredDamage = applyPowerStrike(criticalDamage, powerStrike);
+    double finalDamage = poweredDamage * (1.0 - defenseOutcome.damageReduction());
 
     return Math.max(0, (int) Math.round(finalDamage));
   }
@@ -68,5 +69,16 @@ public final class DamageCalculator {
       return damage;
     }
     return damage * settings.chanceWeights().criticalDamageMultiplier();
+  }
+
+  /**
+   * Moltiplicatore del colpo potente: step separato dal critico e cumulativo con esso (un colpo
+   * potente e critico moltiplica il danno per entrambi).
+   */
+  private double applyPowerStrike(double damage, boolean powerStrike) {
+    if (!powerStrike) {
+      return damage;
+    }
+    return damage * settings.powerStrikeWeights().damageMultiplier();
   }
 }

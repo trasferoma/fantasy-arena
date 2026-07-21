@@ -122,4 +122,25 @@ class CombatEngineTest {
     assertTrue(result.winner().isPresent());
     assertFalse(result.winner().orElseThrow().isDefeated(), "il vincitore non deve essere sconfitto");
   }
+
+  /**
+   * Il colpo potente non deve essere disponibile fin dall'inizio del duello: entrambi i
+   * combattenti cominciano gia' in cooldown, come se lo avessero appena eseguito.
+   */
+  @Test
+  void armInitialPowerStrikeCooldown_entrambiICombattentiPartonoInCooldown() {
+    CombatSettings settings = CombatSettings.defaults();
+    Fighter first = CombatFixtures.createFighter("Guerriero A", 30, 10, 5, 20, 5, 20, 0);
+    Fighter second = CombatFixtures.createFighter("Guerriero B", 30, 10, 5, 20, 5, 20, 0);
+    CombatEngine engine = CombatFixtures.buildEngine(new StubDiceRoller(List.of()), settings);
+
+    assertTrue(first.state().powerStrikeReady(), "precondizione: un Fighter appena creato e' pronto");
+    assertTrue(second.state().powerStrikeReady(), "precondizione: un Fighter appena creato e' pronto");
+
+    engine.armInitialPowerStrikeCooldown(first, second);
+
+    assertFalse(first.state().powerStrikeReady(), "il colpo potente non deve essere gia' disponibile a inizio duello");
+    assertFalse(second.state().powerStrikeReady(),
+        "il colpo potente non deve essere gia' disponibile a inizio duello");
+  }
 }

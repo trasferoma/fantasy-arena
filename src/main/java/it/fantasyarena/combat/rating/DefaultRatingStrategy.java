@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.rating;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.config.CombatSettings.RatingWeights;
 import it.fantasyarena.combat.model.Characteristics;
@@ -38,41 +39,31 @@ public final class DefaultRatingStrategy implements RatingStrategy {
     double classBonus = weights.offensiveClassBonus().getOrDefault(character.characterClass(), 0.0);
     double raceBonus = weights.offensiveRaceBonus().getOrDefault(character.race(), 0.0);
 
-    return weights.strengthOffenseWeight() * strength
-        + weights.agilityOffenseWeight() * agility
-        + weights.weaponAttackWeight() * weapon.attack()
-        + classBonus
-        + raceBonus;
+    return CombatFormulas.offensiveRating(weights, strength, agility, weapon.attack(), classBonus, raceBonus);
   }
 
   private double computeDefensiveRating(CharacterResult character, ArmourResult armour, ArmourResult shield) {
     RatingWeights weights = settings.ratingWeights();
     int resistance = Characteristics.valueOf(character, Characteristic.RESISTANCE);
     int agility = Characteristics.valueOf(character, Characteristic.AGILITY);
-    double shieldDefense = (shield != null) ? weights.shieldDefenseWeight() * shield.defense() : 0.0;
+    int shieldDefense = (shield != null) ? shield.defense() : 0;
     double classBonus = weights.defensiveClassBonus().getOrDefault(character.characterClass(), 0.0);
     double raceBonus = weights.defensiveRaceBonus().getOrDefault(character.race(), 0.0);
 
-    return weights.resistanceDefenseWeight() * resistance
-        + weights.agilityDefenseWeight() * agility
-        + weights.armourDefenseWeight() * armour.defense()
-        + shieldDefense
-        + classBonus
-        + raceBonus;
+    return CombatFormulas.defensiveRating(weights, resistance, agility, armour.defense(), shieldDefense, classBonus,
+        raceBonus);
   }
 
   private int computeMaxHealth(CharacterResult character) {
     RatingWeights weights = settings.ratingWeights();
     int resistance = Characteristics.valueOf(character, Characteristic.RESISTANCE);
     int stamina = Characteristics.valueOf(character, Characteristic.STAMINA);
-    return weights.maxHealthBase()
-        + weights.maxHealthPerResistance() * resistance
-        + weights.maxHealthPerStamina() * stamina;
+    return CombatFormulas.maxHealth(weights, resistance, stamina);
   }
 
   private int computeMaxStamina(CharacterResult character) {
     RatingWeights weights = settings.ratingWeights();
     int stamina = Characteristics.valueOf(character, Characteristic.STAMINA);
-    return weights.maxStaminaBase() + weights.maxStaminaPerStamina() * stamina;
+    return CombatFormulas.maxStamina(weights, stamina);
   }
 }

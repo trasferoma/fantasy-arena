@@ -1,7 +1,7 @@
 package it.fantasyarena.combat.engine;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.config.CombatSettings.StaminaWeights;
 import it.fantasyarena.combat.model.IntrinsicRatings;
 
 /**
@@ -41,7 +41,7 @@ public final class StaminaRules {
    * garantito pari a {@link #impactCost()}.
    */
   public int impactStaminaLoss(int damage) {
-    return Math.max(impactCost(), (int) Math.round(damage * impactStaminaDamageFactor()));
+    return CombatFormulas.impactStaminaLoss(settings.staminaWeights(), damage);
   }
 
   public int restRecovery() {
@@ -70,8 +70,7 @@ public final class StaminaRules {
    * successivo aggiunge uno step, fino al cap.
    */
   public int effectiveAttackCost(int consecutiveInitiativeWins) {
-    int chainMalus = Math.min(chainMalusCap(), chainMalusStep() * (consecutiveInitiativeWins - 1));
-    return attackCost() + chainMalus;
+    return CombatFormulas.effectiveAttackCost(settings.staminaWeights(), consecutiveInitiativeWins);
   }
 
   public boolean canAttack(int currentStamina) {
@@ -90,7 +89,7 @@ public final class StaminaRules {
    * sia su pool grandi.
    */
   public boolean shouldRest(int currentStamina, int maxStamina) {
-    return currentStamina <= 0 || currentStamina < restThresholdRatio() * maxStamina;
+    return CombatFormulas.shouldRest(settings.staminaWeights(), currentStamina, maxStamina);
   }
 
   /**
@@ -98,15 +97,6 @@ public final class StaminaRules {
    * la soglia alta, -15% nella fascia intermedia, -30% sotto la soglia bassa.
    */
   public double fatigueMultiplier(int currentStamina, IntrinsicRatings ratings) {
-    StaminaWeights weights = settings.staminaWeights();
-    double ratio = (double) currentStamina / ratings.maxStamina();
-
-    if (ratio > weights.highRatioThreshold()) {
-      return 1.0;
-    }
-    if (ratio >= weights.lowRatioThreshold()) {
-      return 1.0 - weights.mediumFatiguePenalty();
-    }
-    return 1.0 - weights.heavyFatiguePenalty();
+    return CombatFormulas.fatigueMultiplier(settings.staminaWeights(), currentStamina, ratings.maxStamina());
   }
 }

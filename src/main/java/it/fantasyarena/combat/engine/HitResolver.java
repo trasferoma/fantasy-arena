@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.engine;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.config.CombatSettings.ChanceWeights;
 import it.fantasyarena.combat.dice.DiceThrow;
@@ -27,7 +28,7 @@ public final class HitResolver {
     }
 
     double hitChance = computeHitChance(attacker, defender);
-    boolean hit = attackThrow.normalized() <= hitChance;
+    boolean hit = CombatFormulas.isHit(attackThrow.normalized(), hitChance);
     boolean critical = hit && isCritical(attacker, attackThrow);
     return new HitOutcome(hit, critical);
   }
@@ -36,8 +37,7 @@ public final class HitResolver {
     ChanceWeights chances = settings.chanceWeights();
     int attackerAgility = Characteristics.valueOf(attacker.character(), Characteristic.AGILITY);
     int defenderAgility = Characteristics.valueOf(defender.character(), Characteristic.AGILITY);
-    double hitChance = chances.baseHitChance() + chances.hitChanceAgilityFactor() * (attackerAgility - defenderAgility);
-    return clamp(hitChance, chances.minHitChance(), chances.maxHitChance());
+    return CombatFormulas.hitChance(chances, attackerAgility, defenderAgility);
   }
 
   /**
@@ -49,12 +49,7 @@ public final class HitResolver {
   private boolean isCritical(Fighter attacker, DiceThrow attackThrow) {
     ChanceWeights chances = settings.chanceWeights();
     int luck = Characteristics.valueOf(attacker.character(), Characteristic.LUCK);
-    double critChance = chances.baseCritChance() + chances.critChanceLuckFactor() * luck;
-    critChance = clamp(critChance, chances.minCritChance(), chances.maxCritChance());
-    return attackThrow.normalized() <= critChance;
-  }
-
-  private static double clamp(double value, double min, double max) {
-    return Math.max(min, Math.min(max, value));
+    double critChance = CombatFormulas.critChance(chances, luck);
+    return CombatFormulas.isCritical(attackThrow.normalized(), critChance);
   }
 }

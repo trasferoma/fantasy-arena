@@ -2,6 +2,7 @@ package it.fantasyarena.combat.engine;
 
 import java.util.List;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.config.CombatSettings.InitiativeWeights;
 import it.fantasyarena.combat.dice.DiceThrow;
@@ -92,12 +93,11 @@ public final class InitiativeResolver {
     int currentStamina = fighter.state().currentStamina();
     int maxStamina = fighter.ratings().maxStamina();
     int jitterValue = jitterThrow.value();
-    double staminaRatio = (double) currentStamina / maxStamina;
 
-    double staminaComponent = weights.wStamina() * staminaRatio;
-    double agilityComponent = weights.wAgility() * agility;
-    double intelligenceComponent = weights.wIntelligence() * intelligence;
-    double jitterComponent = weights.wJitter() * jitterValue;
+    double staminaComponent = CombatFormulas.initiativeStaminaComponent(weights, currentStamina, maxStamina);
+    double agilityComponent = CombatFormulas.initiativeAgilityComponent(weights, agility);
+    double intelligenceComponent = CombatFormulas.initiativeIntelligenceComponent(weights, intelligence);
+    double jitterComponent = CombatFormulas.initiativeJitterComponent(weights, jitterValue);
     double total = staminaComponent + agilityComponent + intelligenceComponent + jitterComponent;
 
     return new InitiativeBreakdown(fighter.name(), staminaComponent, agilityComponent, intelligenceComponent,

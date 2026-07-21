@@ -1,7 +1,7 @@
 package it.fantasyarena.combat.engine;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.config.CombatSettings.ChanceWeights;
 import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
@@ -34,12 +34,15 @@ public final class DamageCalculator {
 
     double effectiveOffense = effectiveOffense(attacker, context);
     double effectiveDefense = effectiveDefense(defender, context);
-    double rawDamage = Math.max(1.0, effectiveOffense - 0.5 * effectiveDefense);
+    double rawDamage = CombatFormulas.rawDamage(effectiveOffense, effectiveDefense);
 
-    double variedDamage = applyVariance(rawDamage, varianceThrow);
-    double criticalDamage = applyCritical(variedDamage, hitOutcome);
-    double poweredDamage = applyPowerStrike(criticalDamage, powerStrike);
-    double finalDamage = poweredDamage * (1.0 - defenseOutcome.damageReduction());
+    double variedDamage = CombatFormulas.applyDamageVariance(settings.chanceWeights(), rawDamage,
+        varianceThrow.normalized());
+    double criticalDamage =
+        CombatFormulas.applyCriticalDamage(settings.chanceWeights(), variedDamage, hitOutcome.critical());
+    double poweredDamage =
+        CombatFormulas.applyPowerStrikeDamage(settings.powerStrikeWeights(), criticalDamage, powerStrike);
+    double finalDamage = CombatFormulas.applyDamageReduction(poweredDamage, defenseOutcome.damageReduction());
 
     return Math.max(0, (int) Math.round(finalDamage));
   }
@@ -48,37 +51,15 @@ public final class DamageCalculator {
     IntrinsicRatings ratings = attacker.ratings();
     double momentumMult = momentumRules.effectMultiplier(attacker.state().momentum());
     double staminaMult = staminaRules.fatigueMultiplier(attacker.state().currentStamina(), ratings);
-    return ratings.offensiveRating() * momentumMult * staminaMult * context.offensiveMultiplier();
+    return CombatFormulas.effectiveRating(ratings.offensiveRating(), momentumMult, staminaMult,
+        context.offensiveMultiplier());
   }
 
   private double effectiveDefense(Fighter defender, CombatContext context) {
     IntrinsicRatings ratings = defender.ratings();
     double momentumMult = momentumRules.effectMultiplier(defender.state().momentum());
     double staminaMult = staminaRules.fatigueMultiplier(defender.state().currentStamina(), ratings);
-    return ratings.defensiveRating() * momentumMult * staminaMult * context.defensiveMultiplier();
-  }
-
-  private double applyVariance(double rawDamage, DiceThrow varianceThrow) {
-    ChanceWeights chances = settings.chanceWeights();
-    double variance = (varianceThrow.normalized() * 2.0 - 1.0) * chances.damageVarianceRange();
-    return rawDamage * (1.0 + variance);
-  }
-
-  private double applyCritical(double damage, HitOutcome hitOutcome) {
-    if (!hitOutcome.critical()) {
-      return damage;
-    }
-    return damage * settings.chanceWeights().criticalDamageMultiplier();
-  }
-
-  /**
-   * Moltiplicatore del colpo potente: step separato dal critico e cumulativo con esso (un colpo
-   * potente e critico moltiplica il danno per entrambi).
-   */
-  private double applyPowerStrike(double damage, boolean powerStrike) {
-    if (!powerStrike) {
-      return damage;
-    }
-    return damage * settings.powerStrikeWeights().damageMultiplier();
+    return CombatFormulas.effectiveRating(ratings.defensiveRating(), momentumMult, staminaMult,
+        context.defensiveMultiplier());
   }
 }

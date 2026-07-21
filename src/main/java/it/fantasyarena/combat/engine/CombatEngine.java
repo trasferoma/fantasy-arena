@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceRoller;
@@ -41,6 +42,8 @@ public class CombatEngine {
   }
 
   public CombatResult fight(Fighter first, Fighter second, CombatContext context) {
+    armInitialPowerStrikeCooldown(first, second);
+
     InitiativeDecision firstMoverDecision = resolveFirstMover(first, second);
     Fighter attacker = firstMoverDecision.chosen();
     Fighter defender = (attacker == first) ? second : first;
@@ -80,6 +83,17 @@ public class CombatEngine {
     }
 
     return buildResult(first, second, turnNumber, log);
+  }
+
+  /**
+   * Il colpo potente non e' disponibile fin dall'inizio del duello: entrambi i combattenti
+   * cominciano gia' in cooldown, come se lo avessero appena eseguito, cosi' la prima occasione
+   * per tentarlo arriva solo dopo {@code cooldownTurns} turni d'azione.
+   */
+  void armInitialPowerStrikeCooldown(Fighter first, Fighter second) {
+    int cooldownTurns = settings.powerStrikeWeights().cooldownTurns();
+    first.state().startPowerStrikeCooldown(cooldownTurns);
+    second.state().startPowerStrikeCooldown(cooldownTurns);
   }
 
   private InitiativeDecision resolveFirstMover(Fighter first, Fighter second) {
@@ -151,7 +165,7 @@ public class CombatEngine {
   }
 
   private double healthRatio(Fighter fighter) {
-    return (double) fighter.state().currentHealth() / fighter.ratings().maxHealth();
+    return CombatFormulas.ratio(fighter.state().currentHealth(), fighter.ratings().maxHealth());
   }
 
   private List<FighterVitals> vitalsSnapshot(Fighter first, Fighter second) {

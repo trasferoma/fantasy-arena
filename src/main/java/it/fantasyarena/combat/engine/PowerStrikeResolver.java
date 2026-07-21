@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.engine;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.config.CombatSettings.MomentumWeights;
 import it.fantasyarena.combat.config.CombatSettings.PowerStrikeWeights;
@@ -38,24 +39,11 @@ public final class PowerStrikeResolver {
    * per gli assert deterministici dei casi borderline nei test.
    */
   double score(Fighter attacker, DiceThrow jitterThrow) {
-    double staminaRatio = ratio(attacker.state().currentStamina(), attacker.ratings().maxStamina());
-    double healthRatio = ratio(attacker.state().currentHealth(), attacker.ratings().maxHealth());
-    double momentumNorm = clamp01((double) attacker.state().momentum() / momentumWeights.max());
+    double staminaRatio = CombatFormulas.ratio(attacker.state().currentStamina(), attacker.ratings().maxStamina());
+    double healthRatio = CombatFormulas.ratio(attacker.state().currentHealth(), attacker.ratings().maxHealth());
     double intelligence = Characteristics.valueOf(attacker.character(), Characteristic.INTELLIGENCE);
-    double intelFactor = clamp01(intelligence / weights.intelligenceReference());
 
-    double rational = weights.staminaWeight() * staminaRatio + weights.healthWeight() * healthRatio;
-    double overconfidence = weights.overconfidenceWeight() * momentumNorm;
-    double jitterNormalized = jitterThrow.normalized();
-
-    return rational + (1.0 - intelFactor) * overconfidence + weights.jitterWeight() * jitterNormalized;
-  }
-
-  private double ratio(int current, int max) {
-    return (double) current / max;
-  }
-
-  private double clamp01(double value) {
-    return Math.max(0.0, Math.min(1.0, value));
+    return CombatFormulas.powerStrikeScore(weights, momentumWeights, staminaRatio, healthRatio,
+        attacker.state().momentum(), intelligence, jitterThrow.normalized());
   }
 }

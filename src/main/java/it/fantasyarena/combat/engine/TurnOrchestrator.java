@@ -3,7 +3,7 @@ package it.fantasyarena.combat.engine;
 import java.util.ArrayList;
 import java.util.List;
 
-import it.fantasyarena.combat.action.AttackAction;
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceRoller;
@@ -31,7 +31,6 @@ public class TurnOrchestrator {
   private final MomentumRules momentumRules;
   private final StaminaRules staminaRules;
   private final CombatSettings settings;
-  private final AttackAction attackAction;
   private final TurnChronicler turnChronicler;
   private final PowerStrikeResolver powerStrikeResolver;
 
@@ -45,7 +44,6 @@ public class TurnOrchestrator {
     this.momentumRules = momentumRules;
     this.staminaRules = staminaRules;
     this.settings = settings;
-    this.attackAction = new AttackAction(staminaRules.attackCost());
     this.turnChronicler = new TurnChronicler();
     this.powerStrikeResolver = new PowerStrikeResolver(settings);
   }
@@ -103,7 +101,7 @@ public class TurnOrchestrator {
   }
 
   private int powerCost(int attackCost) {
-    return settings.powerStrikeWeights().costMultiplier() * attackCost;
+    return CombatFormulas.powerStrikeCost(settings.powerStrikeWeights(), attackCost);
   }
 
   private TurnResult resolveRest(int turnNumber, Fighter attacker) {
@@ -118,7 +116,8 @@ public class TurnOrchestrator {
 
   private TurnResult resolveMiss(int turnNumber, Fighter attacker, Fighter defender, boolean powerStrike) {
     applyMomentumDelta(attacker, momentumRules.deltaForMiss());
-    String description = turnChronicler.describeMiss(attacker.name(), defender.name(), powerStrike);
+    String weaponName = String.valueOf(attacker.weapon().weapon());
+    String description = turnChronicler.describeMiss(attacker.name(), defender.name(), weaponName, powerStrike);
     return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.NONE);
   }
 
@@ -138,9 +137,11 @@ public class TurnOrchestrator {
 
     List<TurnHighlight> highlights =
         collectHighlights(defenseOutcome, hitOutcome, attackThrow, damage, defender, powerStrike);
-    String description = attackAction.describe(attacker, defender, context)
+    String weaponName = String.valueOf(attacker.weapon().weapon());
+    String prefix = turnChronicler.describeAttackPrefix(attacker.name(), defender.name(), weaponName, powerStrike);
+    String description = prefix
         + turnChronicler.describeOutcome(defenseOutcome.result(), damage, defenderCanDefend, highlights,
-            defender.name(), powerStrike);
+            defender.name());
 
     boolean defenderDodged = defenseOutcome.result() == DefenseOutcome.DefenseResult.DODGED;
     InitiativeOverride override = defenderDodged ? InitiativeOverride.DODGE_STEAL : InitiativeOverride.NONE;
@@ -178,8 +179,7 @@ public class TurnOrchestrator {
     if (hitOutcome.critical()) {
       highlights.add(TurnHighlight.CRITICAL);
     }
-    double heavyBlowThreshold = settings.chronicleWeights().heavyBlowHealthRatio() * defender.ratings().maxHealth();
-    if (damage >= heavyBlowThreshold) {
+    if (CombatFormulas.isHeavyBlow(settings.chronicleWeights(), damage, defender.ratings().maxHealth())) {
       highlights.add(TurnHighlight.HEAVY_BLOW);
     }
   }

@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.engine;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.config.CombatSettings.ChanceWeights;
 import it.fantasyarena.combat.dice.DiceThrow;
@@ -26,10 +27,10 @@ public final class DefenseResolver {
     double parryChance = computeParryChance(defender);
     double roll = defenseThrow.normalized();
 
-    if (roll <= dodgeChance) {
+    if (CombatFormulas.dodges(roll, dodgeChance)) {
       return new DefenseOutcome(DefenseResult.DODGED, settings.chanceWeights().dodgeDamageReduction());
     }
-    if (roll <= dodgeChance + parryChance) {
+    if (CombatFormulas.parries(roll, dodgeChance, parryChance)) {
       return new DefenseOutcome(DefenseResult.PARRIED, settings.chanceWeights().parryDamageReduction());
     }
     return new DefenseOutcome(DefenseResult.HIT_TAKEN, 0.0);
@@ -48,9 +49,7 @@ public final class DefenseResolver {
     ChanceWeights chances = settings.chanceWeights();
     int defenderAgility = Characteristics.valueOf(defender.character(), Characteristic.AGILITY);
     int attackerAgility = Characteristics.valueOf(attacker.character(), Characteristic.AGILITY);
-    double dodgeChance = chances.baseDodgeChance()
-        + chances.dodgeChanceAgilityFactor() * (defenderAgility - attackerAgility);
-    return clamp(dodgeChance, chances.minDodgeChance(), chances.maxDodgeChance());
+    return CombatFormulas.dodgeChance(chances, defenderAgility, attackerAgility);
   }
 
   /**
@@ -61,11 +60,6 @@ public final class DefenseResolver {
    */
   private double computeParryChance(Fighter defender) {
     ChanceWeights chances = settings.chanceWeights();
-    double parryChance = chances.baseParryChance() + defender.ratings().defensiveRating() / chances.parryDefenseDivisor();
-    return clamp(parryChance, chances.minParryChance(), chances.maxParryChance());
-  }
-
-  private static double clamp(double value, double min, double max) {
-    return Math.max(min, Math.min(max, value));
+    return CombatFormulas.parryChance(chances, defender.ratings().defensiveRating());
   }
 }

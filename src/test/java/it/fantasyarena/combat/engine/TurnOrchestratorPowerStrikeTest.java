@@ -92,7 +92,57 @@ class TurnOrchestratorPowerStrikeTest {
     assertEquals(13, attacker.state().currentStamina(),
         "il doppio costo si consuma anche se il colpo potente manca: e' il rischio esplicito");
     assertTrue(entry.highlights().isEmpty(), "un colpo potente mancato non emette alcun highlight");
-    assertEquals("Attaccante tenta un colpo potente su Difensore ma manca il colpo.", entry.description());
+    assertEquals("Attaccante tenta un colpo potente su Difensore con SWORD ma manca il colpo.", entry.description());
+  }
+
+  /**
+   * FIX del bug della cronaca: prima della revisione, un colpo potente SCHIVATO non citava
+   * affatto il colpo potente (il testo era identico a una schivata su un colpo normale),
+   * nonostante l'attaccante avesse gia' pagato il doppio della Stamina. Ora il prefisso
+   * "tenta un colpo potente" viene emesso su OGNI esito, non solo sul colpo a segno o mancato.
+   */
+  @Test
+  void colpoPotenteScelto_schivato_citaIlColpoPotenteNelPrefisso() {
+    CombatSettings settings = CombatSettings.defaults();
+    Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
+    Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
+    attacker.state().winInitiative();
+
+    // Stamina e vita piene: il colpo potente e' scelto qualunque sia il jitter. Attacco
+    // garantito a segno, difesa garantita in schivata (dodgeChance di base e' 0.10).
+    List<DiceThrow> scriptedThrows =
+        List.of(new DiceThrow(3, 6), new DiceThrow(1, 20), new DiceThrow(1, 20), new DiceThrow(50, 100));
+    StubDiceRoller diceRoller = new StubDiceRoller(scriptedThrows);
+
+    TurnLogEntry entry = playSingleTurn(diceRoller, settings, attacker, defender);
+
+    assertTrue(entry.description().contains("schivato"), "precondizione: l'esito finale deve essere una schivata");
+    assertTrue(entry.description().contains("tenta un colpo potente"),
+        "FIX: un colpo potente schivato deve comunque citare il colpo potente nel prefisso");
+  }
+
+  /**
+   * Come sopra, ma con l'esito PARATO: stessa precondizione del bug, stesso FIX atteso.
+   */
+  @Test
+  void colpoPotenteScelto_parato_citaIlColpoPotenteNelPrefisso() {
+    CombatSettings settings = CombatSettings.defaults();
+    Fighter attacker = CombatFixtures.createFighter("Attaccante", 30, 10, 5, 5, 5, 20, 0);
+    Fighter defender = CombatFixtures.createFighter("Difensore", 30, 10, 5, 5, 5, 20, 0);
+    attacker.state().winInitiative();
+    // Schivata risolta dal tiro non pagabile (Stamina 4 < dodgeCost 5), parata si' (parryCost
+    // 4): ripiego deterministico sulla parata, come in TurnOrchestratorDefenseTest.
+    defender.state().consumeStamina(defender.ratings().maxStamina() - 4);
+
+    List<DiceThrow> scriptedThrows =
+        List.of(new DiceThrow(3, 6), new DiceThrow(1, 20), new DiceThrow(1, 20), new DiceThrow(50, 100));
+    StubDiceRoller diceRoller = new StubDiceRoller(scriptedThrows);
+
+    TurnLogEntry entry = playSingleTurn(diceRoller, settings, attacker, defender);
+
+    assertTrue(entry.description().contains("parato"), "precondizione: l'esito finale deve essere una parata");
+    assertTrue(entry.description().contains("tenta un colpo potente"),
+        "FIX: un colpo potente parato deve comunque citare il colpo potente nel prefisso");
   }
 
   @Test

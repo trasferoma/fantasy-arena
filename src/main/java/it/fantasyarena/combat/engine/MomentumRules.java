@@ -1,7 +1,7 @@
 package it.fantasyarena.combat.engine;
 
+import it.fantasyarena.combat.config.CombatFormulas;
 import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.config.CombatSettings.MomentumWeights;
 
 /**
  * Regole pure del Momentum: clamp del range, moltiplicatore limitato su danno/difesa e
@@ -17,15 +17,11 @@ public final class MomentumRules {
   }
 
   public int clamp(int momentum) {
-    MomentumWeights weights = settings.momentumWeights();
-    return Math.max(weights.min(), Math.min(weights.max(), momentum));
+    return CombatFormulas.clampMomentum(settings.momentumWeights(), momentum);
   }
 
   public double effectMultiplier(int momentum) {
-    MomentumWeights weights = settings.momentumWeights();
-    double normalized = (double) momentum / weights.max();
-    double capped = Math.max(-1.0, Math.min(1.0, normalized));
-    return 1.0 + capped * weights.effectCap();
+    return CombatFormulas.momentumEffectMultiplier(settings.momentumWeights(), momentum);
   }
 
   public int deltaForHitLanded() {

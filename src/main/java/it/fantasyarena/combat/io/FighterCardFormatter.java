@@ -22,6 +22,19 @@ public class FighterCardFormatter {
   private static final int MAX_WIDTH = 36;
 
   public List<String> card(int index, Fighter fighter) {
+    return buildCard(index, fighter, true);
+  }
+
+  /**
+   * Variante ridotta della scheda, senza l'elenco delle caratteristiche: pensata per i contesti
+   * a spazio verticale limitato, come la colonna delle schede del replay a schermo, dove la
+   * scheda completa dei due combattenti non entrerebbe nell'altezza della pagina.
+   */
+  public List<String> compactCard(int index, Fighter fighter) {
+    return buildCard(index, fighter, false);
+  }
+
+  private List<String> buildCard(int index, Fighter fighter, boolean withCharacteristics) {
     CharacterResult character = fighter.character();
     WeaponResult weapon = fighter.weapon();
     ArmourResult armour = fighter.armour();
@@ -30,8 +43,10 @@ public class FighterCardFormatter {
     List<String> lines = new ArrayList<>();
     lines.add(truncate("[" + index + "] " + fighter.name()));
     lines.add(truncate(character.race() + " " + character.characterClass()));
-    character.characteristics()
-        .forEach(characteristic -> lines.add(truncate(characteristic.characteristic().name() + " " + characteristic.value())));
+    if (withCharacteristics) {
+      character.characteristics()
+          .forEach(characteristic -> lines.add(truncate(characteristic.characteristic().name() + " " + characteristic.value())));
+    }
     lines.add(truncate("Arma  " + weapon.weapon() + " (" + weapon.rarity() + ") atk " + weapon.attack()));
     lines.add(truncate("Arm.  " + armour.armour() + " (" + armour.rarity() + ") def " + armour.defense()));
     lines.add(truncate("VIT " + ratings.maxHealth() + "  STA " + ratings.maxStamina()));

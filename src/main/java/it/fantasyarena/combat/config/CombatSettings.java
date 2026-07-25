@@ -19,6 +19,7 @@ public record CombatSettings(
     InitiativeWeights initiativeWeights,
     ChronicleWeights chronicleWeights,
     PowerStrikeWeights powerStrikeWeights,
+    ScoreWeights scoreWeights,
     int maxTurns) {
 
   /**
@@ -33,6 +34,7 @@ public record CombatSettings(
         InitiativeWeights.defaults(),
         ChronicleWeights.defaults(),
         PowerStrikeWeights.defaults(),
+        ScoreWeights.defaults(),
         30);
   }
 
@@ -240,6 +242,17 @@ public record CombatSettings(
 
     public static PowerStrikeWeights defaults() {
       return new PowerStrikeWeights(2, 1.3, 0.5, 0.5, 0.5, 18.0, 0.2, 6, 0.6, 4);
+    }
+  }
+
+  /**
+   * Pesi della decisione ai punti in caso di timeout: bonus a chi ha la percentuale di Salute
+   * più alta, e punti per ogni colpo pieno andato a segno, parata riuscita e schivata riuscita.
+   */
+  public record ScoreWeights(int healthAdvantage, int hitLanded, int parry, int dodge) {
+
+    public static ScoreWeights defaults() {
+      return new ScoreWeights(2, 2, 1, 1);
     }
   }
 }

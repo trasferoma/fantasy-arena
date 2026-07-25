@@ -1,12 +1,14 @@
 package it.fantasyarena.combat.io;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import it.fantasyarena.combat.engine.FavoriteEstimator;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
+import it.fantasyarena.combat.result.Scorecard;
 import it.fantasyarena.combat.result.TurnHighlight;
 import it.fantasyarena.combat.result.TurnLogEntry;
 
@@ -91,6 +93,8 @@ public class ConsoleCombatLogger implements CombatLogger {
       case DRAW -> System.out.println("Pareggio dopo " + result.rounds() + " turni.");
     }
 
+    printScoreDetails(result);
+
     System.out.println("Stato -> " + formatter.describeVitals(result.finalVitals()));
 
     System.out.println();
@@ -98,6 +102,34 @@ public class ConsoleCombatLogger implements CombatLogger {
     printCards(first, second);
 
     printChronicle(result, first, second);
+  }
+
+  /**
+   * Dettaglio del calcolo a punti che ha deciso l'esito per timeout: una riga per combattente,
+   * con il punteggio di ogni voce e il totale. Assente su {@code VICTORY} (nessuna scorecard).
+   */
+  private void printScoreDetails(CombatResult result) {
+    if (result.scorecards().isEmpty()) {
+      return;
+    }
+
+    System.out.println();
+    System.out.println("Decisione ai punti:");
+    result.scorecards().forEach(scorecard -> System.out.println("  " + describeScorecard(scorecard)));
+  }
+
+  private String describeScorecard(Scorecard scorecard) {
+    return scorecard.fighterName() + ": salute +" + scorecard.healthPoints()
+        + " (" + formatPercent(scorecard.healthRatio()) + " vs " + formatPercent(scorecard.opponentHealthRatio()) + ")"
+        + ", colpi a segno " + scorecard.hitsLanded() + "x" + scorecard.weights().hitLanded()
+        + "=" + scorecard.hitPoints()
+        + ", parate " + scorecard.parries() + "x" + scorecard.weights().parry() + "=" + scorecard.parryPoints()
+        + ", schivate " + scorecard.dodges() + "x" + scorecard.weights().dodge() + "=" + scorecard.dodgePoints()
+        + "  ->  " + scorecard.total();
+  }
+
+  private String formatPercent(double ratio) {
+    return String.format(Locale.ITALY, "%.0f%%", ratio * 100.0);
   }
 
   private void printCards(Fighter first, Fighter second) {

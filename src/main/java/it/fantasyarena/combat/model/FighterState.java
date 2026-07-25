@@ -17,7 +17,10 @@ import java.util.List;
  * log del turno corrente, non regole di bilanciamento: vanno azzerati da chi orchestra il turno
  * con {@link #resetTurnStaminaCounters()}. Il contatore {@code powerStrikeCooldown} (0 = pronto)
  * e' semplice bookkeeping del contenitore: la semantica verifica-poi-decrementa e l'avvio del
- * cooldown all'esecuzione del colpo potente sono responsabilita' di chi orchestra il turno.
+ * cooldown all'esecuzione del colpo potente sono responsabilita' di chi orchestra il turno. I
+ * contatori {@code hitsLanded}/{@code parries}/{@code dodges} sono cumulativi per l'intero
+ * duello (a differenza dei contatori di Stamina del turno): non vanno mai azzerati, servono alla
+ * decisione ai punti in caso di timeout.
  */
 public final class FighterState {
 
@@ -31,6 +34,9 @@ public final class FighterState {
   private int staminaConsumedThisTurn;
   private int staminaRecoveredThisTurn;
   private int powerStrikeCooldown;
+  private int hitsLanded;
+  private int parries;
+  private int dodges;
 
   public FighterState(int maxHealth, int maxStamina) {
     this.maxStamina = maxStamina;
@@ -41,6 +47,9 @@ public final class FighterState {
     this.staminaConsumedThisTurn = 0;
     this.staminaRecoveredThisTurn = 0;
     this.powerStrikeCooldown = 0;
+    this.hitsLanded = 0;
+    this.parries = 0;
+    this.dodges = 0;
     this.statusEffects = new ArrayList<>();
   }
 
@@ -70,6 +79,18 @@ public final class FighterState {
 
   public List<String> statusEffects() {
     return Collections.unmodifiableList(statusEffects);
+  }
+
+  public int hitsLanded() {
+    return hitsLanded;
+  }
+
+  public int parries() {
+    return parries;
+  }
+
+  public int dodges() {
+    return dodges;
   }
 
   public boolean isDefeated() {
@@ -154,5 +175,29 @@ public final class FighterState {
    */
   public void startPowerStrikeCooldown(int turns) {
     powerStrikeCooldown = turns;
+  }
+
+  /**
+   * Registra un colpo pieno andato a segno inflitto all'avversario: conta per la decisione ai
+   * punti in caso di timeout, non viene mai azzerato durante il duello.
+   */
+  public void recordHitLanded() {
+    hitsLanded++;
+  }
+
+  /**
+   * Registra una parata riuscita: conta per la decisione ai punti in caso di timeout, non
+   * viene mai azzerata durante il duello.
+   */
+  public void recordParry() {
+    parries++;
+  }
+
+  /**
+   * Registra una schivata riuscita: conta per la decisione ai punti in caso di timeout, non
+   * viene mai azzerata durante il duello.
+   */
+  public void recordDodge() {
+    dodges++;
   }
 }

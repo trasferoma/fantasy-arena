@@ -126,6 +126,6 @@ public final class CombatFixtures {
         base.jitterDiceFaces(), base.decisionThreshold(), base.cooldownTurns());
     return new CombatSettings(settings.ratingWeights(), settings.momentumWeights(), settings.staminaWeights(),
         settings.chanceWeights(), settings.initiativeWeights(), settings.chronicleWeights(), unaffordable,
-        settings.maxTurns());
+        settings.scoreWeights(), settings.maxTurns());
   }
 }

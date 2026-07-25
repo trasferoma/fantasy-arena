@@ -15,6 +15,7 @@ import it.fantasyarena.combat.result.CombatResult;
 import it.fantasyarena.combat.result.FighterVitals;
 import it.fantasyarena.combat.result.InitiativeOverride;
 import it.fantasyarena.combat.result.InitiativeReport;
+import it.fantasyarena.combat.result.Scorecard;
 import it.fantasyarena.combat.result.StaminaChange;
 import it.fantasyarena.combat.result.TurnLogEntry;
 import it.fantasyarena.combat.result.TurnResult;
@@ -146,7 +147,7 @@ public class CombatEngine {
     List<FighterVitals> finalVitals = vitalsSnapshot(first, second);
     if (first.isDefeated() || second.isDefeated()) {
       Fighter winner = first.isDefeated() ? second : first;
-      return new CombatResult(CombatOutcome.VICTORY, Optional.of(winner), rounds, log, finalVitals);
+      return new CombatResult(CombatOutcome.VICTORY, Optional.of(winner), rounds, log, finalVitals, List.of());
     }
     return buildTimeoutResult(first, second, rounds, log, finalVitals);
   }
@@ -155,13 +156,36 @@ public class CombatEngine {
       List<FighterVitals> finalVitals) {
     double firstHealthRatio = healthRatio(first);
     double secondHealthRatio = healthRatio(second);
+    boolean firstHasHealthAdvantage = firstHealthRatio > secondHealthRatio;
+    boolean secondHasHealthAdvantage = secondHealthRatio > firstHealthRatio;
 
-    if (firstHealthRatio == secondHealthRatio) {
-      return new CombatResult(CombatOutcome.DRAW, Optional.empty(), rounds, log, finalVitals);
+    Scorecard firstScorecard = buildScorecard(first, firstHealthRatio, secondHealthRatio, firstHasHealthAdvantage);
+    Scorecard secondScorecard = buildScorecard(second, secondHealthRatio, firstHealthRatio, secondHasHealthAdvantage);
+    List<Scorecard> scorecards = List.of(firstScorecard, secondScorecard);
+
+    if (firstScorecard.total() == secondScorecard.total()) {
+      return new CombatResult(CombatOutcome.DRAW, Optional.empty(), rounds, log, finalVitals, scorecards);
     }
 
-    Fighter winner = (firstHealthRatio > secondHealthRatio) ? first : second;
-    return new CombatResult(CombatOutcome.TIMEOUT_DECISION, Optional.of(winner), rounds, log, finalVitals);
+    Fighter winner = (firstScorecard.total() > secondScorecard.total()) ? first : second;
+    return new CombatResult(CombatOutcome.TIMEOUT_DECISION, Optional.of(winner), rounds, log, finalVitals, scorecards);
+  }
+
+  private Scorecard buildScorecard(Fighter fighter, double healthRatio, double opponentHealthRatio,
+      boolean hasHealthAdvantage) {
+    CombatSettings.ScoreWeights weights = settings.scoreWeights();
+    int hitsLanded = fighter.state().hitsLanded();
+    int parries = fighter.state().parries();
+    int dodges = fighter.state().dodges();
+
+    int healthPoints = hasHealthAdvantage ? weights.healthAdvantage() : 0;
+    int hitPoints = hitsLanded * weights.hitLanded();
+    int parryPoints = parries * weights.parry();
+    int dodgePoints = dodges * weights.dodge();
+    int total = CombatFormulas.combatScore(weights, hasHealthAdvantage, hitsLanded, parries, dodges);
+
+    return new Scorecard(fighter.name(), healthRatio, opponentHealthRatio, healthPoints, hitsLanded, hitPoints,
+        parries, parryPoints, dodges, dodgePoints, weights, total);
   }
 
   private double healthRatio(Fighter fighter) {

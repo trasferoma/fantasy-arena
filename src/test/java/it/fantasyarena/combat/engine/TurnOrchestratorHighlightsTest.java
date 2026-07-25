@@ -120,7 +120,7 @@ class TurnOrchestratorHighlightsTest {
   private static CombatSettings withChronicleWeights(CombatSettings settings, ChronicleWeights chronicleWeights) {
     return new CombatSettings(settings.ratingWeights(), settings.momentumWeights(), settings.staminaWeights(),
         settings.chanceWeights(), settings.initiativeWeights(), chronicleWeights, settings.powerStrikeWeights(),
-        settings.maxTurns());
+        settings.scoreWeights(), settings.maxTurns());
   }
 
   private static TurnLogEntry playSingleTurn(StubDiceRoller diceRoller, CombatSettings settings, Fighter attacker,

@@ -53,13 +53,14 @@ public class Arena {
 
     this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
-    this.replay = buildReplay(mode, logger, new EnterKeyTurnPacer());
+    this.replay = buildReplay(mode, logger, new EnterKeyTurnPacer(), settings.maxTurns());
   }
 
-  private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer) {
+  private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer,
+      int maxTurns) {
     return switch (mode) {
       case LINEAR -> new LinearCombatReplay(logger, turnPacer);
-      case SCREEN -> new ScreenCombatReplay(turnPacer);
+      case SCREEN -> new ScreenCombatReplay(turnPacer, maxTurns);
     };
   }
 

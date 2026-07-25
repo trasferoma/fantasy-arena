@@ -128,6 +128,62 @@ class CombatEngineTest {
    * combattenti cominciano gia' in cooldown, come se lo avessero appena eseguito.
    */
   @Test
+  void timeoutDecision_vinceChiHaMenoSaluteMaPiuColpiASegno() {
+    Fighter first = CombatFixtures.createFighter("Guerriero A", 10, 10, 5, 20, 5, 5, 0);
+    Fighter second = CombatFixtures.createFighter("Guerriero B", 10, 10, 5, 20, 5, 5, 0);
+    CombatSettings settings = withMaxTurns(0);
+
+    // A ha meno Salute (50%) di B (80%), ma ha inflitto molti piu' colpi pieni a segno: deve
+    // comunque vincere ai punti (5x2=10 contro 0 salute+1x2=2).
+    first.state().applyDamage(first.ratings().maxHealth() / 2);
+    second.state().applyDamage((int) (second.ratings().maxHealth() * 0.2));
+    for (int i = 0; i < 5; i++) {
+      first.state().recordHitLanded();
+    }
+    second.state().recordHitLanded();
+
+    CombatResult result = runNoTurnDuel(first, second, settings);
+
+    assertEquals(CombatOutcome.TIMEOUT_DECISION, result.outcome());
+    assertEquals("Guerriero A", result.winner().orElseThrow().name());
+    assertEquals(2, result.scorecards().size());
+  }
+
+  @Test
+  void timeoutDecision_pareggioSoloATotaliIdentici() {
+    Fighter first = CombatFixtures.createFighter("Guerriero A", 10, 10, 5, 20, 5, 5, 0);
+    Fighter second = CombatFixtures.createFighter("Guerriero B", 10, 10, 5, 20, 5, 5, 0);
+    CombatSettings settings = withMaxTurns(0);
+
+    // A vince i 2 punti Salute (100% contro 50%), B pareggia con un colpo a segno (1x2=2).
+    second.state().applyDamage(second.ratings().maxHealth() / 2);
+    second.state().recordHitLanded();
+
+    CombatResult result = runNoTurnDuel(first, second, settings);
+
+    assertEquals(CombatOutcome.DRAW, result.outcome());
+    assertTrue(result.winner().isEmpty());
+  }
+
+  /**
+   * Con {@code maxTurns} a 0 nessun turno viene giocato (solo la risoluzione del primo attore, che
+   * consuma comunque 2 tiri di jitter): permette di preimpostare deterministicamente lo stato dei
+   * due combattenti e verificare solo la decisione ai punti di {@code buildTimeoutResult}.
+   */
+  private static CombatResult runNoTurnDuel(Fighter first, Fighter second, CombatSettings settings) {
+    StubDiceRoller diceRoller = new StubDiceRoller(List.of(new DiceThrow(1, 6), new DiceThrow(1, 6)));
+    CombatEngine engine = CombatFixtures.buildEngine(diceRoller, settings);
+    return engine.fight(first, second, CombatContext.empty());
+  }
+
+  private static CombatSettings withMaxTurns(int maxTurns) {
+    CombatSettings defaults = CombatSettings.defaults();
+    return new CombatSettings(defaults.ratingWeights(), defaults.momentumWeights(), defaults.staminaWeights(),
+        defaults.chanceWeights(), defaults.initiativeWeights(), defaults.chronicleWeights(),
+        defaults.powerStrikeWeights(), defaults.scoreWeights(), maxTurns);
+  }
+
+  @Test
   void armInitialPowerStrikeCooldown_entrambiICombattentiPartonoInCooldown() {
     CombatSettings settings = CombatSettings.defaults();
     Fighter first = CombatFixtures.createFighter("Guerriero A", 30, 10, 5, 20, 5, 20, 0);

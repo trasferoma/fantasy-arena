@@ -208,7 +208,7 @@ class CombatEngineInitiativeTest {
     CombatSettings defaults = CombatFixtures.withPowerStrikeUnaffordable(CombatSettings.defaults());
     return new CombatSettings(defaults.ratingWeights(), defaults.momentumWeights(), defaults.staminaWeights(),
         defaults.chanceWeights(), defaults.initiativeWeights(), defaults.chronicleWeights(),
-        defaults.powerStrikeWeights(), maxTurns);
+        defaults.powerStrikeWeights(), defaults.scoreWeights(), maxTurns);
   }
 
   /**

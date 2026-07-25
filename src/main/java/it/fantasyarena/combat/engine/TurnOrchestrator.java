@@ -126,6 +126,7 @@ public class TurnOrchestrator {
 
     boolean defenderCanDefend = staminaRules.canDefend(defender.state().currentStamina());
     DefenseOutcome defenseOutcome = resolveDefense(defender, attacker, defenderCanDefend);
+    recordActionTally(attacker, defender, defenseOutcome);
 
     DiceThrow varianceThrow = diceRoller.d100();
     int damage = damageCalculator.calculateDamage(attacker, defender, context, hitOutcome, defenseOutcome,
@@ -181,6 +182,19 @@ public class TurnOrchestrator {
     }
     if (CombatFormulas.isHeavyBlow(settings.chronicleWeights(), damage, defender.ratings().maxHealth())) {
       highlights.add(TurnHighlight.HEAVY_BLOW);
+    }
+  }
+
+  /**
+   * Aggiorna i contatori cumulativi usati dalla decisione ai punti in caso di timeout: un colpo
+   * pieno andato a segno conta per l'attaccante, una parata o una schivata riuscite contano per
+   * il difensore.
+   */
+  private void recordActionTally(Fighter attacker, Fighter defender, DefenseOutcome defenseOutcome) {
+    switch (defenseOutcome.result()) {
+      case HIT_TAKEN -> attacker.state().recordHitLanded();
+      case PARRIED -> defender.state().recordParry();
+      case DODGED -> defender.state().recordDodge();
     }
   }
 

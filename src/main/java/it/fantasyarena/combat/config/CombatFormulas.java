@@ -6,6 +6,7 @@ import it.fantasyarena.combat.config.CombatSettings.InitiativeWeights;
 import it.fantasyarena.combat.config.CombatSettings.MomentumWeights;
 import it.fantasyarena.combat.config.CombatSettings.PowerStrikeWeights;
 import it.fantasyarena.combat.config.CombatSettings.RatingWeights;
+import it.fantasyarena.combat.config.CombatSettings.ScoreWeights;
 import it.fantasyarena.combat.config.CombatSettings.StaminaWeights;
 
 /**
@@ -211,5 +212,16 @@ public final class CombatFormulas {
 
   public static boolean isHeavyBlow(ChronicleWeights weights, int damage, int maxHealth) {
     return damage >= weights.heavyBlowHealthRatio() * maxHealth;
+  }
+
+  /**
+   * Punteggio totale della decisione ai punti in caso di timeout: bonus a chi ha il vantaggio di
+   * Salute più {@code hitLanded} punti per ogni colpo pieno andato a segno, {@code parry} punti
+   * per ogni parata riuscita e {@code dodge} punti per ogni schivata riuscita.
+   */
+  public static int combatScore(ScoreWeights weights, boolean hasHealthAdvantage, int hitsLanded, int parries,
+      int dodges) {
+    int healthPoints = hasHealthAdvantage ? weights.healthAdvantage() : 0;
+    return healthPoints + hitsLanded * weights.hitLanded() + parries * weights.parry() + dodges * weights.dodge();
   }
 }

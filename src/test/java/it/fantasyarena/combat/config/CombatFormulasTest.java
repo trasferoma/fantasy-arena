@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import it.fantasyarena.combat.config.CombatSettings.ChanceWeights;
 import it.fantasyarena.combat.config.CombatSettings.ChronicleWeights;
 import it.fantasyarena.combat.config.CombatSettings.MomentumWeights;
+import it.fantasyarena.combat.config.CombatSettings.ScoreWeights;
 import it.fantasyarena.combat.config.CombatSettings.StaminaWeights;
 
 /**
@@ -108,6 +109,18 @@ class CombatFormulasTest {
 
     assertTrue(CombatFormulas.isHeavyBlow(weights, heavyBlowThreshold, maxHealth));
     assertFalse(CombatFormulas.isHeavyBlow(weights, heavyBlowThreshold - 1, maxHealth));
+  }
+
+  @Test
+  void combatScore_sommaTutteLeVociConIPesiConfigurati() {
+    ScoreWeights weights = new ScoreWeights(2, 2, 1, 1);
+
+    assertEquals(2, CombatFormulas.combatScore(weights, true, 0, 0, 0),
+        "solo il vantaggio di Salute");
+    assertEquals(0, CombatFormulas.combatScore(weights, false, 0, 0, 0),
+        "nessun vantaggio, nessuna azione: punteggio a zero");
+    assertEquals(17, CombatFormulas.combatScore(weights, true, 5, 3, 2),
+        "2 (salute) + 5x2 (colpi) + 3x1 (parate) + 2x1 (schivate)");
   }
 
   @Test

@@ -14,9 +14,14 @@ import it.fantasyarena.combat.result.TurnLogEntry;
 public class ScreenCombatReplay implements CombatReplay {
 
   private final TurnPacer turnPacer;
+  private final int maxTurns;
 
-  public ScreenCombatReplay(TurnPacer turnPacer) {
+  /**
+   * @param maxTurns tetto di turni del duello, mostrato come denominatore del contatore di turno
+   */
+  public ScreenCombatReplay(TurnPacer turnPacer, int maxTurns) {
     this.turnPacer = turnPacer;
+    this.maxTurns = maxTurns;
   }
 
   @Override
@@ -26,7 +31,8 @@ public class ScreenCombatReplay implements CombatReplay {
       return;
     }
 
-    CombatScreenRenderer renderer = new CombatScreenRenderer(first, second, log, outcome.finalVitals());
+    CombatScreenRenderer renderer =
+        new CombatScreenRenderer(first, second, log, outcome.finalVitals(), maxTurns);
     for (int turnPosition = 0; turnPosition < log.size(); turnPosition++) {
       clearScreen();
       System.out.print(renderer.render(turnPosition));

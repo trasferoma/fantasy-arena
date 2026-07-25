@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.io;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -12,12 +13,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
 import it.fantasyarena.combat.result.FighterVitals;
 import it.fantasyarena.combat.result.InitiativeOverride;
 import it.fantasyarena.combat.result.InitiativeReport;
+import it.fantasyarena.combat.result.Scorecard;
 import it.fantasyarena.combat.result.TurnHighlight;
 import it.fantasyarena.combat.result.TurnLogEntry;
 import it.fantasyarena.combat.testsupport.CombatFixtures;
@@ -115,7 +118,7 @@ class ConsoleCombatLoggerOutcomeTest {
         .withInitiative(initiativeChosenBy("Alice"))
         .withHighlights(List.of(TurnHighlight.CRITICAL));
     CombatResult result = new CombatResult(
-        CombatOutcome.VICTORY, Optional.of(alice), 5, List.of(highlightedTurn), finalVitals(alice, bob));
+        CombatOutcome.VICTORY, Optional.of(alice), 5, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
 
     logger.reportOutcome(result, alice, bob);
 
@@ -131,7 +134,7 @@ class ConsoleCombatLoggerOutcomeTest {
         .withInitiative(initiativeChosenBy("Alice"))
         .withHighlights(List.of(TurnHighlight.POWER_STRIKE, TurnHighlight.HEAVY_BLOW));
     CombatResult result = new CombatResult(
-        CombatOutcome.VICTORY, Optional.of(alice), 7, List.of(highlightedTurn), finalVitals(alice, bob));
+        CombatOutcome.VICTORY, Optional.of(alice), 7, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
 
     logger.reportOutcome(result, alice, bob);
 
@@ -148,7 +151,7 @@ class ConsoleCombatLoggerOutcomeTest {
         .withInitiative(initiativeChosenBy("Alice"))
         .withHighlights(List.of(TurnHighlight.CRITICAL, TurnHighlight.POWER_STRIKE));
     CombatResult result = new CombatResult(
-        CombatOutcome.VICTORY, Optional.of(alice), 9, List.of(highlightedTurn), finalVitals(alice, bob));
+        CombatOutcome.VICTORY, Optional.of(alice), 9, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
 
     logger.reportOutcome(result, alice, bob);
 
@@ -161,32 +164,66 @@ class ConsoleCombatLoggerOutcomeTest {
   void gestisceIlPareggioSenzaConfermareOSmentireIlPronostico() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
+    List<Scorecard> scorecards = List.of(
+        scorecard(alice.name(), 0.60, 0.60, 3, 0, false),
+        scorecard(bob.name(), 0.60, 0.60, 3, 0, false));
     CombatResult result = new CombatResult(
-        CombatOutcome.DRAW, Optional.empty(), 10, List.of(), finalVitals(alice, bob));
+        CombatOutcome.DRAW, Optional.empty(), 10, List.of(), finalVitals(alice, bob), scorecards);
 
     logger.reportOutcome(result, alice, bob);
 
     String output = capturedOutput();
     assertTrue(output.contains("Pareggio dopo 10 turni."));
     assertTrue(output.contains("Pareggio: pronostico né confermato né smentito."));
+    assertTrue(output.contains("Decisione ai punti:"));
+    assertTrue(output.contains("Alice: salute +0 (60% vs 60%), colpi a segno 3x2=6, parate 0x1=0, schivate 0x1=0  ->  6"));
   }
 
   @Test
   void gestisceLaVittoriaAiPuntiPerTimeout() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
+    List<Scorecard> scorecards = List.of(
+        scorecard(alice.name(), 0.60, 0.52, 5, 3, true),
+        scorecard(bob.name(), 0.52, 0.60, 4, 1, false));
     CombatResult result = new CombatResult(
-        CombatOutcome.TIMEOUT_DECISION, Optional.of(alice), 20, List.of(), finalVitals(alice, bob));
+        CombatOutcome.TIMEOUT_DECISION, Optional.of(alice), 20, List.of(), finalVitals(alice, bob), scorecards);
 
     logger.reportOutcome(result, alice, bob);
 
     String output = capturedOutput();
     assertTrue(output.contains("Timeout ai punti, vince: Alice (20 turni)"));
     assertTrue(output.contains("Vince Alice: pronostico rispettato."));
+    assertTrue(output.contains("Decisione ai punti:"));
+    assertTrue(output.contains("Alice: salute +2 (60% vs 52%), colpi a segno 5x2=10, parate 3x1=3, schivate 0x1=0  ->  15"));
+    assertTrue(output.contains("Bob: salute +0 (52% vs 60%), colpi a segno 4x2=8, parate 1x1=1, schivate 0x1=0  ->  9"));
+  }
+
+  @Test
+  void nonMostraLaDecisioneAiPuntiSuVittoriaPerKo() {
+    Fighter alice = strongFighter("Alice");
+    Fighter bob = weakFighter("Bob");
+    CombatResult result = victoryResult(alice, bob, Optional.of(alice));
+
+    logger.reportOutcome(result, alice, bob);
+
+    String output = capturedOutput();
+    assertFalse(output.contains("Decisione ai punti:"));
+  }
+
+  private Scorecard scorecard(String fighterName, double healthRatio, double opponentHealthRatio, int hitsLanded,
+      int parries, boolean healthAdvantage) {
+    CombatSettings.ScoreWeights weights = CombatSettings.defaults().scoreWeights();
+    int healthPoints = healthAdvantage ? weights.healthAdvantage() : 0;
+    int hitPoints = hitsLanded * weights.hitLanded();
+    int parryPoints = parries * weights.parry();
+    int total = healthPoints + hitPoints + parryPoints;
+    return new Scorecard(fighterName, healthRatio, opponentHealthRatio, healthPoints, hitsLanded, hitPoints, parries,
+        parryPoints, 0, 0, weights, total);
   }
 
   private CombatResult victoryResult(Fighter first, Fighter second, Optional<Fighter> winner) {
-    return new CombatResult(CombatOutcome.VICTORY, winner, 3, List.of(), finalVitals(first, second));
+    return new CombatResult(CombatOutcome.VICTORY, winner, 3, List.of(), finalVitals(first, second), List.of());
   }
 
   private List<FighterVitals> finalVitals(Fighter first, Fighter second) {

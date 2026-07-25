@@ -25,6 +25,9 @@ import it.fantasyarena.combat.testsupport.CombatFixtures;
  */
 class CombatScreenRendererTest {
 
+  /** Tetto di turni usato nei render di test: volutamente maggiore dei turni del log. */
+  private static final int MAX_TURNS = 30;
+
   @Test
   void filledCellsCalcolaLeCelleRiempiteArrotondandoAllUnitaPiuVicina() {
     assertEquals(8, CombatScreenRenderer.filledCells(40, 50, 10));
@@ -49,14 +52,14 @@ class CombatScreenRendererTest {
   @Test
   void renderDelPrimoTurnoMostraSoloIlTurnoCorrenteEIVitalsSuccessivi() {
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), buildLog(), buildFinalVitals());
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), buildLog(), buildFinalVitals(), MAX_TURNS);
 
     String page = renderer.render(0);
 
     assertTrue(page.contains("Alice"));
     assertTrue(page.contains("Bob"));
-    assertTrue(page.contains("=== Duello — turno 1 / 3 ==="));
-    assertTrue(page.contains("(INVIO per avanzare — turno 1/3)"));
+    assertTrue(page.contains("=== Duello — turno 1 / 30 ==="));
+    assertTrue(page.contains("(INVIO per avanzare — turno 1/30)"));
     assertTrue(page.contains("Alice attacca Bob"));
     assertFalse(page.contains("Bob para il colpo"));
     assertFalse(page.contains("Alice manca il colpo"));
@@ -68,12 +71,13 @@ class CombatScreenRendererTest {
   @Test
   void renderDellUltimoTurnoMostraSoloIlTurnoCorrenteRivelatoEIVitalsFinali() {
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), buildLog(), buildFinalVitals());
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), buildLog(), buildFinalVitals(), MAX_TURNS);
 
     String page = renderer.render(2);
 
-    assertTrue(page.contains("=== Duello — turno 3 / 3 ==="));
-    assertTrue(page.contains("(INVIO per avanzare — turno 3/3)"));
+    // Il denominatore resta il tetto di turni: non rivela che il duello finisce al turno 3.
+    assertTrue(page.contains("=== Duello — turno 3 / 30 ==="));
+    assertTrue(page.contains("(INVIO per avanzare — turno 3/30)"));
     // Colonna 2: solo il turno corrente (3), non il log cumulativo dei turni precedenti.
     assertTrue(page.contains("Alice manca il colpo"));
     assertFalse(page.contains("Alice attacca Bob"));
@@ -91,7 +95,7 @@ class CombatScreenRendererTest {
             new FighterVitals("Bob", 44, 50, 25, 40)))
         .withInitiative(buildInitiative("Alice"));
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals());
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals(), MAX_TURNS);
 
     String page = renderer.render(0);
 
@@ -111,7 +115,7 @@ class CombatScreenRendererTest {
             new FighterVitals("Alice", 40, 50, 20, 40),
             new FighterVitals("Bob", 44, 50, 25, 40)));
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals());
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals(), MAX_TURNS);
 
     String page = renderer.render(0);
 
@@ -125,6 +129,23 @@ class CombatScreenRendererTest {
   }
 
   @Test
+  void renderMostraLaSchedaDelSecondoCombattenteInteraSenzaTroncarla() {
+    TurnLogEntry entry = new TurnLogEntry(1, "Alice attacca Bob")
+        .withVitals(List.of(
+            new FighterVitals("Alice", 40, 50, 20, 40),
+            new FighterVitals("Bob", 44, 50, 25, 40)));
+    Fighter bob = bobFighter();
+    CombatScreenRenderer renderer =
+        new CombatScreenRenderer(aliceFighter(), bob, List.of(entry), buildFinalVitals(), MAX_TURNS);
+
+    String page = renderer.render(0);
+
+    for (String cardLine : new FighterCardFormatter().compactCard(2, bob)) {
+      assertTrue(page.contains(cardLine), "riga mancante nella pagina: " + cardLine);
+    }
+  }
+
+  @Test
   void renderMarcaConAsteriscoIlCombattenteConLIniziativa() {
     TurnLogEntry entry = new TurnLogEntry(1, "Alice attacca Bob")
         .withVitals(List.of(
@@ -132,7 +153,7 @@ class CombatScreenRendererTest {
             new FighterVitals("Bob", 44, 50, 25, 40)))
         .withInitiative(buildInitiative("Alice"));
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals());
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals(), MAX_TURNS);
 
     String page = renderer.render(0);
 
@@ -147,7 +168,7 @@ class CombatScreenRendererTest {
             new FighterVitals("Alice", 40, 50, 20, 40),
             new FighterVitals("Bob", 44, 50, 25, 40)));
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals());
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), buildFinalVitals(), MAX_TURNS);
 
     String page = renderer.render(0);
 
@@ -165,7 +186,7 @@ class CombatScreenRendererTest {
         new FighterVitals("Alice", 30, 50, 20, 40),
         new FighterVitals("Bob", 44, 50, 28, 40));
     CombatScreenRenderer renderer =
-        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), finalVitals);
+        new CombatScreenRenderer(aliceFighter(), bobFighter(), List.of(entry), finalVitals, MAX_TURNS);
 
     String page = renderer.render(0);
 

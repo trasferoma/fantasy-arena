@@ -31,16 +31,23 @@ public class CombatScreenRenderer {
   private final Fighter second;
   private final List<TurnLogEntry> log;
   private final List<FighterVitals> finalVitals;
+  private final int maxTurns;
   private final TurnLogFormatter formatter = new TurnLogFormatter();
   private final FighterCardFormatter cardFormatter = new FighterCardFormatter();
   private final int currentTurnColumnWidth;
 
+  /**
+   * @param maxTurns tetto di turni del duello, usato come denominatore del contatore di turno:
+   *     resta costante anche quando lo scontro finisce prima del tetto, così il contatore non
+   *     rivela in anticipo la durata effettiva del duello
+   */
   public CombatScreenRenderer(Fighter first, Fighter second, List<TurnLogEntry> log,
-      List<FighterVitals> finalVitals) {
+      List<FighterVitals> finalVitals, int maxTurns) {
     this.first = first;
     this.second = second;
     this.log = List.copyOf(log);
     this.finalVitals = List.copyOf(finalVitals);
+    this.maxTurns = maxTurns;
     this.currentTurnColumnWidth = computeCurrentTurnColumnWidth();
   }
 
@@ -82,16 +89,21 @@ public class CombatScreenRenderer {
     List<String> fighterCardsColumn = buildFighterCardsColumn();
 
     StringBuilder page = new StringBuilder();
-    page.append("=== Duello — turno ").append(turnPosition + 1).append(" / ").append(log.size()).append(" ===\n");
+    page.append("=== Duello — turno ").append(turnPosition + 1).append(" / ").append(maxTurns).append(" ===\n");
 
-    for (int row = 0; row < firstPanel.size(); row++) {
+    int pageHeight = pageHeight(firstPanel, currentTurnColumn, fighterCardsColumn);
+    String emptyPanelLine = " ".repeat(panelLineWidth(columnWidth));
+
+    for (int row = 0; row < pageHeight; row++) {
+      String firstPanelLine = panelLineAt(firstPanel, row, emptyPanelLine);
+      String secondPanelLine = panelLineAt(secondPanel, row, emptyPanelLine);
       String middleLine = middleLineAt(currentTurnColumn, row);
       String rightLine = lineAt(fighterCardsColumn, row);
-      page.append(firstPanel.get(row)).append(PANEL_GAP).append(secondPanel.get(row)).append(PANEL_GAP)
+      page.append(firstPanelLine).append(PANEL_GAP).append(secondPanelLine).append(PANEL_GAP)
           .append(middleLine).append(PANEL_GAP).append(rightLine).append('\n');
     }
 
-    page.append("(INVIO per avanzare — turno ").append(turnPosition + 1).append("/").append(log.size()).append(")\n");
+    page.append("(INVIO per avanzare — turno ").append(turnPosition + 1).append("/").append(maxTurns).append(")\n");
     return page.toString();
   }
 
@@ -185,6 +197,24 @@ public class CombatScreenRenderer {
     return lines;
   }
 
+  /**
+   * Altezza della pagina: la colonna più alta tra pannelli, eventi del turno e schede, così
+   * nessuna colonna viene troncata in verticale.
+   */
+  private int pageHeight(List<String> panel, List<String> currentTurnColumn,
+      List<String> fighterCardsColumn) {
+    return Math.max(panel.size(), Math.max(currentTurnColumn.size(), fighterCardsColumn.size()));
+  }
+
+  /** Larghezza di una riga di pannello: bordo, due colonne e separatore centrale. */
+  private int panelLineWidth(int columnWidth) {
+    return columnWidth * 2 + 3;
+  }
+
+  private String panelLineAt(List<String> panel, int row, String emptyPanelLine) {
+    return (row < panel.size() ? panel.get(row) : emptyPanelLine);
+  }
+
   private String barCell(boolean filled, int columnWidth) {
     return (filled ? "#" : ".").repeat(columnWidth);
   }
@@ -226,14 +256,16 @@ public class CombatScreenRenderer {
   }
 
   /**
-   * Colonna 3: le schede compatte dei due combattenti, impilate (prima il combattente 1, poi
-   * il combattente 2), uguali a ogni turno.
+   * Colonna 3: le schede ridotte dei due combattenti, impilate (prima il combattente 1, poi il
+   * combattente 2), uguali a ogni turno. Si usa la variante senza caratteristiche perché due
+   * schede complete non entrerebbero nell'altezza della pagina, lasciando invisibile la scheda
+   * del secondo combattente.
    */
   private List<String> buildFighterCardsColumn() {
     List<String> lines = new ArrayList<>();
-    lines.addAll(cardFormatter.card(1, first));
+    lines.addAll(cardFormatter.compactCard(1, first));
     lines.add("");
-    lines.addAll(cardFormatter.card(2, second));
+    lines.addAll(cardFormatter.compactCard(2, second));
     return lines;
   }
 

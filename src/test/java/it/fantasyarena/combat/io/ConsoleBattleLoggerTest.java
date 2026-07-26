@@ -66,11 +66,14 @@ class ConsoleBattleLoggerTest {
   }
 
   @Test
-  void logRoundMostraIntestazioneScontroEventiEStato() {
+  void logRoundMostraLaScenaConFrecciaEventiEStato() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
+    BattleSetup setup = BattleSetup.of(List.of(List.of(alice), List.of(bob)));
+    logger.reportSetup(setup);
+
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Alice attacca Bob e lo colpisce");
-    EngagementTurn turn = new EngagementTurn(0, alice.name(), bob.name(), turnEntry);
+    EngagementTurn turn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnEntry);
     FighterVitals aliceVitals = new FighterVitals(alice.name(), 40, 50, 30, 40);
     FighterVitals bobVitals = new FighterVitals(bob.name(), 20, 50, 25, 40);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), List.of(aliceVitals, bobVitals),
@@ -79,11 +82,15 @@ class ConsoleBattleLoggerTest {
     logger.logRound(round);
 
     String output = capturedOutput();
-    assertTrue(output.contains("--- Round 1 ---"));
-    assertTrue(output.contains("[scontro 0] Alice -> Bob"));
-    assertTrue(output.contains("  Alice attacca Bob e lo colpisce"));
+    assertTrue(output.contains("Round 1"));
+    assertTrue(output.contains("Alice"));
+    assertTrue(output.contains("Bob"));
+    assertTrue(output.contains("Vita:    40/50"));
+    assertTrue(output.contains("Vita:    20/50"));
+    assertTrue(output.contains("Stamina: 30/40"));
+    assertTrue(output.contains("Stamina: 25/40"));
+    assertTrue(output.contains("=".repeat(19) + ">"), "la freccia deve puntare verso il bersaglio (fazione 1)");
     assertTrue(output.contains("Bob, libero, si unisce allo scontro 0."));
-    assertTrue(output.contains("Stato -> Alice: vita 40/50, stamina 30/40 | Bob: vita 20/50, stamina 25/40"));
   }
 
   @Test

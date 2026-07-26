@@ -5,6 +5,7 @@ import it.fantasyarena.combat.battle.BattleResult;
 import it.fantasyarena.combat.battle.BattleSetup;
 import it.fantasyarena.combat.battle.OutnumberedAllyAssigner;
 import it.fantasyarena.combat.battle.PairwiseEngagementPlanner;
+import it.fantasyarena.combat.battle.RoundLogEntry;
 import it.fantasyarena.combat.battle.StickyTargetSelector;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
@@ -33,11 +34,15 @@ import it.fantasyarena.combat.result.CombatResult;
  * Facade del sottosistema di combattimento: riceve i combattenti già pronti e ne dispone lo
  * scontro. Nessuna formula qui: solo orchestrazione parlante. La preparazione dei combattenti è
  * responsabilità esterna (vedi {@link it.fantasyarena.Main}). Due percorsi di presentazione,
- * scelti dal chiamante in base alla forma dello scontro: {@link #run} per il duello 1v1 storico,
- * a schermo con {@link TurnPacer} e modalità selezionabile ({@link ReplayMode}); {@link #runBattle}
- * per la battaglia NvN, con log testuale round per round e nessuna attesa dell'INVIO.
+ * scelti dal chiamante in base alla forma dello scontro, entrambi scanditi dallo stesso
+ * {@link TurnPacer} (costruito alla prima richiesta, con il testo di suggerimento adatto al
+ * percorso che lo usa per primo): {@link #run} per il duello 1v1 storico, a schermo con modalità
+ * selezionabile ({@link ReplayMode}); {@link #runBattle} per la battaglia NvN, con la scena ASCII
+ * round per round e attesa dell'INVIO fra un round e il successivo.
  */
 public class Arena {
+
+  private static final String BATTLE_ROUND_HINT = "(premi INVIO per avanzare al round successivo)";
 
   private final DiceRoller diceRoller;
   private final InitiativeResolver initiativeResolver;
@@ -46,7 +51,10 @@ public class Arena {
   private final CombatSettings settings;
   private final CombatEngine combatEngine;
   private final CombatLogger logger;
-  private final CombatReplay replay;
+  private final ReplayMode mode;
+
+  private TurnPacer turnPacer;
+  private CombatReplay replay;
 
   public Arena(CombatSettings settings) {
     this(settings, ReplayMode.SCREEN);
@@ -71,7 +79,7 @@ public class Arena {
     this.settings = settings;
     this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
-    this.replay = buildReplay(mode, logger, new EnterKeyTurnPacer(), settings.maxTurns());
+    this.mode = mode;
   }
 
   private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer,
@@ -85,7 +93,7 @@ public class Arena {
   public void run(Fighter first, Fighter second) {
     logger.reportMatchup(first, second);
     CombatResult outcome = runDuel(first, second);
-    replay.replay(outcome, first, second);
+    duelReplay().replay(outcome, first, second);
     logger.reportOutcome(outcome, first, second);
   }
 
@@ -94,19 +102,47 @@ public class Arena {
   }
 
   /**
+   * Costruito alla prima chiamata di {@link #run}, con l'unico {@link TurnPacer} di questo Arena
+   * (testo di suggerimento di default, invariato rispetto a oggi).
+   */
+  private CombatReplay duelReplay() {
+    if (replay == null) {
+      replay = buildReplay(mode, logger, sharedTurnPacer(new EnterKeyTurnPacer()), settings.maxTurns());
+    }
+    return replay;
+  }
+
+  /**
    * Dispone una battaglia NvN: assembla un {@link BattleEngine} sugli stessi collaboratori già
    * costruiti da questo Arena (più {@link StaminaRules} e le tre policy di default), la gioca per
-   * intero e ne stampa lo svolgimento con {@link ConsoleBattleLogger}, in log testuale senza
-   * attesa dell'INVIO.
+   * intero e ne stampa lo svolgimento con {@link ConsoleBattleLogger}: la scena ASCII di ogni
+   * round, con attesa dell'INVIO (l'unico {@link TurnPacer} di questo Arena, con il testo di
+   * suggerimento adatto al round) prima del round successivo.
    */
   public void runBattle(BattleSetup setup) {
     BattleEngine battleEngine = new BattleEngine(diceRoller, initiativeResolver, turnOrchestrator, staminaRules,
         settings, new PairwiseEngagementPlanner(), new StickyTargetSelector(), new OutnumberedAllyAssigner());
     ConsoleBattleLogger battleLogger = new ConsoleBattleLogger();
+    TurnPacer roundPacer = sharedTurnPacer(new EnterKeyTurnPacer(BATTLE_ROUND_HINT));
 
     battleLogger.reportSetup(setup);
     BattleResult result = battleEngine.fight(setup, CombatContext.empty());
-    result.roundLog().forEach(battleLogger::logRound);
+    for (RoundLogEntry round : result.roundLog()) {
+      battleLogger.logRound(round);
+      roundPacer.awaitNextTurn();
+    }
     battleLogger.reportOutcome(result);
+  }
+
+  /**
+   * Un solo {@link TurnPacer} per tutto l'Arena, condiviso dai due percorsi: la prima chiamata
+   * (da {@link #run} o {@link #runBattle}, a seconda di quale viene invocato) fissa quale dei due
+   * candidati viene effettivamente costruito e usato.
+   */
+  private TurnPacer sharedTurnPacer(TurnPacer candidate) {
+    if (turnPacer == null) {
+      turnPacer = candidate;
+    }
+    return turnPacer;
   }
 }

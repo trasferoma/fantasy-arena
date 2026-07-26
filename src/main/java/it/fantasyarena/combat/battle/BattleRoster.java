@@ -20,11 +20,13 @@ public final class BattleRoster {
   private final List<Team> teams;
   private final List<Fighter> all;
   private final Map<Fighter, Team> teamByFighter;
+  private final Map<Fighter, Integer> indexByFighter;
 
   private BattleRoster(List<Team> teams) {
     this.teams = teams;
     this.all = buildAll(teams);
     this.teamByFighter = buildTeamByFighter(teams);
+    this.indexByFighter = buildIndexByFighter(all);
   }
 
   public static BattleRoster of(List<Team> teams) {
@@ -53,6 +55,18 @@ public final class BattleRoster {
     return all.stream()
         .filter(fighter -> !fighter.isDefeated())
         .toList();
+  }
+
+  /**
+   * Posizione di {@code fighter} in {@link #all()}, per identità: il riferimento stabile usato
+   * dalla presentazione per correlare i combattenti senza appoggiarsi al nome.
+   */
+  public int indexOf(Fighter fighter) {
+    Integer index = indexByFighter.get(fighter);
+    if (index == null) {
+      throw new IllegalArgumentException("fighter is not part of this roster: " + fighter.name());
+    }
+    return index;
   }
 
   /**
@@ -105,6 +119,14 @@ public final class BattleRoster {
       for (Fighter member : team.members()) {
         map.put(member, team);
       }
+    }
+    return map;
+  }
+
+  private static Map<Fighter, Integer> buildIndexByFighter(List<Fighter> all) {
+    Map<Fighter, Integer> map = new IdentityHashMap<>();
+    for (int index = 0; index < all.size(); index++) {
+      map.put(all.get(index), index);
     }
     return map;
   }

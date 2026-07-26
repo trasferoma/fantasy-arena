@@ -127,7 +127,7 @@ public class BattleEngine {
 
     List<String> events = reassignFreeWinners(roster, engagements, engagementByFighter);
 
-    return buildRoundLogEntry(roundNumber, played, vitalsSnapshot(roster.all()), events);
+    return buildRoundLogEntry(roster, roundNumber, played, vitalsSnapshot(roster.all()), events);
   }
 
   private void resetTurnStaminaCounters(List<Fighter> living) {
@@ -213,18 +213,21 @@ public class BattleEngine {
         .toList();
   }
 
-  private RoundLogEntry buildRoundLogEntry(int roundNumber, List<PlayedExchange> played,
+  private RoundLogEntry buildRoundLogEntry(BattleRoster roster, int roundNumber, List<PlayedExchange> played,
       List<FighterVitals> endOfRoundVitals, List<String> events) {
     List<EngagementTurn> turns = played.stream()
-        .map(this::toEngagementTurn)
+        .map(exchange -> toEngagementTurn(roster, exchange))
         .toList();
     return new RoundLogEntry(roundNumber, turns, endOfRoundVitals, events);
   }
 
-  private EngagementTurn toEngagementTurn(PlayedExchange exchange) {
+  private EngagementTurn toEngagementTurn(BattleRoster roster, PlayedExchange exchange) {
     TurnLogEntry entryWithStamina = exchange.entry().withStaminaChanges(staminaChangesOf(exchange));
-    return new EngagementTurn(exchange.engagement().id(), exchange.actor().name(), exchange.target().name(),
-        entryWithStamina);
+    List<Integer> participantIndexes = exchange.participantsAtRoundStart().stream()
+        .map(roster::indexOf)
+        .toList();
+    return new EngagementTurn(exchange.engagement().id(), roster.indexOf(exchange.actor()),
+        roster.indexOf(exchange.target()), participantIndexes, entryWithStamina);
   }
 
   private List<StaminaChange> staminaChangesOf(PlayedExchange exchange) {

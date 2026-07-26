@@ -1,11 +1,11 @@
 package it.fantasyarena.combat.io;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import it.fantasyarena.combat.battle.BattleResult;
 import it.fantasyarena.combat.battle.BattleSetup;
-import it.fantasyarena.combat.battle.EngagementTurn;
 import it.fantasyarena.combat.battle.RoundLogEntry;
 import it.fantasyarena.combat.battle.Team;
 import it.fantasyarena.combat.battle.TeamScore;
@@ -13,27 +13,34 @@ import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.Scorecard;
 
 /**
- * Logger testuale, in stile log, per la battaglia NvN: stampa gli schieramenti, il log round per
- * round e l'esito finale, senza attesa dell'INVIO e senza la messa in pagina a schermo del
- * duello 1v1. Riusa {@link TurnLogFormatter} per la formattazione compatta dello scambio e
- * {@link FighterCardFormatter} per le schede dei combattenti, cosi' le due modalita' di
- * presentazione restano testualmente coerenti. Una sola classe concreta, senza interfaccia
- * dedicata: a differenza di {@link CombatLogger} (un solo implementatore per ragioni storiche),
- * qui non c'e' un secondo utilizzo che giustifichi l'astrazione.
+ * Logger testuale per la battaglia NvN: stampa gli schieramenti, la scena ASCII round per round
+ * (delegata a {@link BattleSceneRenderer}) e l'esito finale, senza attesa dell'INVIO (a carico del
+ * chiamante, fra un round e il successivo) e senza la messa in pagina a schermo del duello 1v1.
+ * Riusa {@link TurnLogFormatter#describeVitals} per lo stato finale e {@link FighterCardFormatter}
+ * per le schede dei combattenti, cosi' le due modalita' di presentazione restano testualmente
+ * coerenti sull'esito. Una sola classe concreta, senza interfaccia dedicata: a differenza di
+ * {@link CombatLogger} (un solo implementatore per ragioni storiche), qui non c'e' un secondo
+ * utilizzo che giustifichi l'astrazione.
  */
 public class ConsoleBattleLogger {
 
   private final TurnLogFormatter turnFormatter = new TurnLogFormatter();
   private final FighterCardFormatter cardFormatter = new FighterCardFormatter();
 
+  private BattleSceneRenderer sceneRenderer;
+
   /**
    * Stampa gli schieramenti: intestazione, poi per ogni squadra il nome e la scheda di ogni
    * membro. I combattenti sono numerati progressivamente sull'intera battaglia (non ricominciando
-   * da 1 a ogni squadra), cosi' l'indice resta un identificatore stabile nel log.
+   * da 1 a ogni squadra), cosi' l'indice resta un identificatore stabile nel log. Costruisce anche
+   * il {@link BattleSceneRenderer} usato da {@link #logRound}, una sola volta per l'intera
+   * battaglia: le larghezze di colonna si calcolano cosi' dai valori massimi del roster e restano
+   * costanti round dopo round.
    */
   public void reportSetup(BattleSetup setup) {
     System.out.println("=== Schieramenti ===");
 
+    List<FighterProfile> roster = new ArrayList<>();
     int fighterIndex = 1;
     for (Team team : setup.teams()) {
       System.out.println();
@@ -41,28 +48,22 @@ public class ConsoleBattleLogger {
       for (Fighter member : team.members()) {
         cardFormatter.card(fighterIndex, member).forEach(System.out::println);
         System.out.println();
+        roster.add(new FighterProfile(member.name(), team.index(), member.ratings().maxHealth(),
+            member.ratings().maxStamina()));
         fighterIndex++;
       }
     }
+    this.sceneRenderer = new BattleSceneRenderer(roster);
   }
 
   /**
-   * Stampa un round: intestazione, uno scambio per scontro attivo (identificato dallo scontro e
-   * dai due contendenti, seguito dalla formattazione compatta dello scambio), le eventuali note
-   * di round (riassegnazioni di vincitori liberi) e lo stato finale di round di ogni combattente.
+   * Stampa la scena ASCII di un round: fazione 0 a sinistra, fazione 1 a destra, una freccia
+   * dall'attaccante al bersaglio per scontro. Delega interamente a {@link BattleSceneRenderer},
+   * costruito da {@link #reportSetup}.
    */
   public void logRound(RoundLogEntry round) {
-    System.out.println("--- Round " + round.roundNumber() + " ---");
-
-    round.turns().forEach(this::logEngagementTurn);
-    round.events().forEach(System.out::println);
-
-    System.out.println("Stato -> " + turnFormatter.describeVitals(round.vitals()));
-  }
-
-  private void logEngagementTurn(EngagementTurn turn) {
-    System.out.println("[scontro " + turn.engagementId() + "] " + turn.attackerName() + " -> " + turn.targetName());
-    turnFormatter.formatCompact(turn.turn()).forEach(line -> System.out.println("  " + line));
+    sceneRenderer.renderRound(round).forEach(System.out::println);
+    System.out.println();
   }
 
   /**

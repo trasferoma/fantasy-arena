@@ -58,12 +58,14 @@ class BattleEngineReassignmentTest {
     assertEquals(2, round1.turns().size(), "round 1: entrambi gli scontri erano ancora attivi");
     assertEquals(List.of("A0, libero, si unisce allo scontro 1."), round1.events());
 
+    // Ordine di roster (BattleSetup.of(List.of(List.of(a0, a1), List.of(b0, b1)))): A0=0, A1=1,
+    // B0=2, B1=3.
     RoundLogEntry round2 = result.roundLog().get(1);
     assertEquals(1, round2.turns().size(), "round 2: solo E1 resta attivo, E0 e' concluso");
     assertEquals(1, round2.turns().get(0).engagementId());
-    assertTrue(round2.turns().get(0).attackerName().equals("A1") || round2.turns().get(0).attackerName().equals("B1")
-            || round2.turns().get(0).attackerName().equals("A0"),
-        "l'attore del round 2 deve essere uno dei tre partecipanti attuali dello scontro E1");
+    int round2AttackerIndex = round2.turns().get(0).attackerIndex();
+    assertTrue(round2AttackerIndex == 1 || round2AttackerIndex == 3 || round2AttackerIndex == 0,
+        "l'attore del round 2 deve essere uno dei tre partecipanti attuali dello scontro E1 (A1, B1 o A0 riassegnato)");
 
     List<String> expectedTrace = List.of(
         "roll(6)", "roll(6)", "d20", "d20", "d100",

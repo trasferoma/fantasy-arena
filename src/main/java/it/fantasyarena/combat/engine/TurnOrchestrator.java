@@ -10,6 +10,7 @@ import it.fantasyarena.combat.dice.DiceRoller;
 import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.model.FighterState;
+import it.fantasyarena.combat.result.ActionOutcome;
 import it.fantasyarena.combat.result.InitiativeOverride;
 import it.fantasyarena.combat.result.TurnHighlight;
 import it.fantasyarena.combat.result.TurnLogEntry;
@@ -111,14 +112,18 @@ public class TurnOrchestrator {
     attacker.state().recoverStamina(staminaRules.restRecovery());
     int recovered = attacker.state().currentStamina() - before;
     String description = attacker.name() + " riposa e recupera " + recovered + " stamina.";
-    return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.REST_YIELD);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.REST, 0, recovered, false, false);
+    TurnLogEntry logEntry = new TurnLogEntry(turnNumber, description).withAction(action);
+    return new TurnResult(logEntry, InitiativeOverride.REST_YIELD);
   }
 
   private TurnResult resolveMiss(int turnNumber, Fighter attacker, Fighter defender, boolean powerStrike) {
     applyMomentumDelta(attacker, momentumRules.deltaForMiss());
     String weaponName = String.valueOf(attacker.weapon().weapon());
     String description = turnChronicler.describeMiss(attacker.name(), defender.name(), weaponName, powerStrike);
-    return new TurnResult(new TurnLogEntry(turnNumber, description), InitiativeOverride.NONE);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, false, powerStrike);
+    TurnLogEntry logEntry = new TurnLogEntry(turnNumber, description).withAction(action);
+    return new TurnResult(logEntry, InitiativeOverride.NONE);
   }
 
   private TurnResult resolveHitLanded(int turnNumber, Fighter attacker, Fighter defender, CombatContext context,
@@ -146,8 +151,18 @@ public class TurnOrchestrator {
 
     boolean defenderDodged = defenseOutcome.result() == DefenseOutcome.DefenseResult.DODGED;
     InitiativeOverride override = defenderDodged ? InitiativeOverride.DODGE_STEAL : InitiativeOverride.NONE;
-    TurnLogEntry logEntry = new TurnLogEntry(turnNumber, description).withHighlights(highlights);
+    ActionOutcome action = new ActionOutcome(actionKindOf(defenseOutcome.result()), damage, 0,
+        hitOutcome.critical(), powerStrike);
+    TurnLogEntry logEntry = new TurnLogEntry(turnNumber, description).withHighlights(highlights).withAction(action);
     return new TurnResult(logEntry, override);
+  }
+
+  private ActionOutcome.Kind actionKindOf(DefenseOutcome.DefenseResult result) {
+    return switch (result) {
+      case HIT_TAKEN -> ActionOutcome.Kind.HIT;
+      case PARRIED -> ActionOutcome.Kind.PARRIED;
+      case DODGED -> ActionOutcome.Kind.DODGED;
+    };
   }
 
   /**

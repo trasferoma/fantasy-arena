@@ -57,22 +57,26 @@ class BattleEngineOverrideTest {
 
     assertEquals(3, result.rounds());
 
+    // Ordine di roster (BattleSetup.of(List.of(List.of(a0, a1), List.of(b0)))): A0=0, A1=1, B0=2.
+    int a0Index = 0;
+    int b0Index = 2;
+
     RoundLogEntry round1 = result.roundLog().get(0);
     assertEquals(1, round1.turns().size());
-    assertEquals("A0", round1.turns().get(0).attackerName());
+    assertEquals(a0Index, round1.turns().get(0).attackerIndex());
     assertTrue(round1.turns().get(0).turn().description().contains("schivato"),
         "round 1 deve risolversi in una schivata di B0");
 
     RoundLogEntry round2 = result.roundLog().get(1);
     assertEquals(1, round2.turns().size());
-    assertEquals("B0", round2.turns().get(0).attackerName(),
+    assertEquals(b0Index, round2.turns().get(0).attackerIndex(),
         "DODGE_STEAL: chi ha schivato (B0) deve essere l'attore del round successivo");
     assertTrue(round2.turns().get(0).turn().description().contains("riposa"),
         "B0 e' sotto soglia di riposo: deve riposare invece di attaccare");
 
     RoundLogEntry round3 = result.roundLog().get(2);
     assertEquals(1, round3.turns().size());
-    assertEquals("A0", round3.turns().get(0).attackerName(),
+    assertEquals(a0Index, round3.turns().get(0).attackerIndex(),
         "REST_YIELD: il test a punteggio deve escludere B0 e svolgersi solo fra A0 e A1");
 
     List<String> expectedTrace = List.of(

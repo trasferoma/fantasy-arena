@@ -45,6 +45,11 @@ public final class EngagementTurnPlayer {
 
   public PlayedExchange play(int roundNumber, Engagement engagement, BattleRoster roster,
       List<FighterVitals> startOfRoundVitals, CombatContext context) {
+    // Catturato prima di giocare lo scambio: gli scontri sono disgiunti, quindi questo elenco
+    // equivale ai partecipanti vivi a inizio round di QUESTO scontro, anche se lo scambio che
+    // segue puo' abbattere il bersaglio.
+    List<Fighter> participantsAtRoundStart = engagement.livingParticipants();
+
     InitiativeDecision initiativeDecision = resolveInitiative(engagement);
     Fighter actor = initiativeDecision.chosen();
     applyInitiativeShift(engagement, actor);
@@ -59,7 +64,7 @@ public final class EngagementTurnPlayer {
 
     engagement.recordExchange(actor, target, turnResult.override());
 
-    return new PlayedExchange(engagement, actor, target, logEntry);
+    return new PlayedExchange(engagement, actor, target, logEntry, participantsAtRoundStart);
   }
 
   private InitiativeDecision resolveInitiative(Engagement engagement) {

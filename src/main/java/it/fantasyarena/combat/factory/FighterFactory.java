@@ -9,10 +9,8 @@ import it.fantasytoolkit.charactergenerator.CharacterGeneratorTool;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.weapongenerator.WeaponGeneratorTool;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
-import it.fantasytoolkitcore.core.model.Armour;
 import it.fantasytoolkitcore.core.model.CharacterClass;
 import it.fantasytoolkitcore.core.model.Rarity;
-import it.fantasytoolkitcore.core.model.Weapon;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -117,7 +115,7 @@ public class FighterFactory {
         usedNames.add(character.name());
 
         WeaponResult weapon = generateSword(weaponRarity);
-        ArmourResult armour = generateChestplate(armourRarity);
+        ArmourResult armour = generateArmour(armourRarity);
         return assembler.assemble(character, weapon, armour);
     }
 
@@ -133,7 +131,7 @@ public class FighterFactory {
     public Fighter createSwordWarrior(Rarity weaponRarity, Rarity armourRarity) {
         CharacterResult character = generateWarrior();
         WeaponResult weapon = generateSword(weaponRarity);
-        ArmourResult armour = generateChestplate(armourRarity);
+        ArmourResult armour = generateArmour(armourRarity);
         return assembler.assemble(character, weapon, armour);
     }
 
@@ -155,15 +153,17 @@ public class FighterFactory {
 
     private WeaponResult generateSword(Rarity rarity) {
         return WeaponGeneratorTool.building()
-                .weapon(Weapon.SWORD)
+                //.weapon(Weapon.SWORD)
+                .randomWeapon()
                 .rarity(rarity)
                 .noStatusEffect()
                 .generate();
     }
 
-    private ArmourResult generateChestplate(Rarity rarity) {
+    private ArmourResult generateArmour(Rarity rarity) {
         return ArmourGeneratorTool.building()
-                .armour(Armour.CHESTPLATE)
+                //.armour(Armour.CHESTPLATE)
+                .randomArmour()
                 .rarity(rarity)
                 .noStatusEffect()
                 .generate();

@@ -22,6 +22,9 @@ import it.fantasycombatsystem.result.TurnLogEntry;
  */
 public class ConsoleCombatLogger implements CombatLogger {
 
+  private static final String NO_FAVORITE_LINE = "Alla vigilia equilibrato, nessun favorito netto.";
+  private static final String DRAW_VERDICT_LINE = "Pareggio: pronostico né confermato né smentito.";
+
   private final TurnLogFormatter formatter = new TurnLogFormatter();
   private final FighterCardFormatter cardFormatter = new FighterCardFormatter();
   private final FavoriteEstimator favoriteEstimator = new FavoriteEstimator();
@@ -141,10 +144,17 @@ public class ConsoleCombatLogger implements CombatLogger {
   }
 
   private void printWinner(String label, CombatResult result) {
-    String winnerName = result.winner()
+    System.out.println(label + ": " + winnerName(result) + " (" + result.rounds() + " turni)");
+  }
+
+  /**
+   * Nome del vincitore su un esito che ne prevede uno: l'assenza è un'incoerenza del risultato
+   * ricevuto dal motore, non un caso di presentazione da gestire in silenzio.
+   */
+  private String winnerName(CombatResult result) {
+    return result.winner()
         .map(Fighter::name)
         .orElseThrow(() -> new IllegalStateException("Esito con vincitore atteso ma assente"));
-    System.out.println(label + ": " + winnerName + " (" + result.rounds() + " turni)");
   }
 
   /**
@@ -153,34 +163,42 @@ public class ConsoleCombatLogger implements CombatLogger {
    * tracciato durante il duello, se presente.
    */
   private void printChronicle(CombatResult result, Fighter first, Fighter second) {
-    Optional<Fighter> favorite = favoriteEstimator.favorite(first, second);
-    System.out.println(describeFavorite(favorite));
-    System.out.println(describeVerdict(result, favorite));
+    Optional<Fighter> estimatedFavorite = favoriteEstimator.favorite(first, second);
+    String favoriteLine = estimatedFavorite
+        .map(this::describeFavorite)
+        .orElse(NO_FAVORITE_LINE);
+    String verdictLine = estimatedFavorite
+        .map(favorite -> describeVerdict(result, favorite))
+        .orElseGet(() -> describeVerdictWithoutFavorite(result));
+
+    System.out.println(favoriteLine);
+    System.out.println(verdictLine);
     describeNotableEvent(result.log()).ifPresent(System.out::println);
   }
 
-  private String describeFavorite(Optional<Fighter> favorite) {
-    return favorite
-        .map(fighter -> "Favorito alla vigilia: " + fighter.name() + ".")
-        .orElse("Alla vigilia equilibrato, nessun favorito netto.");
+  private String describeFavorite(Fighter favorite) {
+    return "Favorito alla vigilia: " + favorite.name() + ".";
   }
 
-  private String describeVerdict(CombatResult result, Optional<Fighter> favorite) {
+  /** Verdetto quando il pronostico aveva indicato un favorito: dice se ha tenuto o è caduto. */
+  private String describeVerdict(CombatResult result, Fighter favorite) {
     if (result.outcome() == CombatOutcome.DRAW) {
-      return "Pareggio: pronostico né confermato né smentito.";
+      return DRAW_VERDICT_LINE;
     }
 
-    String winnerName = result.winner()
-        .map(Fighter::name)
-        .orElseThrow(() -> new IllegalStateException("Esito con vincitore atteso ma assente"));
-    if (favorite.isEmpty()) {
-      return "Vince " + winnerName + ".";
-    }
-
-    boolean upset = !favorite.get().name().equals(winnerName);
-    return (upset
+    String winnerName = winnerName(result);
+    boolean upset = !favorite.name().equals(winnerName);
+    return upset
         ? "Vince " + winnerName + ": ribaltone rispetto al pronostico!"
-        : "Vince " + winnerName + ": pronostico rispettato.");
+        : "Vince " + winnerName + ": pronostico rispettato.";
+  }
+
+  /** Verdetto senza favorito alla vigilia: non c'è pronostico da confrontare, solo l'esito. */
+  private String describeVerdictWithoutFavorite(CombatResult result) {
+    if (result.outcome() == CombatOutcome.DRAW) {
+      return DRAW_VERDICT_LINE;
+    }
+    return "Vince " + winnerName(result) + ".";
   }
 
   private Optional<String> describeNotableEvent(List<TurnLogEntry> log) {

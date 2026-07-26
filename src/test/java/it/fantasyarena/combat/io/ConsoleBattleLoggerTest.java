@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,7 +97,7 @@ class ConsoleBattleLoggerTest {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
     Team teamA = new Team(0, "Squadra 1", List.of(alice));
-    BattleResult result = new BattleResult(CombatOutcome.VICTORY, Optional.of(teamA), 7, List.of(),
+    BattleResult result = new BattleResult(CombatOutcome.VICTORY, teamA, 7, List.of(),
         finalVitals(alice, bob), List.of(), List.of());
 
     logger.reportOutcome(result);
@@ -118,7 +117,7 @@ class ConsoleBattleLoggerTest {
         scorecard(alice.name(), 0.60, 0.52, 5, 3, true),
         scorecard(bob.name(), 0.52, 0.60, 4, 1, false));
     List<TeamScore> teamScores = List.of(new TeamScore("Squadra 1", 15), new TeamScore("Squadra 2", 9));
-    BattleResult result = new BattleResult(CombatOutcome.TIMEOUT_DECISION, Optional.of(teamA), 20, List.of(),
+    BattleResult result = new BattleResult(CombatOutcome.TIMEOUT_DECISION, teamA, 20, List.of(),
         finalVitals(alice, bob), scorecards, teamScores);
 
     logger.reportOutcome(result);

@@ -7,7 +7,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +74,7 @@ class ConsoleCombatLoggerOutcomeTest {
   void citaIlFavoritoEIlPronosticoRispettatoQuandoVinceIlFavorito() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
-    CombatResult result = victoryResult(alice, bob, Optional.of(alice));
+    CombatResult result = victoryResult(alice, bob, alice);
 
     logger.reportOutcome(result, alice, bob);
 
@@ -88,7 +87,7 @@ class ConsoleCombatLoggerOutcomeTest {
   void citaIlRibaltoneQuandoVinceIlNonFavorito() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
-    CombatResult result = victoryResult(alice, bob, Optional.of(bob));
+    CombatResult result = victoryResult(alice, bob, bob);
 
     logger.reportOutcome(result, alice, bob);
 
@@ -101,7 +100,7 @@ class ConsoleCombatLoggerOutcomeTest {
   void dichiaraEquilibrioSenzaFavoritoNetto() {
     Fighter alice = strongFighter("Alice");
     Fighter twin = strongFighter("Twin");
-    CombatResult result = victoryResult(alice, twin, Optional.of(alice));
+    CombatResult result = victoryResult(alice, twin, alice);
 
     logger.reportOutcome(result, alice, twin);
 
@@ -118,7 +117,7 @@ class ConsoleCombatLoggerOutcomeTest {
         .withInitiative(initiativeChosenBy("Alice"))
         .withHighlights(List.of(TurnHighlight.CRITICAL));
     CombatResult result = new CombatResult(
-        CombatOutcome.VICTORY, Optional.of(alice), 5, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
+        CombatOutcome.VICTORY, alice, 5, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
 
     logger.reportOutcome(result, alice, bob);
 
@@ -134,7 +133,7 @@ class ConsoleCombatLoggerOutcomeTest {
         .withInitiative(initiativeChosenBy("Alice"))
         .withHighlights(List.of(TurnHighlight.POWER_STRIKE, TurnHighlight.HEAVY_BLOW));
     CombatResult result = new CombatResult(
-        CombatOutcome.VICTORY, Optional.of(alice), 7, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
+        CombatOutcome.VICTORY, alice, 7, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
 
     logger.reportOutcome(result, alice, bob);
 
@@ -151,7 +150,7 @@ class ConsoleCombatLoggerOutcomeTest {
         .withInitiative(initiativeChosenBy("Alice"))
         .withHighlights(List.of(TurnHighlight.CRITICAL, TurnHighlight.POWER_STRIKE));
     CombatResult result = new CombatResult(
-        CombatOutcome.VICTORY, Optional.of(alice), 9, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
+        CombatOutcome.VICTORY, alice, 9, List.of(highlightedTurn), finalVitals(alice, bob), List.of());
 
     logger.reportOutcome(result, alice, bob);
 
@@ -167,8 +166,9 @@ class ConsoleCombatLoggerOutcomeTest {
     List<Scorecard> scorecards = List.of(
         scorecard(alice.name(), 0.60, 0.60, 3, 0, false),
         scorecard(bob.name(), 0.60, 0.60, 3, 0, false));
+    Fighter noWinner = null;
     CombatResult result = new CombatResult(
-        CombatOutcome.DRAW, Optional.empty(), 10, List.of(), finalVitals(alice, bob), scorecards);
+        CombatOutcome.DRAW, noWinner, 10, List.of(), finalVitals(alice, bob), scorecards);
 
     logger.reportOutcome(result, alice, bob);
 
@@ -187,7 +187,7 @@ class ConsoleCombatLoggerOutcomeTest {
         scorecard(alice.name(), 0.60, 0.52, 5, 3, true),
         scorecard(bob.name(), 0.52, 0.60, 4, 1, false));
     CombatResult result = new CombatResult(
-        CombatOutcome.TIMEOUT_DECISION, Optional.of(alice), 20, List.of(), finalVitals(alice, bob), scorecards);
+        CombatOutcome.TIMEOUT_DECISION, alice, 20, List.of(), finalVitals(alice, bob), scorecards);
 
     logger.reportOutcome(result, alice, bob);
 
@@ -203,7 +203,7 @@ class ConsoleCombatLoggerOutcomeTest {
   void nonMostraLaDecisioneAiPuntiSuVittoriaPerKo() {
     Fighter alice = strongFighter("Alice");
     Fighter bob = weakFighter("Bob");
-    CombatResult result = victoryResult(alice, bob, Optional.of(alice));
+    CombatResult result = victoryResult(alice, bob, alice);
 
     logger.reportOutcome(result, alice, bob);
 
@@ -222,7 +222,7 @@ class ConsoleCombatLoggerOutcomeTest {
         parryPoints, 0, 0, weights, total);
   }
 
-  private CombatResult victoryResult(Fighter first, Fighter second, Optional<Fighter> winner) {
+  private CombatResult victoryResult(Fighter first, Fighter second, Fighter winner) {
     return new CombatResult(CombatOutcome.VICTORY, winner, 3, List.of(), finalVitals(first, second), List.of());
   }
 

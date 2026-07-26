@@ -7,11 +7,11 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import it.fantasyarena.combat.battle.EngagementTurn;
-import it.fantasyarena.combat.battle.RoundLogEntry;
-import it.fantasyarena.combat.result.ActionOutcome;
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.battle.EngagementTurn;
+import it.fantasycombatsystem.battle.RoundLogEntry;
+import it.fantasycombatsystem.result.ActionOutcome;
+import it.fantasycombatsystem.result.FighterVitals;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * Verifica {@link BattleSceneRenderer}: puro (nessun I/O), quindi testato per asserzioni su

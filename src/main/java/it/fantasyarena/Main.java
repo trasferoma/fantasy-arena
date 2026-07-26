@@ -3,13 +3,13 @@ package it.fantasyarena;
 import java.util.List;
 
 import it.fantasyarena.combat.Arena;
-import it.fantasyarena.combat.battle.BattleSetup;
-import it.fantasyarena.combat.config.CombatSettings;
+import it.fantasycombatsystem.battle.BattleSetup;
+import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasyarena.combat.factory.FighterFactory;
 import it.fantasyarena.combat.io.CombatSetupPrompt;
 import it.fantasyarena.combat.io.ReplayMode;
 import it.fantasyarena.combat.io.ScreenRefresh;
-import it.fantasyarena.combat.model.Fighter;
+import it.fantasycombatsystem.model.Fighter;
 
 /**
  * Punto d'ingresso dell'applicazione: chiede all'utente quanti combattenti compongono ciascuna

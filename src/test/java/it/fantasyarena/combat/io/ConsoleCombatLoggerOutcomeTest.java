@@ -13,17 +13,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatOutcome;
-import it.fantasyarena.combat.result.CombatResult;
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.InitiativeOverride;
-import it.fantasyarena.combat.result.InitiativeReport;
-import it.fantasyarena.combat.result.Scorecard;
-import it.fantasyarena.combat.result.TurnHighlight;
-import it.fantasyarena.combat.result.TurnLogEntry;
-import it.fantasyarena.combat.testsupport.CombatFixtures;
+import it.fantasycombatsystem.config.CombatSettings;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatOutcome;
+import it.fantasycombatsystem.result.CombatResult;
+import it.fantasycombatsystem.result.FighterVitals;
+import it.fantasycombatsystem.result.InitiativeOverride;
+import it.fantasycombatsystem.result.InitiativeReport;
+import it.fantasycombatsystem.result.Scorecard;
+import it.fantasycombatsystem.result.TurnHighlight;
+import it.fantasycombatsystem.result.TurnLogEntry;
+import it.fantasycombatsystem.testsupport.CombatFixtures;
 
 /**
  * Verifica la narrazione finale di {@link ConsoleCombatLogger#reportOutcome}: favorito

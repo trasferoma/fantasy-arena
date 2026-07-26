@@ -6,10 +6,10 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import it.fantasyarena.combat.result.InitiativeBreakdown;
-import it.fantasyarena.combat.result.InitiativeOverride;
-import it.fantasyarena.combat.result.InitiativeReport;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.result.InitiativeBreakdown;
+import it.fantasycombatsystem.result.InitiativeOverride;
+import it.fantasycombatsystem.result.InitiativeReport;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * Verifica la generalizzazione N-aria di {@code TurnLogFormatter.describeScoreWinner}: con 3

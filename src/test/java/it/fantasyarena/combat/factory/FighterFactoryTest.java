@@ -10,8 +10,8 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
-import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.model.Fighter;
+import it.fantasycombatsystem.config.CombatSettings;
+import it.fantasycombatsystem.model.Fighter;
 
 /**
  * Verifica {@link FighterFactory#createMatchedSwordWarriors(int)}: numerosità richiesta, nomi

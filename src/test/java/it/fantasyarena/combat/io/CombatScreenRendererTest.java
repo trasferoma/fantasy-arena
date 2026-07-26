@@ -8,13 +8,13 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.InitiativeBreakdown;
-import it.fantasyarena.combat.result.InitiativeOverride;
-import it.fantasyarena.combat.result.InitiativeReport;
-import it.fantasyarena.combat.result.TurnLogEntry;
-import it.fantasyarena.combat.testsupport.CombatFixtures;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.FighterVitals;
+import it.fantasycombatsystem.result.InitiativeBreakdown;
+import it.fantasycombatsystem.result.InitiativeOverride;
+import it.fantasycombatsystem.result.InitiativeReport;
+import it.fantasycombatsystem.result.TurnLogEntry;
+import it.fantasycombatsystem.testsupport.CombatFixtures;
 
 /**
  * Verifica la matematica delle barre ({@link CombatScreenRenderer#filledCells}), il segno di

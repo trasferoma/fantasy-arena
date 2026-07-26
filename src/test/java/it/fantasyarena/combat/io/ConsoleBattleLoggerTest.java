@@ -12,19 +12,19 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import it.fantasyarena.combat.battle.BattleResult;
-import it.fantasyarena.combat.battle.BattleSetup;
-import it.fantasyarena.combat.battle.EngagementTurn;
-import it.fantasyarena.combat.battle.RoundLogEntry;
-import it.fantasyarena.combat.battle.Team;
-import it.fantasyarena.combat.battle.TeamScore;
-import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatOutcome;
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.Scorecard;
-import it.fantasyarena.combat.result.TurnLogEntry;
-import it.fantasyarena.combat.testsupport.CombatFixtures;
+import it.fantasycombatsystem.battle.BattleResult;
+import it.fantasycombatsystem.battle.BattleSetup;
+import it.fantasycombatsystem.battle.EngagementTurn;
+import it.fantasycombatsystem.battle.RoundLogEntry;
+import it.fantasycombatsystem.battle.Team;
+import it.fantasycombatsystem.battle.TeamScore;
+import it.fantasycombatsystem.config.CombatSettings;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatOutcome;
+import it.fantasycombatsystem.result.FighterVitals;
+import it.fantasycombatsystem.result.Scorecard;
+import it.fantasycombatsystem.result.TurnLogEntry;
+import it.fantasycombatsystem.testsupport.CombatFixtures;
 
 /**
  * Verifica {@link ConsoleBattleLogger}: schieramenti, log di round (intestazione, riga di

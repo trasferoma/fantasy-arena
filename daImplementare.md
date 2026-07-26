@@ -1,6 +1,3 @@
-- movimento nell'arena
-- più avversari
-- più avversari a squadre (2 vs 1, 2 vs 2, ecc)
-- combattimento a distanza
-- magia
-- resa
+- progressione e avanzamento dei combattenti dopo lo scontro
+- morte e sopravvivenza fra uno scontro e il successivo
+- modalità "tanti scontri in fila" con statistiche di bilanciamento

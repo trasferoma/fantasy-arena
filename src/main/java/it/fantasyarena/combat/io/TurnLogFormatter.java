@@ -6,12 +6,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.InitiativeBreakdown;
-import it.fantasyarena.combat.result.InitiativeOverride;
-import it.fantasyarena.combat.result.InitiativeReport;
-import it.fantasyarena.combat.result.StaminaChange;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.result.FighterVitals;
+import it.fantasycombatsystem.result.InitiativeBreakdown;
+import it.fantasycombatsystem.result.InitiativeOverride;
+import it.fantasycombatsystem.result.InitiativeReport;
+import it.fantasycombatsystem.result.StaminaChange;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * Formatta in righe di testo (italiano, pronte per la stampa) il contenuto di un

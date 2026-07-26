@@ -1,16 +1,8 @@
 package it.fantasyarena.combat.factory;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-
-import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.model.IntrinsicRatings;
-import it.fantasyarena.combat.rating.DefaultRatingStrategy;
-import it.fantasyarena.combat.rating.RatingStrategy;
+import it.fantasycombatsystem.config.CombatSettings;
+import it.fantasycombatsystem.factory.FighterAssembler;
+import it.fantasycombatsystem.model.Fighter;
 import it.fantasytoolkit.armourgenerator.ArmourGeneratorTool;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.charactergenerator.CharacterGeneratorTool;
@@ -19,13 +11,23 @@ import it.fantasytoolkit.weapongenerator.WeaponGeneratorTool;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
 import it.fantasytoolkitcore.core.model.CharacterClass;
-import it.fantasytoolkitcore.core.model.Race;
 import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.Weapon;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
 /**
- * Costruisce i {@link Fighter} a partire dai generatori del toolkit, applicando la
- * {@link RatingStrategy} per calcolare i Rating intrinseci. Nessuno scudo in v1.
+ * Genera i combattenti del gioco: decide <em>chi</em> scende nell'arena e con <em>quale</em>
+ * equipaggiamento, pescando dai generatori del toolkit, e affida al {@link FighterAssembler} del
+ * motore la traduzione in {@link Fighter} con i Rating intrinseci calcolati. Nessuno scudo in v1.
+ *
+ * <p>È l'unico punto di contatto del gioco coi generatori del toolkit: la casualità della
+ * generazione (razza, nome, caratteristiche, rarità) vive qui, non nel motore, che i combattenti li
+ * riceve già formati.
  */
 public class FighterFactory {
 
@@ -37,19 +39,21 @@ public class FighterFactory {
      */
     private static final int MAX_NAME_COLLISION_ATTEMPTS = 5;
 
-    private final RatingStrategy ratingStrategy;
+    private final FighterAssembler assembler;
     private final Random random = new Random();
 
-    public FighterFactory(RatingStrategy ratingStrategy) {
-        this.ratingStrategy = ratingStrategy;
+    public FighterFactory(FighterAssembler assembler) {
+        this.assembler = assembler;
     }
 
     /**
-     * Crea una factory che calcola i Rating intrinseci con la strategia di default,
-     * tarata sugli stessi {@link CombatSettings} usati poi dall'Arena per il combattimento.
+     * Crea una factory i cui combattenti hanno i Rating intrinseci calcolati dalla strategia di
+     * default del motore, tarata sugli stessi {@link CombatSettings} che l'Arena userà poi per il
+     * combattimento: usarne due diversi produrrebbe uno scontro incoerente, perché i Rating non
+     * vengono ricalcolati durante la battaglia.
      */
     public static FighterFactory withDefaultRatings(CombatSettings settings) {
-        return new FighterFactory(new DefaultRatingStrategy(settings));
+        return new FighterFactory(FighterAssembler.withDefaultRatings(settings));
     }
 
     /**
@@ -114,8 +118,7 @@ public class FighterFactory {
 
         WeaponResult weapon = generateSword(weaponRarity);
         ArmourResult armour = generateChestplate(armourRarity);
-        IntrinsicRatings ratings = ratingStrategy.computeRatings(character, weapon, armour, null);
-        return new Fighter(character, weapon, armour, null, ratings);
+        return assembler.assemble(character, weapon, armour);
     }
 
     private CharacterResult withDisambiguatedName(CharacterResult character, int disambiguator) {
@@ -131,8 +134,7 @@ public class FighterFactory {
         CharacterResult character = generateWarrior();
         WeaponResult weapon = generateSword(weaponRarity);
         ArmourResult armour = generateChestplate(armourRarity);
-        IntrinsicRatings ratings = ratingStrategy.computeRatings(character, weapon, armour, null);
-        return new Fighter(character, weapon, armour, null, ratings);
+        return assembler.assemble(character, weapon, armour);
     }
 
     private Rarity randomRarity() {

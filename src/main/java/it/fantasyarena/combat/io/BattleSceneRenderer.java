@@ -5,11 +5,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import it.fantasyarena.combat.battle.EngagementTurn;
-import it.fantasyarena.combat.battle.RoundLogEntry;
-import it.fantasyarena.combat.result.ActionOutcome;
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.battle.EngagementTurn;
+import it.fantasycombatsystem.battle.RoundLogEntry;
+import it.fantasycombatsystem.result.ActionOutcome;
+import it.fantasycombatsystem.result.FighterVitals;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * Costruisce, come righe di testo pure (nessun I/O), la scena ASCII di un round della battaglia

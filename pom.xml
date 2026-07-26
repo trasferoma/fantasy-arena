@@ -13,10 +13,29 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <exec.mainClass>it.fantasyarena.Main</exec.mainClass>
+        <fantasy.combat.system.version>1.0-SNAPSHOT</fantasy.combat.system.version>
         <junit.jupiter.version>5.11.4</junit.jupiter.version>
     </properties>
 
     <dependencies>
+        <!-- Il motore di combattimento: regole, formule e battaglia NvN. Progetto separato. -->
+        <dependency>
+            <groupId>it.fantasycombatsystem</groupId>
+            <artifactId>fantasy-combat-system</artifactId>
+            <version>${fantasy.combat.system.version}</version>
+        </dependency>
+        <!--
+            Il test support del motore (CombatFixtures, StubDiceRoller): serve ai test dei
+            renderer, che costruiscono Fighter deterministici.
+        -->
+        <dependency>
+            <groupId>it.fantasycombatsystem</groupId>
+            <artifactId>fantasy-combat-system</artifactId>
+            <version>${fantasy.combat.system.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <!-- Generazione di personaggi, armi e armature: dichiarata esplicitamente, non per transitivita'. -->
         <dependency>
             <groupId>it.fantasytoolkit</groupId>
             <artifactId>fantasytoolkit</artifactId>

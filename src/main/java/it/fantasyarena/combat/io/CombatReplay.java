@@ -1,7 +1,7 @@
 package it.fantasyarena.combat.io;
 
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatResult;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatResult;
 
 /**
  * Strategia di presentazione del replay del combattimento: dato l'esito completo del duello

@@ -2,9 +2,9 @@ package it.fantasyarena.combat.io;
 
 import java.util.List;
 
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatResult;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatResult;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * {@link CombatReplay} a pagina: ad ogni turno rivelato pulisce lo schermo (tramite

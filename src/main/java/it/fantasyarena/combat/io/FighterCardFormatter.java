@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.model.IntrinsicRatings;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.model.IntrinsicRatings;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;

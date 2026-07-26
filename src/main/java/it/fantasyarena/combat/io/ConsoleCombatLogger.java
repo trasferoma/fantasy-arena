@@ -4,13 +4,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import it.fantasyarena.combat.engine.FavoriteEstimator;
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatOutcome;
-import it.fantasyarena.combat.result.CombatResult;
-import it.fantasyarena.combat.result.Scorecard;
-import it.fantasyarena.combat.result.TurnHighlight;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.engine.FavoriteEstimator;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatOutcome;
+import it.fantasycombatsystem.result.CombatResult;
+import it.fantasycombatsystem.result.Scorecard;
+import it.fantasycombatsystem.result.TurnHighlight;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * Logger che stampa il duello su console: riepilogo pre-combattimento, log turno per

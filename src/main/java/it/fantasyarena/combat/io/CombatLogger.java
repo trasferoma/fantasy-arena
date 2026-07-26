@@ -1,8 +1,8 @@
 package it.fantasyarena.combat.io;
 
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatResult;
-import it.fantasyarena.combat.result.TurnLogEntry;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatResult;
+import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * Astrazione dell'output del combattimento: consente di sostituire la stampa su console

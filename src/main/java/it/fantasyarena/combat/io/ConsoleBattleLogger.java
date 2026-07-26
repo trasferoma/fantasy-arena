@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import it.fantasyarena.combat.battle.BattleResult;
-import it.fantasyarena.combat.battle.BattleSetup;
-import it.fantasyarena.combat.battle.RoundLogEntry;
-import it.fantasyarena.combat.battle.Team;
-import it.fantasyarena.combat.battle.TeamScore;
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.Scorecard;
+import it.fantasycombatsystem.battle.BattleResult;
+import it.fantasycombatsystem.battle.BattleSetup;
+import it.fantasycombatsystem.battle.RoundLogEntry;
+import it.fantasycombatsystem.battle.Team;
+import it.fantasycombatsystem.battle.TeamScore;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.Scorecard;
 
 /**
  * Logger testuale per la battaglia NvN: stampa gli schieramenti, la scena ASCII round per round

@@ -1,23 +1,5 @@
 package it.fantasyarena.combat;
 
-import it.fantasyarena.combat.battle.BattleEngine;
-import it.fantasyarena.combat.battle.BattleResult;
-import it.fantasyarena.combat.battle.BattleSetup;
-import it.fantasyarena.combat.battle.OutnumberedAllyAssigner;
-import it.fantasyarena.combat.battle.PairwiseEngagementPlanner;
-import it.fantasyarena.combat.battle.RoundLogEntry;
-import it.fantasyarena.combat.battle.StickyTargetSelector;
-import it.fantasyarena.combat.config.CombatSettings;
-import it.fantasyarena.combat.context.CombatContext;
-import it.fantasyarena.combat.dice.DiceRoller;
-import it.fantasyarena.combat.engine.CombatEngine;
-import it.fantasyarena.combat.engine.DamageCalculator;
-import it.fantasyarena.combat.engine.DefenseResolver;
-import it.fantasyarena.combat.engine.HitResolver;
-import it.fantasyarena.combat.engine.InitiativeResolver;
-import it.fantasyarena.combat.engine.MomentumRules;
-import it.fantasyarena.combat.engine.StaminaRules;
-import it.fantasyarena.combat.engine.TurnOrchestrator;
 import it.fantasyarena.combat.io.CombatLogger;
 import it.fantasyarena.combat.io.CombatReplay;
 import it.fantasyarena.combat.io.ConsoleBattleLogger;
@@ -29,31 +11,40 @@ import it.fantasyarena.combat.io.ScreenCleaner;
 import it.fantasyarena.combat.io.ScreenCombatReplay;
 import it.fantasyarena.combat.io.ScreenRefresh;
 import it.fantasyarena.combat.io.TurnPacer;
-import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatResult;
+import it.fantasycombatsystem.CombatSystem;
+import it.fantasycombatsystem.battle.BattleResult;
+import it.fantasycombatsystem.battle.BattleSetup;
+import it.fantasycombatsystem.battle.RoundLogEntry;
+import it.fantasycombatsystem.config.CombatSettings;
+import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.result.CombatResult;
 
 /**
- * Facade del sottosistema di combattimento: riceve i combattenti già pronti e ne dispone lo
- * scontro. Nessuna formula qui: solo orchestrazione parlante. La preparazione dei combattenti è
- * responsabilità esterna (vedi {@link it.fantasyarena.Main}). Due percorsi di presentazione,
- * scelti dal chiamante in base alla forma dello scontro, entrambi scanditi dallo stesso
- * {@link TurnPacer} (costruito alla prima richiesta, con il testo di suggerimento adatto al
- * percorso che lo usa per primo): {@link #run} per il duello 1v1 storico, a schermo con modalità
- * selezionabile ({@link ReplayMode}); {@link #runBattle} per la battaglia NvN, con la scena ASCII
- * round per round e attesa dell'INVIO fra un round e il successivo. La pulizia dello schermo fra
- * un turno/round e il successivo è una scelta ortogonale al {@link ReplayMode} ({@link ScreenRefresh}),
- * col default {@link ScreenRefresh#CLEAR}.
+ * Match runner del gioco: riceve i combattenti già pronti, chiede lo scontro al motore e lo rivela
+ * all'utente. Nessuna regola di combattimento qui: quelle vivono nella libreria
+ * {@code fantasy-combat-system}, dietro l'unica porta d'ingresso {@link CombatSystem}. Questa classe
+ * possiede l'altra metà del problema, quella che il motore deliberatamente non affronta:
+ * <em>come</em> e <em>con che ritmo</em> lo scontro viene mostrato.
+ *
+ * <p>Il motore restituisce l'intero log in un colpo solo; è qui che quel log viene rivelato un pezzo
+ * alla volta. Due percorsi di presentazione, scelti dal chiamante in base alla forma dello scontro,
+ * entrambi scanditi dallo stesso {@link TurnPacer} (costruito alla prima richiesta, con il testo di
+ * suggerimento adatto al percorso che lo usa per primo): {@link #run} per il duello 1v1, a schermo
+ * con modalità selezionabile ({@link ReplayMode}); {@link #runBattle} per la battaglia NvN, con la
+ * scena ASCII round per round e attesa dell'INVIO fra un round e il successivo. La pulizia dello
+ * schermo fra un turno/round e il successivo è una scelta ortogonale al {@link ReplayMode}
+ * ({@link ScreenRefresh}), col default {@link ScreenRefresh#CLEAR}.
+ *
+ * <p>I {@link CombatSettings} passati qui devono essere gli stessi con cui i combattenti sono stati
+ * assemblati (vedi {@link it.fantasyarena.combat.factory.FighterFactory}): i Rating intrinseci sono
+ * calcolati alla creazione del combattente e non vengono ricalcolati durante lo scontro.
  */
 public class Arena {
 
   private static final String BATTLE_ROUND_HINT = "(premi INVIO per avanzare al round successivo)";
 
-  private final DiceRoller diceRoller;
-  private final InitiativeResolver initiativeResolver;
-  private final TurnOrchestrator turnOrchestrator;
-  private final StaminaRules staminaRules;
+  private final CombatSystem combatSystem;
   private final CombatSettings settings;
-  private final CombatEngine combatEngine;
   private final CombatLogger logger;
   private final ReplayMode mode;
   private final ScreenRefresh screenRefresh;
@@ -71,46 +62,27 @@ public class Arena {
   }
 
   public Arena(CombatSettings settings, ReplayMode mode, ScreenRefresh screenRefresh) {
-    MomentumRules momentumRules = new MomentumRules(settings);
-    StaminaRules staminaRules = new StaminaRules(settings);
-    DiceRoller diceRoller = new DiceRoller();
+    this(CombatSystem.withDefaults(settings), settings, mode, screenRefresh);
+  }
 
-    HitResolver hitResolver = new HitResolver(settings);
-    DefenseResolver defenseResolver = new DefenseResolver(settings);
-    DamageCalculator damageCalculator = new DamageCalculator(settings, momentumRules, staminaRules);
-    InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
-    TurnOrchestrator turnOrchestrator = new TurnOrchestrator(
-        diceRoller, hitResolver, defenseResolver, damageCalculator, momentumRules, staminaRules, settings);
-
-    this.diceRoller = diceRoller;
-    this.initiativeResolver = initiativeResolver;
-    this.turnOrchestrator = turnOrchestrator;
-    this.staminaRules = staminaRules;
+  /**
+   * Costruttore con motore esplicito: serve a chi deve rendere lo scontro riproducibile (un
+   * {@link CombatSystem} costruito su dadi pilotati) invece di affidarsi ai dadi reali.
+   */
+  public Arena(CombatSystem combatSystem, CombatSettings settings, ReplayMode mode, ScreenRefresh screenRefresh) {
+    this.combatSystem = combatSystem;
     this.settings = settings;
-    this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
     this.mode = mode;
     this.screenRefresh = screenRefresh;
     this.screenCleaner = new ScreenCleaner(screenRefresh);
   }
 
-  private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer,
-      int maxTurns) {
-    return switch (mode) {
-      case LINEAR -> new LinearCombatReplay(logger, turnPacer, screenCleaner);
-      case SCREEN -> new ScreenCombatReplay(turnPacer, maxTurns, screenCleaner);
-    };
-  }
-
   public void run(Fighter first, Fighter second) {
     logger.reportMatchup(first, second);
-    CombatResult outcome = runDuel(first, second);
+    CombatResult outcome = combatSystem.duel(first, second);
     duelReplay().replay(outcome, first, second);
     logger.reportOutcome(outcome, first, second);
-  }
-
-  private CombatResult runDuel(Fighter first, Fighter second) {
-    return combatEngine.fight(first, second, CombatContext.empty());
   }
 
   /**
@@ -129,24 +101,28 @@ public class Arena {
     return replay;
   }
 
+  private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer,
+      int maxTurns) {
+    return switch (mode) {
+      case LINEAR -> new LinearCombatReplay(logger, turnPacer, screenCleaner);
+      case SCREEN -> new ScreenCombatReplay(turnPacer, maxTurns, screenCleaner);
+    };
+  }
+
   /**
-   * Dispone una battaglia NvN: assembla un {@link BattleEngine} sugli stessi collaboratori già
-   * costruiti da questo Arena (più {@link StaminaRules} e le tre policy di default), la gioca per
-   * intero e ne stampa lo svolgimento con {@link ConsoleBattleLogger}: la scena ASCII di ogni
-   * round (schermo pulito prima di ridisegnarla, salvo {@link ScreenRefresh#SCROLL}), con attesa
-   * dell'INVIO (l'unico {@link TurnPacer} di questo Arena, con il testo di suggerimento adatto al
-   * round) prima del round successivo.
+   * Dispone una battaglia NvN: la fa giocare per intero al motore e ne stampa lo svolgimento con
+   * {@link ConsoleBattleLogger}, la scena ASCII di ogni round (schermo pulito prima di ridisegnarla,
+   * salvo {@link ScreenRefresh#SCROLL}), con attesa dell'INVIO (l'unico {@link TurnPacer} di questo
+   * Arena, con il testo di suggerimento adatto al round) prima del round successivo.
    */
   public void runBattle(BattleSetup setup) {
-    BattleEngine battleEngine = new BattleEngine(diceRoller, initiativeResolver, turnOrchestrator, staminaRules,
-        settings, new PairwiseEngagementPlanner(), new StickyTargetSelector(), new OutnumberedAllyAssigner());
     ConsoleBattleLogger battleLogger = new ConsoleBattleLogger();
     TurnPacer roundPacer = sharedTurnPacer(new EnterKeyTurnPacer(BATTLE_ROUND_HINT));
 
     battleLogger.reportSetup(setup);
     awaitReadingTimeForSetup(roundPacer);
 
-    BattleResult result = battleEngine.fight(setup, CombatContext.empty());
+    BattleResult result = combatSystem.battle(setup);
     for (RoundLogEntry round : result.roundLog()) {
       screenCleaner.clear();
       battleLogger.logRound(round);

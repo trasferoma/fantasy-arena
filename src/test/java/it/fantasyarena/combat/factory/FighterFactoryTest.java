@@ -14,10 +14,9 @@ import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
 
 /**
- * Verifica {@link FighterFactory#createMatchedSwordWarriors(int)}: numerosità richiesta, nomi
- * tutti distinti (il generatore del toolkit pesca da liste per razza: con più guerrieri la
- * collisione è plausibile) e rarità di arma/armatura condivise da tutti, cosi' che nessuno parta
- * avvantaggiato.
+ * Verifica {@link FighterFactory#createChallengers(int)}: numerosità richiesta, nomi tutti
+ * distinti (il generatore del toolkit pesca da liste per razza: con più guerrieri la collisione è
+ * plausibile) e rarità di arma/armatura condivise da tutti, cosi' che nessuno parta avvantaggiato.
  */
 class FighterFactoryTest {
 
@@ -25,7 +24,7 @@ class FighterFactoryTest {
 
   @Test
   void creaCinqueCombattentiConCinqueNomiDistintiEStessaRarita() {
-    List<Fighter> fighters = factory.createMatchedSwordWarriors(5);
+    List<Fighter> fighters = factory.createChallengers(5);
 
     assertEquals(5, fighters.size());
 
@@ -34,7 +33,9 @@ class FighterFactoryTest {
 
     Set<String> weaponRarities = fighters.stream().map(fighter -> fighter.weapon().rarity().name())
         .collect(Collectors.toCollection(HashSet::new));
-    Set<String> armourRarities = fighters.stream().map(fighter -> fighter.armour().rarity().name())
+    Set<String> armourRarities = fighters.stream()
+        .flatMap(fighter -> fighter.armourPieces().stream())
+        .map(piece -> piece.rarity().name())
         .collect(Collectors.toCollection(HashSet::new));
     assertEquals(1, weaponRarities.size(), "l'arma deve avere la stessa rarità per tutti");
     assertEquals(1, armourRarities.size(), "l'armatura deve avere la stessa rarità per tutti");
@@ -42,6 +43,6 @@ class FighterFactoryTest {
 
   @Test
   void rifiutaUnaNumerositaMinoreDiUno() {
-    assertThrows(IllegalArgumentException.class, () -> factory.createMatchedSwordWarriors(0));
+    assertThrows(IllegalArgumentException.class, () -> factory.createChallengers(0));
   }
 }

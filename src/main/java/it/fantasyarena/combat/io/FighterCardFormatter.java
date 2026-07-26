@@ -12,7 +12,8 @@ import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 
 /**
  * Formatta la scheda compatta multi-riga di un combattente: intestazione, razza/classe,
- * arma e armatura (con rarità e valore), vita, stamina, ATK e DEF. Puro (nessun I/O),
+ * arma e un rigo per ogni pezzo d'armatura indossato (con rarità e valore), vita, stamina, ATK e
+ * DEF. Puro (nessun I/O),
  * a larghezza contenuta (le righe troppo lunghe sono troncate con "..."), cosi' da poter
  * essere affiancata ad altre colonne. Riusato dal riepilogo pre-combattimento, dal renderer
  * a schermo e dal riepilogo finale: una sola sorgente di formattazione della scheda.
@@ -37,7 +38,6 @@ public class FighterCardFormatter {
   private List<String> buildCard(int index, Fighter fighter, boolean withCharacteristics) {
     CharacterResult character = fighter.character();
     WeaponResult weapon = fighter.weapon();
-    ArmourResult armour = fighter.armour();
     IntrinsicRatings ratings = fighter.ratings();
 
     List<String> lines = new ArrayList<>();
@@ -48,11 +48,20 @@ public class FighterCardFormatter {
           .forEach(characteristic -> lines.add(truncate(characteristic.characteristic().name() + " " + characteristic.value())));
     }
     lines.add(truncate("Arma  " + weapon.weapon() + " (" + weapon.rarity() + ") atk " + weapon.attack()));
-    lines.add(truncate("Arm.  " + armour.armour() + " (" + armour.rarity() + ") def " + armour.defense()));
+    fighter.armourPieces().forEach(piece -> lines.add(truncate(armourLine(piece))));
     lines.add(truncate("VIT " + ratings.maxHealth() + "  STA " + ratings.maxStamina()));
     lines.add(truncate("ATK " + formatRating(ratings.offensiveRating())
         + "  DEF " + formatRating(ratings.defensiveRating())));
     return lines;
+  }
+
+  /**
+   * Una riga per pezzo indossato: chi ne raccoglie di nuovi vede la scheda allungarsi, ed è
+   * esattamente l'informazione che serve. Le colonne che ospitano la scheda si dimensionano
+   * sull'altezza effettiva, quindi il numero variabile di righe non sfonda alcun layout.
+   */
+  private String armourLine(ArmourResult piece) {
+    return "Arm.  " + piece.armour() + " (" + piece.rarity() + ") def " + piece.defense();
   }
 
   private String formatRating(double rating) {

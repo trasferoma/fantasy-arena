@@ -1,47 +1,25 @@
 package it.fantasyarena;
 
-import java.util.List;
-
 import it.fantasyarena.combat.Arena;
-import it.fantasycombatsystem.battle.BattleSetup;
-import it.fantasycombatsystem.config.CombatSettings;
-import it.fantasyarena.combat.factory.FighterFactory;
-import it.fantasyarena.combat.io.CombatSetupPrompt;
-import it.fantasyarena.combat.io.ReplayMode;
 import it.fantasyarena.combat.io.ScreenRefresh;
-import it.fantasycombatsystem.model.Fighter;
+import it.fantasycombatsystem.config.CombatSettings;
 
 /**
- * Punto d'ingresso dell'applicazione: chiede all'utente quanti combattenti compongono ciascuna
- * fazione e se pulire lo schermo a ogni turno, genera in un'unica chiamata alla
- * {@link FighterFactory} i combattenti di entrambe (i nomi restano univoci sull'intera battaglia,
- * non solo dentro una fazione) e li affida all'{@link Arena}. Con esattamente un combattente per
- * fazione (1 vs 1) usa il percorso a schermo storico del duello; con qualunque altra numerosità
- * (NvN) usa il log testuale round per round.
+ * Punto d'ingresso dell'applicazione: apre l'arena del protagonista e le lascia condurre la
+ * partita. Tutto quello che c'era da chiedere all'utente sulla forma dello scontro non serve più —
+ * le tre prove e la loro numerosità le decide l'{@link Arena} — e resta soltanto la scelta di come
+ * rinfrescare lo schermo.
+ *
+ * <p>I singoli scontri li mette in scena {@code it.fantasyarena.combat.MatchRunner}, di cui l'arena
+ * si serve una volta per prova.
  */
 public class Main {
 
-  private static final int DEFAULT_FACTION_SIZE = 1;
-
   public static void main(String[] args) {
     CombatSettings settings = CombatSettings.defaults();
-    CombatSetupPrompt setupPrompt = new CombatSetupPrompt();
-
-    int sizeA = setupPrompt.askFighterCount("A", DEFAULT_FACTION_SIZE);
-    int sizeB = setupPrompt.askFighterCount("B", DEFAULT_FACTION_SIZE);
-    // ScreenRefresh screenRefresh = setupPrompt.askScreenRefresh();
+    // ScreenRefresh screenRefresh = new CombatSetupPrompt().askScreenRefresh();
     ScreenRefresh screenRefresh = ScreenRefresh.CLEAR;
 
-    FighterFactory fighterFactory = FighterFactory.withDefaultRatings(settings);
-    List<Fighter> fighters = fighterFactory.createMatchedSwordWarriors(sizeA + sizeB);
-    List<Fighter> teamA = fighters.subList(0, sizeA);
-    List<Fighter> teamB = fighters.subList(sizeA, sizeA + sizeB);
-
-    Arena arena = new Arena(settings, ReplayMode.SCREEN, screenRefresh);
-    if (sizeA == 1 && sizeB == 1) {
-      arena.run(teamA.getFirst(), teamB.getFirst());
-    } else {
-      arena.runBattle(BattleSetup.of(List.of(teamA, teamB)));
-    }
+    new Arena(settings, screenRefresh).run();
   }
 }

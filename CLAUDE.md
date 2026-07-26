@@ -12,9 +12,12 @@ orchestrazione e presentazione — e, in prospettiva, progressione e avanzamento
 
 Per la descrizione discorsiva del gioco e del confine col motore vedi `README.md`.
 
-Il punto d'ingresso è `it.fantasyarena.Main`: chiede la numerosità delle due fazioni, genera i
-combattenti equi-equipaggiati con `FighterFactory` e li affida ad `Arena`. Con 1 vs 1 usa il percorso
-duello a schermo, con qualunque altra numerosità il percorso battaglia NvN.
+Il punto d'ingresso è `it.fantasyarena.Main`, ridotto all'osso: apre `Arena` e le lascia condurre la
+partita. `Arena` genera un protagonista e gli fa affrontare tre prove in fila (un avversario, poi
+due insieme, poi uno sfidante speculare con arma rara), con la **procedura di fine scontro** fra
+l'una e l'altra: cura completa, bottino degli avversari caduti, tre punti caratteristica. Le prime
+due prove sono mostrate col percorso battaglia NvN — anche quella contro un avversario solo — mentre
+la prova finale, essendo un uno-contro-uno, usa il duello a schermate.
 
 ## Comandi
 
@@ -81,10 +84,11 @@ Modelli ed enum condivise in `it.fantasytoolkitcore.core.model` (`Race`, `Charac
 
 | Package | Ruolo |
 | --- | --- |
-| `it.fantasyarena` | `Main`: thin. Chiede gli input, genera i combattenti, delega ad `Arena`. |
-| `combat` | `Arena`: match runner. Chiede lo scontro al `CombatSystem` e ne dispone la presentazione col ritmo giusto. Nessuna formula, nessuna regola. |
-| `combat.factory` | `FighterFactory`: unico punto di contatto coi generatori del toolkit. Decide chi combatte e con che equipaggiamento, poi delega l'assemblaggio al `FighterAssembler` del motore. |
-| `combat.io` | Presentazione: `CombatLogger`/`ConsoleCombatLogger`, `ConsoleBattleLogger`, `CombatReplay` con modalità `LINEAR`/`SCREEN`, `BattleSceneRenderer` (scena ASCII NvN), `CombatScreenRenderer`, `FighterCardFormatter`, `TurnPacer`, `ScreenRefresh`, `ScreenCleaner`, `CombatSetupPrompt`. |
+| `it.fantasyarena` | `Main`: thin. Apre `Arena` e basta. |
+| `combat` | `Arena`: la progressione. Scandisce le tre prove del protagonista e la procedura di fine scontro; non decide niente e non calcola niente. `MatchRunner`: fa giocare **un singolo scontro** e lo mette in scena, con `playDuel` (uno-contro-uno a schermate) o `playBattle` (NvN, scena ASCII round per round). Chiede l'esito al `CombatSystem` e decide solo con che ritmo rivelarlo. |
+| `combat.hero` | Il protagonista: `Hero` (scheda immutabile che sopravvive ai round), `HeroBrain` (**tutte** le sue scelte), `Spoils` (bottino dei caduti), `HeroProgress` (resoconto della crescita, dati e non stringhe). |
+| `combat.factory` | `FighterFactory`: unico punto di contatto coi generatori del toolkit. Decide chi combatte e con che equipaggiamento, poi delega l'assemblaggio al `FighterAssembler` del motore. Genera anche il protagonista, gli sfidanti dei tre round e lo specchio finale, e materializza il `Fighter` di ogni round da una `Hero` (`summon`). |
+| `combat.io` | Presentazione: `CombatLogger`/`ConsoleCombatLogger`, `ConsoleBattleLogger`, `ConsoleArenaLogger` (la voce dell'arena fra uno scontro e l'altro), `HeroProgressFormatter`, `CombatReplay` con modalità `LINEAR`/`SCREEN`, `BattleSceneRenderer` (scena ASCII NvN), `CombatScreenRenderer`, `FighterCardFormatter`, `TurnPacer`, `ScreenRefresh`, `ScreenCleaner`, `CombatSetupPrompt`. |
 
 Vincoli architetturali da rispettare quando modifichi:
 
@@ -94,12 +98,24 @@ Vincoli architetturali da rispettare quando modifichi:
 - **I renderer producono righe di testo pure, senza I/O.** L'I/O vero (stampa, lettura dell'INVIO,
   pulizia dello schermo) sta nei logger, nel `TurnPacer` e nello `ScreenCleaner`. È questa
   separazione che rende i renderer testabili sul testo prodotto.
-- **`Arena` non contiene logica di scontro**: chiede il log completo al motore e decide solo *quando*
+- **`MatchRunner` non contiene logica di scontro**: chiede il log completo al motore e decide solo *quando*
   e *come* mostrarlo. Il duello 1v1 e la battaglia NvN sono due percorsi di **presentazione**, non
-  due motori.
+  due motori. Ne servono due istanze quando servono entrambi i percorsi: ognuna costruisce alla
+  prima chiamata il proprio `TurnPacer`, e condividerne una sola porterebbe il suggerimento
+  sbagliato nell'altro percorso.
+- **`Arena` non decide, scandisce.** Le scelte del protagonista stanno tutte in `HeroBrain`, che è
+  il punto unico da toccare per ribilanciare la progressione: quale arma tenere, quali pezzi
+  raccogliere, dove spendere i punti. Se ti trovi a scrivere un `if` di gioco dentro `Arena`,
+  appartiene al cervello.
+- **`Hero` non è `Fighter`.** La scheda sopravvive ai round, il combattente vive un round solo. La
+  cura di fine scontro non è un metodo: è la conseguenza del fatto che ogni round il protagonista
+  viene materializzato di nuovo (`FighterFactory.summon`). Non aggiungere API di guarigione, né qui
+  né nel motore.
 - **La casualità della generazione sta in `FighterFactory`.** Nel resto del gioco niente
   `Math.random()` o `new Random()`; la casualità del combattimento è del motore (`DiceRoller`).
-- `Main` resta thin: chiede gli input, genera i combattenti, delega ad `Arena`.
+  Unica deroga dichiarata: `HeroBrain`, che estrae dove cadono i punti caratteristica — è casualità
+  di progressione, non di generazione, e il `Random` è iniettabile perché i test la piloti.
+- `Main` resta thin: apre l'arena e si fa da parte.
 
 ## Test
 

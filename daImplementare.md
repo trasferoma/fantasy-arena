@@ -1,3 +1,5 @@
-- progressione e avanzamento dei combattenti dopo lo scontro
-- morte e sopravvivenza fra uno scontro e il successivo
+- morte definitiva e salvataggio della progressione fra una partita e l'altra
+- arena a lunghezza variabile (oggi le prove sono esattamente tre, cablate in `Arena`)
+- uso degli slot ancora scoperti: scudo, gioielli e pozioni del toolkit non entrano mai in gioco
+- scelte del protagonista guidate dall'utente invece che da `HeroBrain`
 - modalità "tanti scontri in fila" con statistiche di bilanciamento

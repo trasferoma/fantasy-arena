@@ -1,157 +1,204 @@
 package it.fantasyarena.combat;
 
-import it.fantasyarena.combat.io.CombatLogger;
-import it.fantasyarena.combat.io.CombatReplay;
-import it.fantasyarena.combat.io.ConsoleBattleLogger;
-import it.fantasyarena.combat.io.ConsoleCombatLogger;
+import java.util.List;
+import java.util.Optional;
+
+import it.fantasyarena.combat.factory.FighterFactory;
+import it.fantasyarena.combat.hero.Hero;
+import it.fantasyarena.combat.hero.HeroBrain;
+import it.fantasyarena.combat.hero.HeroProgress;
+import it.fantasyarena.combat.hero.Spoils;
+import it.fantasyarena.combat.io.ConsoleArenaLogger;
 import it.fantasyarena.combat.io.EnterKeyTurnPacer;
-import it.fantasyarena.combat.io.LinearCombatReplay;
 import it.fantasyarena.combat.io.ReplayMode;
-import it.fantasyarena.combat.io.ScreenCleaner;
-import it.fantasyarena.combat.io.ScreenCombatReplay;
 import it.fantasyarena.combat.io.ScreenRefresh;
 import it.fantasyarena.combat.io.TurnPacer;
-import it.fantasycombatsystem.CombatSystem;
-import it.fantasycombatsystem.battle.BattleResult;
 import it.fantasycombatsystem.battle.BattleSetup;
-import it.fantasycombatsystem.battle.RoundLogEntry;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
-import it.fantasycombatsystem.result.CombatResult;
 
 /**
- * Match runner del gioco: riceve i combattenti già pronti, chiede lo scontro al motore e lo rivela
- * all'utente. Nessuna regola di combattimento qui: quelle vivono nella libreria
- * {@code fantasy-combat-system}, dietro l'unica porta d'ingresso {@link CombatSystem}. Questa classe
- * possiede l'altra metà del problema, quella che il motore deliberatamente non affronta:
- * <em>come</em> e <em>con che ritmo</em> lo scontro viene mostrato.
+ * L'arena del protagonista: un solo eroe, tre prove in fila, e fra una prova e l'altra la
+ * procedura di fine scontro che lo fa crescere. È la parte del gioco che il motore
+ * deliberatamente non ha — la <em>progressione</em> — e vive tutta qui.
  *
- * <p>Il motore restituisce l'intero log in un colpo solo; è qui che quel log viene rivelato un pezzo
- * alla volta. Due percorsi di presentazione, scelti dal chiamante in base alla forma dello scontro,
- * entrambi scanditi dallo stesso {@link TurnPacer} (costruito alla prima richiesta, con il testo di
- * suggerimento adatto al percorso che lo usa per primo): {@link #run} per il duello 1v1, a schermo
- * con modalità selezionabile ({@link ReplayMode}); {@link #runBattle} per la battaglia NvN, con la
- * scena ASCII round per round e attesa dell'INVIO fra un round e il successivo. La pulizia dello
- * schermo fra un turno/round e il successivo è una scelta ortogonale al {@link ReplayMode}
- * ({@link ScreenRefresh}), col default {@link ScreenRefresh#CLEAR}.
+ * <p>Questa classe scandisce i passaggi e non ne decide nessuno. Gli scontri li risolve per intero
+ * il {@code fantasy-combat-system} attraverso {@link MatchRunner}. Le prime due prove usano il
+ * percorso battaglia — anche quella contro un avversario solo, che passa comunque da
+ * {@link BattleSetup} — mentre la prova finale, che è un uno-contro-uno, usa il duello a schermate:
+ * più curato, e visivamente distingue lo scontro che chiude l'arena. Le scelte del protagonista —
+ * quale arma tenere, quali pezzi raccogliere, dove spendere i punti — sono tutte di
+ * {@link HeroBrain}, che è il punto unico da toccare per ribilanciare la progressione.
  *
- * <p>I {@link CombatSettings} passati qui devono essere gli stessi con cui i combattenti sono stati
- * assemblati (vedi {@link it.fantasyarena.combat.factory.FighterFactory}): i Rating intrinseci sono
- * calcolati alla creazione del combattente e non vengono ricalcolati durante lo scontro.
+ * <p>Fra il protagonista e i suoi combattenti c'è una distinzione che regge tutto il resto: la
+ * {@link Hero} è la scheda che sopravvive ai round, il {@code Fighter} è chi scende in campo in un
+ * round solo e ne esce ferito. A ogni prova il protagonista viene materializzato di nuovo dalla
+ * scheda ({@code FighterFactory.summon}), ed è da qui che arriva la cura completa promessa dalla
+ * procedura: non si guarisce nessuno, si torna in campo interi.
+ *
+ * <p>Si avanza solo con una vittoria piena. Sopravvivere non basta: vedi
+ * {@link #hasWonOutright}.
  */
 public class Arena {
 
-  private static final String BATTLE_ROUND_HINT = "(premi INVIO per avanzare al round successivo)";
+  private static final String FIRST_ROUND_DESCRIPTION = "il primo avversario";
+  private static final String SECOND_ROUND_DESCRIPTION = "due contro uno";
+  private static final String FINAL_ROUND_DESCRIPTION = "lo sfidante speculare, armato meglio";
 
-  private final CombatSystem combatSystem;
-  private final CombatSettings settings;
-  private final CombatLogger logger;
-  private final ReplayMode mode;
-  private final ScreenRefresh screenRefresh;
-  private final ScreenCleaner screenCleaner;
+  private static final int FIRST_ROUND = 1;
+  private static final int SECOND_ROUND = 2;
+  private static final int FINAL_ROUND = 3;
 
-  private TurnPacer turnPacer;
-  private CombatReplay replay;
+  private static final int LONE_CHALLENGER = 1;
+  private static final int CHALLENGER_PAIR = 2;
+
+  private static final String NEXT_ROUND_HINT = "(premi INVIO per affrontare il round successivo)";
+
+  private final FighterFactory fighterFactory;
+  private final HeroBrain heroBrain;
+  private final MatchRunner battleRunner;
+  private final MatchRunner duelRunner;
+  private final ConsoleArenaLogger logger;
+  private final TurnPacer roundPacer;
 
   public Arena(CombatSettings settings) {
-    this(settings, ReplayMode.SCREEN, ScreenRefresh.CLEAR);
-  }
-
-  public Arena(CombatSettings settings, ReplayMode mode) {
-    this(settings, mode, ScreenRefresh.CLEAR);
-  }
-
-  public Arena(CombatSettings settings, ReplayMode mode, ScreenRefresh screenRefresh) {
-    this(CombatSystem.withDefaults(settings), settings, mode, screenRefresh);
+    this(settings, ScreenRefresh.CLEAR);
   }
 
   /**
-   * Costruttore con motore esplicito: serve a chi deve rendere lo scontro riproducibile (un
-   * {@link CombatSystem} costruito su dadi pilotati) invece di affidarsi ai dadi reali.
+   * I due {@link MatchRunner} sono distinti, non lo stesso usato in due modi: ognuno costruisce alla
+   * prima chiamata il proprio {@link TurnPacer} col suggerimento adatto (round per la battaglia,
+   * nessuno per la pagina del duello, che il suggerimento ce l'ha già disegnato dentro).
+   * Condividerne uno solo significherebbe trascinare nel duello finale il suggerimento della
+   * battaglia.
    */
-  public Arena(CombatSystem combatSystem, CombatSettings settings, ReplayMode mode, ScreenRefresh screenRefresh) {
-    this.combatSystem = combatSystem;
-    this.settings = settings;
-    this.logger = new ConsoleCombatLogger();
-    this.mode = mode;
-    this.screenRefresh = screenRefresh;
-    this.screenCleaner = new ScreenCleaner(screenRefresh);
-  }
-
-  public void run(Fighter first, Fighter second) {
-    logger.reportMatchup(first, second);
-    CombatResult outcome = combatSystem.duel(first, second);
-    duelReplay().replay(outcome, first, second);
-    logger.reportOutcome(outcome, first, second);
+  public Arena(CombatSettings settings, ScreenRefresh screenRefresh) {
+    this(FighterFactory.withDefaultRatings(settings), new HeroBrain(),
+        new MatchRunner(settings, ReplayMode.SCREEN, screenRefresh),
+        new MatchRunner(settings, ReplayMode.SCREEN, screenRefresh), new ConsoleArenaLogger(),
+        new EnterKeyTurnPacer(NEXT_ROUND_HINT));
   }
 
   /**
-   * Costruito alla prima chiamata di {@link #run}, con l'unico {@link TurnPacer} di questo Arena.
-   * In {@link ReplayMode#SCREEN} il pacer non stampa alcun suggerimento: la pagina prodotta da
-   * {@link it.fantasyarena.combat.io.CombatScreenRenderer} lo mostra già. In
-   * {@link ReplayMode#LINEAR} il testo resta quello storico ("turno successivo").
+   * Costruttore con collaboratori espliciti: serve a chi deve rendere l'arena riproducibile
+   * (generazione e cervello pilotati) invece di affidarsi al caso.
    */
-  private CombatReplay duelReplay() {
-    if (replay == null) {
-      TurnPacer duelPacer = (mode == ReplayMode.SCREEN
-          ? EnterKeyTurnPacer.withoutHint()
-          : new EnterKeyTurnPacer());
-      replay = buildReplay(mode, logger, sharedTurnPacer(duelPacer), settings.maxTurns());
+  public Arena(FighterFactory fighterFactory, HeroBrain heroBrain, MatchRunner battleRunner,
+      MatchRunner duelRunner, ConsoleArenaLogger logger, TurnPacer roundPacer) {
+    this.fighterFactory = fighterFactory;
+    this.heroBrain = heroBrain;
+    this.battleRunner = battleRunner;
+    this.duelRunner = duelRunner;
+    this.logger = logger;
+    this.roundPacer = roundPacer;
+  }
+
+  /**
+   * Le tre prove in fila. Ogni round restituisce la scheda cresciuta se il protagonista lo ha
+   * vinto, oppure niente: un {@code Optional} vuoto è la fine dell'arena, e i round successivi
+   * semplicemente non accadono.
+   */
+  public void run() {
+    Hero protagonist = enterTheArena();
+
+    fightLoneChallenger(protagonist)
+        .flatMap(this::fightChallengerPair)
+        .flatMap(this::fightMirrorRival)
+        .ifPresent(logger::reportTriumph);
+  }
+
+  private Hero enterTheArena() {
+    Hero protagonist = fighterFactory.createProtagonist();
+    logger.reportEntrance(protagonist);
+    return protagonist;
+  }
+
+  /**
+   * Prima prova: un avversario alla pari, equipaggiato come lui.
+   */
+  private Optional<Hero> fightLoneChallenger(Hero hero) {
+    return fightRound(FIRST_ROUND, FIRST_ROUND_DESCRIPTION, hero,
+        fighterFactory.createChallengers(LONE_CHALLENGER), this::playAsBattle);
+  }
+
+  /**
+   * Seconda prova: due avversari insieme contro di lui.
+   */
+  private Optional<Hero> fightChallengerPair(Hero hero) {
+    return fightRound(SECOND_ROUND, SECOND_ROUND_DESCRIPTION, hero,
+        fighterFactory.createChallengers(CHALLENGER_PAIR), this::playAsBattle);
+  }
+
+  /**
+   * Ultima prova: uno sfidante con i suoi stessi punti caratteristica e altrettanti pezzi
+   * d'armatura, ma con un'arma rara. Si genera adesso, non prima, perché deve rispecchiare il
+   * protagonista <em>com'è cresciuto</em> nei due round precedenti. Essendo un uno-contro-uno, è
+   * l'unica prova mostrata col duello a schermate.
+   */
+  private Optional<Hero> fightMirrorRival(Hero hero) {
+    return fightRound(FINAL_ROUND, FINAL_ROUND_DESCRIPTION, hero,
+        List.of(fighterFactory.createMirrorRival(hero)), this::playAsDuel);
+  }
+
+  private Optional<Hero> fightRound(int number, String description, Hero hero, List<Fighter> challengers,
+      FightPlay play) {
+    logger.announceRound(number, description, hero, challengers);
+
+    Fighter champion = fighterFactory.summon(hero);
+    play.play(champion, challengers);
+
+    if (!hasWonOutright(champion, challengers)) {
+      logger.reportEndOfRun(hero, champion, number);
+      return Optional.empty();
     }
-    return replay;
+    return Optional.of(applyEndOfFightProcedure(hero, challengers));
   }
 
-  private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer,
-      int maxTurns) {
-    return switch (mode) {
-      case LINEAR -> new LinearCombatReplay(logger, turnPacer, screenCleaner);
-      case SCREEN -> new ScreenCombatReplay(turnPacer, maxTurns, screenCleaner);
-    };
+  private void playAsBattle(Fighter champion, List<Fighter> challengers) {
+    battleRunner.playBattle(BattleSetup.of(List.of(List.of(champion), challengers)));
   }
 
   /**
-   * Dispone una battaglia NvN: la fa giocare per intero al motore e ne stampa lo svolgimento con
-   * {@link ConsoleBattleLogger}, la scena ASCII di ogni round (schermo pulito prima di ridisegnarla,
-   * salvo {@link ScreenRefresh#SCROLL}), con attesa dell'INVIO (l'unico {@link TurnPacer} di questo
-   * Arena, con il testo di suggerimento adatto al round) prima del round successivo.
+   * Il duello a schermate vuole due combattenti, non due schieramenti: si usa solo dove lo
+   * sfidante è uno solo.
    */
-  public void runBattle(BattleSetup setup) {
-    ConsoleBattleLogger battleLogger = new ConsoleBattleLogger();
-    TurnPacer roundPacer = sharedTurnPacer(new EnterKeyTurnPacer(BATTLE_ROUND_HINT));
-
-    battleLogger.reportSetup(setup);
-    awaitReadingTimeForSetup(roundPacer);
-
-    BattleResult result = combatSystem.battle(setup);
-    for (RoundLogEntry round : result.roundLog()) {
-      screenCleaner.clear();
-      battleLogger.logRound(round);
-      roundPacer.awaitNextTurn();
-    }
-    battleLogger.reportOutcome(result);
+  private void playAsDuel(Fighter champion, List<Fighter> challengers) {
+    duelRunner.playDuel(champion, challengers.getFirst());
   }
 
   /**
-   * Solo in {@link ScreenRefresh#CLEAR}: la prima pulizia di {@link #runBattle} cancellerebbe le
-   * schede appena stampate da {@code reportSetup}, l'unico punto in cui si impara chi è chi.
-   * Attende quindi una volta l'INVIO prima del primo round, così restano leggibili. In
-   * {@link ScreenRefresh#SCROLL} non serve: le schede restano comunque visibili sopra i round.
+   * Si prosegue solo con una vittoria piena: il protagonista in piedi e tutti gli avversari
+   * abbattuti. Restare vivo dopo un pareggio o una decisione ai punti non apre il round
+   * successivo, ed è coerente col bottino — si saccheggia solo chi è caduto, quindi da uno scontro
+   * non vinto non ci sarebbe niente da raccogliere.
    */
-  private void awaitReadingTimeForSetup(TurnPacer roundPacer) {
-    if (screenRefresh == ScreenRefresh.CLEAR) {
-      roundPacer.awaitNextTurn();
-    }
+  private boolean hasWonOutright(Fighter champion, List<Fighter> challengers) {
+    return !champion.isDefeated() && challengers.stream().allMatch(Fighter::isDefeated);
   }
 
   /**
-   * Un solo {@link TurnPacer} per tutto l'Arena, condiviso dai due percorsi: la prima chiamata
-   * (da {@link #run} o {@link #runBattle}, a seconda di quale viene invocato) fissa quale dei due
-   * candidati viene effettivamente costruito e usato.
+   * La procedura di fine scontro: cura, bottino, punti caratteristica. Viene raccontata per intero
+   * e poi attende l'INVIO, così chi guarda ha il tempo di leggere cosa è cambiato prima che lo
+   * schermo si pulisca per il round successivo.
    */
-  private TurnPacer sharedTurnPacer(TurnPacer candidate) {
-    if (turnPacer == null) {
-      turnPacer = candidate;
-    }
-    return turnPacer;
+  private Hero applyEndOfFightProcedure(Hero hero, List<Fighter> challengers) {
+    Spoils spoils = Spoils.from(challengers);
+    HeroProgress progress = heroBrain.progressAfterVictory(hero, spoils);
+
+    logger.reportProgress(progress);
+    roundPacer.awaitNextTurn();
+    return progress.grownHero();
+  }
+
+  /**
+   * Come si gioca lo scontro di un round. Esiste perché la scansione del round è identica per tutte
+   * e tre le prove — annuncio, materializzazione, scontro, verifica, procedura — e l'unica cosa che
+   * cambia è quale {@link MatchRunner} lo mette in scena: sarebbe un peccato duplicare tutto il
+   * resto per quella sola differenza.
+   */
+  @FunctionalInterface
+  private interface FightPlay {
+
+    void play(Fighter champion, List<Fighter> challengers);
   }
 }

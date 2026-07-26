@@ -47,10 +47,31 @@ Se cerchi la spiegazione delle regole (stamina, momentum, come si calcolano i da
 
 ## Cosa succede quando lo avvii
 
-Il programma chiede quanti combattenti per fazione, poi genera i combattenti e mostra le loro schede.
+Il programma genera **un protagonista** e gli fa affrontare tre prove in fila:
 
-Con **1 contro 1** vedi il duello turno per turno, a schermate. Con qualunque altra numerosità
-(2 vs 2, 3 vs 1, ...) vedi la battaglia round per round, disegnata come una scena:
+1. **un avversario solo**, equipaggiato come lui;
+2. **due avversari insieme**, contro di lui;
+3. **uno sfidante speculare**: i suoi stessi punti caratteristica, altrettanti pezzi d'armatura, ma
+   un'arma rara in pugno.
+
+Ogni prova va vinta per intero — restare in piedi non basta, gli avversari devono essere tutti a
+terra — altrimenti l'arena si chiude lì.
+
+Fra una prova e l'altra c'è la **procedura di fine scontro**, raccontata riga per riga: il
+protagonista torna a vita e stamina piene, può sostituire la sua arma con quella di un avversario
+caduto se è migliore, raccoglie i pezzi d'armatura che coprono parti del corpo scoperte o che
+difendono più dei suoi, e riceve tre punti caratteristica distribuiti a caso.
+
+```
+--- PROCEDURA DI FINE SCONTRO ---
+Morthas è ancora in piedi: vita e stamina tornano piene.
+Arma: lascia STAFF (UNCOMMON, atk 3) e impugna BOW (UNCOMMON, atk 5).
+Armatura: raccoglie BELT (UNCOMMON, def 2), parte del corpo prima scoperta.
+Crescita: +2 STRENGTH, +1 LUCK.
+```
+
+Le prime due prove — anche quella contro un avversario solo — sono mostrate come una battaglia round
+per round, disegnata come una scena:
 
 ```
 =========================== Round 5 ============================
@@ -63,20 +84,35 @@ Stamina: 16/22 (-6)   ===================>  Stamina: 4/19 (-2)
 Vince: Squadra 1 (5 round)
 ```
 
+La prova finale no: essendo un uno-contro-uno, usa il duello a schermate, turno per turno. È la
+presentazione più curata delle due, e serve anche a far capire a colpo d'occhio che quello è lo
+scontro che chiude l'arena.
+
 ---
 
 ## Com'è organizzato "dentro" (in parole povere)
 
 ```
-Main                    →  chiede quanti combattenti, genera, delega all'Arena
-  FighterFactory        →  "genera i combattenti": razza, nome, spada, corazza
-  Arena                 →  chiede lo scontro al motore e lo mostra col ritmo giusto
-    CombatSystem        →  ⟵ qui comincia l'altro progetto: le REGOLE
-    io/...              →  logger, renderer, scene ASCII, attesa dell'INVIO
+Main                    →  apre l'arena e si fa da parte
+  Arena                 →  le tre prove in fila e la procedura di fine scontro
+    FighterFactory      →  "genera i combattenti": razza, nome, arma, armatura
+    Hero                →  la scheda del protagonista, quella che sopravvive ai round
+    HeroBrain           →  tutte le sue scelte: cosa raccoglie, dove spende i punti
+    MatchRunner         →  chiede un singolo scontro al motore e lo mette in scena
+      CombatSystem      →  ⟵ qui comincia l'altro progetto: le REGOLE
+      io/...            →  logger, renderer, scene ASCII, attesa dell'INVIO
 ```
 
 Il confine è netto: sopra la riga di `CombatSystem` c'è il gioco, sotto ci sono le regole. Il gioco
-non sa come si calcola un danno; il motore non sa che esiste uno schermo.
+non sa come si calcola un danno; il motore non sa che esiste uno schermo, né che esista una
+progressione.
+
+Una distinzione che vale la pena capire: il **protagonista** (`Hero`) e il **combattente**
+(`Fighter`) non sono la stessa cosa. `Hero` è la scheda — chi è, cosa impugna, cosa indossa — e
+sopravvive a tutte le prove. `Fighter` è chi scende in campo in un singolo scontro, e ne esce
+ferito. A ogni prova il protagonista viene *rimandato in campo* come combattente nuovo costruito
+dalla stessa scheda: è da lì che arriva la cura completa promessa dalla procedura di fine scontro.
+Nessuno guarisce nessuno, si torna in campo interi.
 
 ---
 

@@ -25,7 +25,9 @@ import it.fantasyarena.combat.io.ConsoleCombatLogger;
 import it.fantasyarena.combat.io.EnterKeyTurnPacer;
 import it.fantasyarena.combat.io.LinearCombatReplay;
 import it.fantasyarena.combat.io.ReplayMode;
+import it.fantasyarena.combat.io.ScreenCleaner;
 import it.fantasyarena.combat.io.ScreenCombatReplay;
+import it.fantasyarena.combat.io.ScreenRefresh;
 import it.fantasyarena.combat.io.TurnPacer;
 import it.fantasyarena.combat.model.Fighter;
 import it.fantasyarena.combat.result.CombatResult;
@@ -38,7 +40,9 @@ import it.fantasyarena.combat.result.CombatResult;
  * {@link TurnPacer} (costruito alla prima richiesta, con il testo di suggerimento adatto al
  * percorso che lo usa per primo): {@link #run} per il duello 1v1 storico, a schermo con modalità
  * selezionabile ({@link ReplayMode}); {@link #runBattle} per la battaglia NvN, con la scena ASCII
- * round per round e attesa dell'INVIO fra un round e il successivo.
+ * round per round e attesa dell'INVIO fra un round e il successivo. La pulizia dello schermo fra
+ * un turno/round e il successivo è una scelta ortogonale al {@link ReplayMode} ({@link ScreenRefresh}),
+ * col default {@link ScreenRefresh#CLEAR}.
  */
 public class Arena {
 
@@ -52,15 +56,21 @@ public class Arena {
   private final CombatEngine combatEngine;
   private final CombatLogger logger;
   private final ReplayMode mode;
+  private final ScreenRefresh screenRefresh;
+  private final ScreenCleaner screenCleaner;
 
   private TurnPacer turnPacer;
   private CombatReplay replay;
 
   public Arena(CombatSettings settings) {
-    this(settings, ReplayMode.SCREEN);
+    this(settings, ReplayMode.SCREEN, ScreenRefresh.CLEAR);
   }
 
   public Arena(CombatSettings settings, ReplayMode mode) {
+    this(settings, mode, ScreenRefresh.CLEAR);
+  }
+
+  public Arena(CombatSettings settings, ReplayMode mode, ScreenRefresh screenRefresh) {
     MomentumRules momentumRules = new MomentumRules(settings);
     StaminaRules staminaRules = new StaminaRules(settings);
     DiceRoller diceRoller = new DiceRoller();
@@ -80,13 +90,15 @@ public class Arena {
     this.combatEngine = new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
     this.logger = new ConsoleCombatLogger();
     this.mode = mode;
+    this.screenRefresh = screenRefresh;
+    this.screenCleaner = new ScreenCleaner(screenRefresh);
   }
 
   private CombatReplay buildReplay(ReplayMode mode, CombatLogger logger, TurnPacer turnPacer,
       int maxTurns) {
     return switch (mode) {
-      case LINEAR -> new LinearCombatReplay(logger, turnPacer);
-      case SCREEN -> new ScreenCombatReplay(turnPacer, maxTurns);
+      case LINEAR -> new LinearCombatReplay(logger, turnPacer, screenCleaner);
+      case SCREEN -> new ScreenCombatReplay(turnPacer, maxTurns, screenCleaner);
     };
   }
 
@@ -102,12 +114,17 @@ public class Arena {
   }
 
   /**
-   * Costruito alla prima chiamata di {@link #run}, con l'unico {@link TurnPacer} di questo Arena
-   * (testo di suggerimento di default, invariato rispetto a oggi).
+   * Costruito alla prima chiamata di {@link #run}, con l'unico {@link TurnPacer} di questo Arena.
+   * In {@link ReplayMode#SCREEN} il pacer non stampa alcun suggerimento: la pagina prodotta da
+   * {@link it.fantasyarena.combat.io.CombatScreenRenderer} lo mostra già. In
+   * {@link ReplayMode#LINEAR} il testo resta quello storico ("turno successivo").
    */
   private CombatReplay duelReplay() {
     if (replay == null) {
-      replay = buildReplay(mode, logger, sharedTurnPacer(new EnterKeyTurnPacer()), settings.maxTurns());
+      TurnPacer duelPacer = (mode == ReplayMode.SCREEN
+          ? EnterKeyTurnPacer.withoutHint()
+          : new EnterKeyTurnPacer());
+      replay = buildReplay(mode, logger, sharedTurnPacer(duelPacer), settings.maxTurns());
     }
     return replay;
   }
@@ -116,8 +133,9 @@ public class Arena {
    * Dispone una battaglia NvN: assembla un {@link BattleEngine} sugli stessi collaboratori già
    * costruiti da questo Arena (più {@link StaminaRules} e le tre policy di default), la gioca per
    * intero e ne stampa lo svolgimento con {@link ConsoleBattleLogger}: la scena ASCII di ogni
-   * round, con attesa dell'INVIO (l'unico {@link TurnPacer} di questo Arena, con il testo di
-   * suggerimento adatto al round) prima del round successivo.
+   * round (schermo pulito prima di ridisegnarla, salvo {@link ScreenRefresh#SCROLL}), con attesa
+   * dell'INVIO (l'unico {@link TurnPacer} di questo Arena, con il testo di suggerimento adatto al
+   * round) prima del round successivo.
    */
   public void runBattle(BattleSetup setup) {
     BattleEngine battleEngine = new BattleEngine(diceRoller, initiativeResolver, turnOrchestrator, staminaRules,
@@ -126,12 +144,27 @@ public class Arena {
     TurnPacer roundPacer = sharedTurnPacer(new EnterKeyTurnPacer(BATTLE_ROUND_HINT));
 
     battleLogger.reportSetup(setup);
+    awaitReadingTimeForSetup(roundPacer);
+
     BattleResult result = battleEngine.fight(setup, CombatContext.empty());
     for (RoundLogEntry round : result.roundLog()) {
+      screenCleaner.clear();
       battleLogger.logRound(round);
       roundPacer.awaitNextTurn();
     }
     battleLogger.reportOutcome(result);
+  }
+
+  /**
+   * Solo in {@link ScreenRefresh#CLEAR}: la prima pulizia di {@link #runBattle} cancellerebbe le
+   * schede appena stampate da {@code reportSetup}, l'unico punto in cui si impara chi è chi.
+   * Attende quindi una volta l'INVIO prima del primo round, così restano leggibili. In
+   * {@link ScreenRefresh#SCROLL} non serve: le schede restano comunque visibili sopra i round.
+   */
+  private void awaitReadingTimeForSetup(TurnPacer roundPacer) {
+    if (screenRefresh == ScreenRefresh.CLEAR) {
+      roundPacer.awaitNextTurn();
+    }
   }
 
   /**

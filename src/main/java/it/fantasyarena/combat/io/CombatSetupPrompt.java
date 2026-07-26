@@ -2,24 +2,28 @@ package it.fantasyarena.combat.io;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 
 /**
- * Chiede all'utente la numerosità di una fazione. Legge da {@link System#in} un byte alla volta
- * fino al newline, senza bufferizzare oltre: {@link EnterKeyTurnPacer} legge lo stesso stream più
- * avanti (nel duello 1v1) e un reader bufferizzato qui gli sottrarrebbe l'input già consumato.
+ * Chiede all'utente le preferenze di svolgimento del combattimento: numerosità di una fazione e
+ * pulizia dello schermo fra un turno/round e il successivo. Legge da {@link System#in} un byte
+ * alla volta fino al newline, senza bufferizzare oltre: {@link EnterKeyTurnPacer} legge lo stesso
+ * stream più avanti (nel duello 1v1) e un reader bufferizzato qui gli sottrarrebbe l'input già
+ * consumato.
  */
-public class FactionSizePrompt {
+public class CombatSetupPrompt {
 
   private static final int MIN_FIGHTERS = 1;
   private static final int MAX_FIGHTERS = 8;
+  private static final String CLEAR_SCREEN_PROMPT = "Pulire lo schermo a ogni turno? [S/n]: ";
 
   private final InputStream input;
 
-  public FactionSizePrompt() {
+  public CombatSetupPrompt() {
     this(System.in);
   }
 
-  public FactionSizePrompt(InputStream input) {
+  public CombatSetupPrompt(InputStream input) {
     this.input = input;
   }
 
@@ -57,6 +61,31 @@ public class FactionSizePrompt {
     System.out.print("Quanti combattenti per la fazione " + factionLabel + "? [" + MIN_FIGHTERS + "-" + MAX_FIGHTERS
         + ", default " + defaultCount + "]: ");
     System.out.flush();
+  }
+
+  /**
+   * Chiede se pulire lo schermo tra un turno/round e il successivo (default {@link ScreenRefresh#CLEAR}).
+   * A differenza di {@link #askFighterCount}, qui non esiste un valore "non valido" da far
+   * ripetere: solo una risposta negativa esplicita ({@code n}/{@code no}, senza distinguere
+   * maiuscole/minuscole) restituisce {@link ScreenRefresh#SCROLL}; riga vuota, EOF o qualsiasi
+   * altro valore confermano il default, senza bloccarsi e senza sollevare.
+   */
+  public ScreenRefresh askScreenRefresh() {
+    System.out.print(CLEAR_SCREEN_PROMPT);
+    System.out.flush();
+
+    String line = readLine();
+    if (line == null) {
+      System.out.println("(input non disponibile: uso il default pulizia schermo)");
+      return ScreenRefresh.CLEAR;
+    }
+
+    return isNegativeAnswer(line) ? ScreenRefresh.SCROLL : ScreenRefresh.CLEAR;
+  }
+
+  private boolean isNegativeAnswer(String line) {
+    String normalized = line.trim().toLowerCase(Locale.ITALY);
+    return normalized.equals("n") || normalized.equals("no");
   }
 
   private boolean isValidCount(Integer count) {

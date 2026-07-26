@@ -1,203 +1,46 @@
 package it.fantasyarena.combat.engine;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
-import it.fantasyarena.combat.config.CombatFormulas;
+import it.fantasyarena.combat.battle.BattleEngine;
+import it.fantasyarena.combat.battle.BattleResult;
+import it.fantasyarena.combat.battle.BattleSetup;
+import it.fantasyarena.combat.battle.DuelResultAdapter;
+import it.fantasyarena.combat.battle.OutnumberedAllyAssigner;
+import it.fantasyarena.combat.battle.PairwiseEngagementPlanner;
+import it.fantasyarena.combat.battle.StickyTargetSelector;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.context.CombatContext;
 import it.fantasyarena.combat.dice.DiceRoller;
-import it.fantasyarena.combat.dice.DiceThrow;
 import it.fantasyarena.combat.model.Fighter;
-import it.fantasyarena.combat.result.CombatOutcome;
 import it.fantasyarena.combat.result.CombatResult;
-import it.fantasyarena.combat.result.FighterVitals;
-import it.fantasyarena.combat.result.InitiativeOverride;
-import it.fantasyarena.combat.result.InitiativeReport;
-import it.fantasyarena.combat.result.Scorecard;
-import it.fantasyarena.combat.result.StaminaChange;
-import it.fantasyarena.combat.result.TurnLogEntry;
-import it.fantasyarena.combat.result.TurnResult;
 
 /**
- * Orchestra l'intero duello: iniziativa, ciclo dei turni, condizione di fine ed esito.
- * Nessuna formula qui: delega ogni calcolo ai resolver del core tramite
- * {@link TurnOrchestrator} e {@link InitiativeResolver}. L'iniziativa è ricalcolata a fine di
- * ogni turno (nessuno swap cieco): il prossimo attaccante è deciso dai punteggi dei resolver,
- * con override deterministico se il difensore ha appena schivato o l'attaccante ha riposato.
+ * Adapter sottile del duello 1v1 storico sopra {@link BattleEngine}: presenta la battaglia
+ * degenere a due squadre da un solo membro nella vista {@link CombatResult} di sempre. Nessun
+ * loop qui: il duello è l'esatto caso degenere della battaglia NvN, orchestrata da
+ * {@link BattleEngine} e riportata al vecchio contratto da {@link DuelResultAdapter}.
  */
 public class CombatEngine {
 
-  private final DiceRoller diceRoller;
-  private final InitiativeResolver initiativeResolver;
-  private final TurnOrchestrator turnOrchestrator;
-  private final CombatSettings settings;
+  private final BattleEngine battleEngine;
 
   public CombatEngine(DiceRoller diceRoller, InitiativeResolver initiativeResolver, TurnOrchestrator turnOrchestrator,
       CombatSettings settings) {
-    this.diceRoller = diceRoller;
-    this.initiativeResolver = initiativeResolver;
-    this.turnOrchestrator = turnOrchestrator;
-    this.settings = settings;
+    StaminaRules staminaRules = new StaminaRules(settings);
+    this.battleEngine = new BattleEngine(diceRoller, initiativeResolver, turnOrchestrator, staminaRules, settings,
+        new PairwiseEngagementPlanner(), new StickyTargetSelector(), new OutnumberedAllyAssigner());
   }
 
   public CombatResult fight(Fighter first, Fighter second, CombatContext context) {
-    armInitialPowerStrikeCooldown(first, second);
-
-    InitiativeDecision firstMoverDecision = resolveFirstMover(first, second);
-    Fighter attacker = firstMoverDecision.chosen();
-    Fighter defender = (attacker == first) ? second : first;
-    applyInitiativeShift(attacker, defender);
-    InitiativeReport currentInitiativeReport = firstMoverDecision.report();
-
-    List<TurnLogEntry> log = new ArrayList<>();
-    int turnNumber = 0;
-
-    while (turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated()) {
-      turnNumber++;
-
-      attacker.state().resetTurnStaminaCounters();
-      defender.state().resetTurnStaminaCounters();
-
-      List<FighterVitals> startOfTurnVitals = vitalsSnapshot(first, second);
-      TurnResult turnResult = turnOrchestrator.playTurn(turnNumber, attacker, defender, context);
-      TurnLogEntry logEntry = turnResult.logEntry()
-          .withVitals(startOfTurnVitals)
-          .withInitiative(currentInitiativeReport)
-          .withStaminaChanges(staminaChanges(attacker, defender));
-      log.add(logEntry);
-
-      boolean combatContinues = turnNumber < settings.maxTurns() && !first.isDefeated() && !second.isDefeated();
-      if (!combatContinues) {
-        break;
-      }
-
-      InitiativeDecision nextDecision = resolveNextAttacker(attacker, defender, turnResult.override());
-      Fighter nextAttacker = nextDecision.chosen();
-      Fighter nextDefender = (nextAttacker == attacker) ? defender : attacker;
-      applyInitiativeShift(nextAttacker, nextDefender);
-
-      attacker = nextAttacker;
-      defender = nextDefender;
-      currentInitiativeReport = nextDecision.report();
-    }
-
-    return buildResult(first, second, turnNumber, log);
+    BattleResult battle = battleEngine.fight(BattleSetup.duel(first, second), context);
+    return DuelResultAdapter.toCombatResult(battle);
   }
 
   /**
-   * Il colpo potente non e' disponibile fin dall'inizio del duello: entrambi i combattenti
-   * cominciano gia' in cooldown, come se lo avessero appena eseguito, cosi' la prima occasione
-   * per tentarlo arriva solo dopo {@code cooldownTurns} turni d'azione.
+   * Conservato: un test lo esercita direttamente sul duello.
    */
   void armInitialPowerStrikeCooldown(Fighter first, Fighter second) {
-    int cooldownTurns = settings.powerStrikeWeights().cooldownTurns();
-    first.state().startPowerStrikeCooldown(cooldownTurns);
-    second.state().startPowerStrikeCooldown(cooldownTurns);
-  }
-
-  private InitiativeDecision resolveFirstMover(Fighter first, Fighter second) {
-    DiceThrow firstJitter = rollJitter();
-    DiceThrow secondJitter = rollJitter();
-    return initiativeResolver.resolveFirstMover(first, second, firstJitter, secondJitter);
-  }
-
-  /**
-   * Sotto override il test a punteggio non va eseguito (Parte 4 della SPEC cronaca-duello):
-   * nessun jitter lanciato, la scelta del difensore corrente come prossimo attaccante resta
-   * identica a prima, ma non si consumano più dadi per un test che non viene fatto.
-   */
-  private InitiativeDecision resolveNextAttacker(Fighter attacker, Fighter defender, InitiativeOverride override) {
-    if (override != InitiativeOverride.NONE) {
-      return initiativeResolver.overriddenNextAttacker(attacker, defender, override);
-    }
-
-    DiceThrow attackerJitter = rollJitter();
-    DiceThrow defenderJitter = rollJitter();
-    return initiativeResolver.resolveNextAttacker(attacker, defender, attackerJitter, defenderJitter);
-  }
-
-  private List<StaminaChange> staminaChanges(Fighter attacker, Fighter defender) {
-    return List.of(toStaminaChange(attacker), toStaminaChange(defender));
-  }
-
-  private StaminaChange toStaminaChange(Fighter fighter) {
-    return new StaminaChange(fighter.name(), fighter.state().staminaConsumedThisTurn(),
-        fighter.state().staminaRecoveredThisTurn());
-  }
-
-  private DiceThrow rollJitter() {
-    int jitterDiceFaces = settings.initiativeWeights().jitterDiceFaces();
-    return diceRoller.roll(jitterDiceFaces);
-  }
-
-  /**
-   * Applica lo shift d'iniziativa: chi attacca il prossimo turno prosegue/avvia la sua catena
-   * di attacchi consecutivi, chi la perde la azzera. Il recupero passivo di Stamina di chi non
-   * è l'attore è responsabilità di {@link TurnOrchestrator#playTurn}, scoped al turno in cui
-   * si verifica.
-   */
-  private void applyInitiativeShift(Fighter nextAttacker, Fighter nextDefender) {
-    nextAttacker.state().winInitiative();
-    nextDefender.state().loseInitiative();
-  }
-
-  private CombatResult buildResult(Fighter first, Fighter second, int rounds, List<TurnLogEntry> log) {
-    List<FighterVitals> finalVitals = vitalsSnapshot(first, second);
-    if (first.isDefeated() || second.isDefeated()) {
-      Fighter winner = first.isDefeated() ? second : first;
-      return new CombatResult(CombatOutcome.VICTORY, Optional.of(winner), rounds, log, finalVitals, List.of());
-    }
-    return buildTimeoutResult(first, second, rounds, log, finalVitals);
-  }
-
-  private CombatResult buildTimeoutResult(Fighter first, Fighter second, int rounds, List<TurnLogEntry> log,
-      List<FighterVitals> finalVitals) {
-    double firstHealthRatio = healthRatio(first);
-    double secondHealthRatio = healthRatio(second);
-    boolean firstHasHealthAdvantage = firstHealthRatio > secondHealthRatio;
-    boolean secondHasHealthAdvantage = secondHealthRatio > firstHealthRatio;
-
-    Scorecard firstScorecard = buildScorecard(first, firstHealthRatio, secondHealthRatio, firstHasHealthAdvantage);
-    Scorecard secondScorecard = buildScorecard(second, secondHealthRatio, firstHealthRatio, secondHasHealthAdvantage);
-    List<Scorecard> scorecards = List.of(firstScorecard, secondScorecard);
-
-    if (firstScorecard.total() == secondScorecard.total()) {
-      return new CombatResult(CombatOutcome.DRAW, Optional.empty(), rounds, log, finalVitals, scorecards);
-    }
-
-    Fighter winner = (firstScorecard.total() > secondScorecard.total()) ? first : second;
-    return new CombatResult(CombatOutcome.TIMEOUT_DECISION, Optional.of(winner), rounds, log, finalVitals, scorecards);
-  }
-
-  private Scorecard buildScorecard(Fighter fighter, double healthRatio, double opponentHealthRatio,
-      boolean hasHealthAdvantage) {
-    CombatSettings.ScoreWeights weights = settings.scoreWeights();
-    int hitsLanded = fighter.state().hitsLanded();
-    int parries = fighter.state().parries();
-    int dodges = fighter.state().dodges();
-
-    int healthPoints = hasHealthAdvantage ? weights.healthAdvantage() : 0;
-    int hitPoints = hitsLanded * weights.hitLanded();
-    int parryPoints = parries * weights.parry();
-    int dodgePoints = dodges * weights.dodge();
-    int total = CombatFormulas.combatScore(weights, hasHealthAdvantage, hitsLanded, parries, dodges);
-
-    return new Scorecard(fighter.name(), healthRatio, opponentHealthRatio, healthPoints, hitsLanded, hitPoints,
-        parries, parryPoints, dodges, dodgePoints, weights, total);
-  }
-
-  private double healthRatio(Fighter fighter) {
-    return CombatFormulas.ratio(fighter.state().currentHealth(), fighter.ratings().maxHealth());
-  }
-
-  private List<FighterVitals> vitalsSnapshot(Fighter first, Fighter second) {
-    return List.of(toVitals(first), toVitals(second));
-  }
-
-  private FighterVitals toVitals(Fighter fighter) {
-    return new FighterVitals(fighter.name(), fighter.state().currentHealth(), fighter.ratings().maxHealth(),
-        fighter.state().currentStamina(), fighter.ratings().maxStamina());
+    battleEngine.armInitialPowerStrikeCooldown(List.of(first, second));
   }
 }

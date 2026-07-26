@@ -2,6 +2,13 @@ package it.fantasyarena.combat.testsupport;
 
 import java.util.List;
 
+import it.fantasyarena.combat.battle.BattleEngine;
+import it.fantasyarena.combat.battle.EngagementPlanner;
+import it.fantasyarena.combat.battle.FreeWinnerAssigner;
+import it.fantasyarena.combat.battle.OutnumberedAllyAssigner;
+import it.fantasyarena.combat.battle.PairwiseEngagementPlanner;
+import it.fantasyarena.combat.battle.StickyTargetSelector;
+import it.fantasyarena.combat.battle.TargetSelector;
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.dice.DiceRoller;
 import it.fantasyarena.combat.engine.CombatEngine;
@@ -110,6 +117,28 @@ public final class CombatFixtures {
         damageCalculator, momentumRules, staminaRules, settings);
     InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
     return new CombatEngine(diceRoller, initiativeResolver, turnOrchestrator, settings);
+  }
+
+  /**
+   * Assembla un {@link BattleEngine} con tutti i resolver del core e le tre policy di default
+   * ({@link PairwiseEngagementPlanner}, {@link StickyTargetSelector}, {@link OutnumberedAllyAssigner})
+   * cablati sullo stesso {@link CombatSettings} e sul {@link DiceRoller} fornito (reale o
+   * {@link StubDiceRoller}), sullo stampo di {@link #buildEngine}.
+   */
+  public static BattleEngine buildBattleEngine(DiceRoller diceRoller, CombatSettings settings) {
+    HitResolver hitResolver = new HitResolver(settings);
+    DefenseResolver defenseResolver = new DefenseResolver(settings);
+    MomentumRules momentumRules = new MomentumRules(settings);
+    StaminaRules staminaRules = new StaminaRules(settings);
+    DamageCalculator damageCalculator = new DamageCalculator(settings, momentumRules, staminaRules);
+    TurnOrchestrator turnOrchestrator = new TurnOrchestrator(diceRoller, hitResolver, defenseResolver,
+        damageCalculator, momentumRules, staminaRules, settings);
+    InitiativeResolver initiativeResolver = new InitiativeResolver(settings);
+    EngagementPlanner planner = new PairwiseEngagementPlanner();
+    TargetSelector targetSelector = new StickyTargetSelector();
+    FreeWinnerAssigner assigner = new OutnumberedAllyAssigner();
+    return new BattleEngine(diceRoller, initiativeResolver, turnOrchestrator, staminaRules, settings, planner,
+        targetSelector, assigner);
   }
 
   /**

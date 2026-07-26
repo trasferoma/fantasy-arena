@@ -1,6 +1,7 @@
 package it.fantasyarena.combat.io;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -100,12 +101,28 @@ public class TurnLogFormatter {
     return lines;
   }
 
+  /**
+   * Con 2 breakdown (duello 1v1) il "valore di confronto" e' l'unico altro totale, esattamente
+   * come prima. Con N breakdown (battaglia NvN) e' generalizzato al secondo massimo su tutti i
+   * totali: il vincitore per punteggio resta il massimo assoluto, il valore confrontato e' il
+   * miglior rivale, non necessariamente il peggiore di tutti.
+   */
   private String describeScoreWinner(InitiativeReport initiative) {
-    double firstTotal = initiative.breakdowns().get(0).total();
-    double secondTotal = initiative.breakdowns().get(1).total();
-    double winnerTotal = Math.max(firstTotal, secondTotal);
-    double loserTotal = Math.min(firstTotal, secondTotal);
-    return initiative.scoreWinnerName() + " (" + formatRating(winnerTotal) + " vs " + formatRating(loserTotal) + ")";
+    List<InitiativeBreakdown> breakdowns = initiative.breakdowns();
+    if (breakdowns.size() < 2) {
+      throw new IllegalArgumentException(
+          "describeScoreWinner richiede almeno 2 breakdown per confrontare vincitore e secondo classificato, erano: "
+              + breakdowns.size());
+    }
+
+    List<Double> totalsDescending = breakdowns.stream()
+        .map(InitiativeBreakdown::total)
+        .sorted(Comparator.reverseOrder())
+        .toList();
+    double winnerTotal = totalsDescending.get(0);
+    double runnerUpTotal = totalsDescending.get(1);
+    return initiative.scoreWinnerName() + " (" + formatRating(winnerTotal) + " vs " + formatRating(runnerUpTotal)
+        + ")";
   }
 
   private String describeOverride(InitiativeOverride override) {

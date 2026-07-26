@@ -1,6 +1,10 @@
 package it.fantasyarena.combat.factory;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import it.fantasyarena.combat.config.CombatSettings;
 import it.fantasyarena.combat.model.Fighter;
@@ -26,6 +30,12 @@ import it.fantasytoolkitcore.core.model.Weapon;
 public class FighterFactory {
 
     private static final int TOTAL_CHARACTERISTIC_POINTS = 15;
+
+    /**
+     * Tetto di tentativi di rigenerazione onesta (nuovo personaggio, quindi nuova razza e nuovo
+     * nome) prima di ricorrere al suffisso distintivo. Vedi {@link #createUniquelyNamedSwordWarrior}.
+     */
+    private static final int MAX_NAME_COLLISION_ATTEMPTS = 5;
 
     private final RatingStrategy ratingStrategy;
     private final Random random = new Random();
@@ -53,6 +63,65 @@ public class FighterFactory {
         Fighter first = createSwordWarrior(weaponRarity, armourRarity);
         Fighter second = createSwordWarrior(weaponRarity, armourRarity);
         return new Duelists(first, second);
+    }
+
+    /**
+     * Crea {@code count} combattenti equi-equipaggiati per una battaglia NvN: rarita' dell'arma
+     * e dell'armatura estratte una sola volta e condivise da tutti (stessa logica di
+     * {@link #createMatchedSwordWarriors()}), cosi' che nessuno parta avvantaggiato. I nomi dei
+     * combattenti restituiti sono garantiti univoci fra loro: vedi
+     * {@link #createUniquelyNamedSwordWarrior} per come viene risolta un'eventuale collisione.
+     */
+    public List<Fighter> createMatchedSwordWarriors(int count) {
+        validateCount(count);
+        Rarity weaponRarity = Rarity.UNCOMMON; // randomRarity();
+        Rarity armourRarity = Rarity.UNCOMMON; // randomRarity();
+
+        List<Fighter> fighters = new ArrayList<>(count);
+        Set<String> usedNames = new HashSet<>();
+        for (int i = 0; i < count; i++) {
+            fighters.add(createUniquelyNamedSwordWarrior(weaponRarity, armourRarity, usedNames));
+        }
+        return fighters;
+    }
+
+    private void validateCount(int count) {
+        if (count < 1) {
+            throw new IllegalArgumentException("count must be >= 1, was: " + count);
+        }
+    }
+
+    /**
+     * Crea un guerriero il cui nome non collida con quelli gia' assegnati in {@code usedNames}.
+     * Il generatore del toolkit pesca il nome da una lista per razza (vedi
+     * {@code character-generator.md}): con piu' guerrieri la collisione e' plausibile e qui
+     * l'ambiguita' sarebbe reale (il log identifica i combattenti per nome). Si tenta prima la
+     * via "onesta" (rigenerare l'intero personaggio, che ripesca razza, caratteristiche e nome),
+     * fino a {@link #MAX_NAME_COLLISION_ATTEMPTS} tentativi; se il nome resta occupato anche
+     * cosi', si ricostruisce il {@code CharacterResult} con lo stesso identico personaggio ma un
+     * suffisso numerico distintivo nel nome, usando il costruttore del record (il toolkit non
+     * espone alcuna API di rinomina).
+     */
+    private Fighter createUniquelyNamedSwordWarrior(Rarity weaponRarity, Rarity armourRarity, Set<String> usedNames) {
+        CharacterResult character = generateWarrior();
+        for (int attempt = 1; attempt < MAX_NAME_COLLISION_ATTEMPTS && usedNames.contains(character.name()); attempt++) {
+            character = generateWarrior();
+        }
+        if (usedNames.contains(character.name())) {
+            character = withDisambiguatedName(character, usedNames.size() + 1);
+        }
+        usedNames.add(character.name());
+
+        WeaponResult weapon = generateSword(weaponRarity);
+        ArmourResult armour = generateChestplate(armourRarity);
+        IntrinsicRatings ratings = ratingStrategy.computeRatings(character, weapon, armour, null);
+        return new Fighter(character, weapon, armour, null, ratings);
+    }
+
+    private CharacterResult withDisambiguatedName(CharacterResult character, int disambiguator) {
+        String disambiguatedName = character.name() + " (" + disambiguator + ")";
+        return new CharacterResult(character.race(), character.characterClass(), disambiguatedName,
+                character.characteristics());
     }
 
     /**

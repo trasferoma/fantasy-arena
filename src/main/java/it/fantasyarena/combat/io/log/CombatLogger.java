@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.log;
 
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.CombatResult;

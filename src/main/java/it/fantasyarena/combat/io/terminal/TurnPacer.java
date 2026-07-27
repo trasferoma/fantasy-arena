@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.terminal;
 
 /**
  * Strategia di ritmo tra i turni durante il replay del combattimento: consente una

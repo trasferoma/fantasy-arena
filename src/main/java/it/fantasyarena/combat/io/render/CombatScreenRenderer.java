@@ -1,8 +1,9 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.render;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import it.fantasyarena.combat.io.replay.ScreenCombatReplay;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.InitiativeReport;

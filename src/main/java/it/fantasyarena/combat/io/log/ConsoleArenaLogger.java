@@ -1,9 +1,10 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.log;
 
 import java.util.List;
 
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroProgress;
+import it.fantasyarena.combat.io.render.HeroProgressFormatter;
 import it.fantasycombatsystem.model.Fighter;
 
 /**

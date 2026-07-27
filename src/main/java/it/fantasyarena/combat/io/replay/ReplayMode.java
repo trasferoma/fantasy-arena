@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.replay;
 
 /**
  * Modalità di presentazione del replay del combattimento: {@code LINEAR} stampa i turni in

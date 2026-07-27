@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.terminal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

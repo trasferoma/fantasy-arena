@@ -88,7 +88,11 @@ Modelli ed enum condivise in `it.fantasytoolkitcore.core.model` (`Race`, `Charac
 | `combat` | `Arena`: la progressione. Scandisce le tre prove del protagonista e la procedura di fine scontro; non decide niente e non calcola niente. `MatchRunner`: fa giocare **un singolo scontro** e lo mette in scena, con `playDuel` (uno-contro-uno a schermate) o `playBattle` (NvN, scena ASCII round per round). Chiede l'esito al `CombatSystem` e decide solo con che ritmo rivelarlo. |
 | `combat.hero` | Il protagonista: `Hero` (scheda immutabile che sopravvive ai round), `HeroBrain` (**tutte** le sue scelte), `Spoils` (bottino dei caduti), `HeroProgress` (resoconto della crescita, dati e non stringhe). |
 | `combat.factory` | `FighterFactory`: unico punto di contatto coi generatori del toolkit. Decide chi combatte e con che equipaggiamento, poi delega l'assemblaggio al `FighterAssembler` del motore. Genera anche il protagonista, gli sfidanti dei tre round e lo specchio finale, e materializza il `Fighter` di ogni round da una `Hero` (`summon`). |
-| `combat.io` | Presentazione: `CombatLogger`/`ConsoleCombatLogger`, `ConsoleBattleLogger`, `ConsoleArenaLogger` (la voce dell'arena fra uno scontro e l'altro), `HeroProgressFormatter`, `CombatReplay` con modalità `LINEAR`/`SCREEN`, `BattleSceneRenderer` (scena ASCII NvN), `CombatScreenRenderer`, `FighterCardFormatter`, `TurnPacer`, `ScreenRefresh`, `ScreenCleaner`, `CombatSetupPrompt`. |
+| `combat.io` | Solo contenitore: la presentazione vive nei quattro sotto-package che seguono, disposti a strati con dipendenze a senso unico (`replay` → `log` → `render`, e sia `replay` sia `log` → `terminal`). Nessuna classe sta direttamente qui. |
+| `combat.io.render` | Righe di testo pure, nessun I/O: `TurnLogFormatter` (il turno), `FighterCardFormatter` (la scheda del combattente), `BattleSceneRenderer` (scena ASCII NvN) col suo `FighterProfile`, `CombatScreenRenderer` (la pagina del duello a schermate), `HeroProgressFormatter` (la procedura di fine scontro). Strato foglia: non dipende da nessun altro sotto-package di `io`. |
+| `combat.io.terminal` | Il terminale e basta: `ScreenCleaner` e `ScreenRefresh` (pulizia dello schermo), `TurnPacer`/`EnterKeyTurnPacer` (il ritmo fra un turno e l'altro), `CombatSetupPrompt` (lettura delle preferenze). Strato foglia, indipendente dal `render`: qui vive l'I/O che non ha niente da formattare. |
+| `combat.io.log` | Chi stampa: `CombatLogger`/`ConsoleCombatLogger` (il duello), `ConsoleBattleLogger` (la battaglia NvN), `ConsoleArenaLogger` (la voce dell'arena fra uno scontro e l'altro). Compone le righe chiedendole al `render` e le manda a schermo. |
+| `combat.io.replay` | Il ritmo della rivelazione: `CombatReplay` con le due strategie `LinearCombatReplay`/`ScreenCombatReplay` e la `ReplayMode` (`LINEAR`/`SCREEN`) che le sceglie. Strato più alto: mette insieme logger, renderer e terminale, e decide solo *quando* mostrare cosa. |
 
 Vincoli architetturali da rispettare quando modifichi:
 
@@ -97,7 +101,12 @@ Vincoli architetturali da rispettare quando modifichi:
   repository sbagliato.
 - **I renderer producono righe di testo pure, senza I/O.** L'I/O vero (stampa, lettura dell'INVIO,
   pulizia dello schermo) sta nei logger, nel `TurnPacer` e nello `ScreenCleaner`. È questa
-  separazione che rende i renderer testabili sul testo prodotto.
+  separazione che rende i renderer testabili sul testo prodotto. Dalla suddivisione di `combat.io`
+  in sotto-package la regola è anche visibile: un `System.out` dentro `combat.io.render` è fuori
+  posto per definizione, e `render` non deve importare niente dagli altri tre. Le dipendenze vanno
+  in una direzione sola — `replay` → `log` → `render`, `terminal` sotto tutti — e non vanno chiuse
+  in ciclo: se un renderer ha bisogno di sapere qualcosa da un logger, il dato va passato come
+  argomento, non importato.
 - **`MatchRunner` non contiene logica di scontro**: chiede il log completo al motore e decide solo *quando*
   e *come* mostrarlo. Il duello 1v1 e la battaglia NvN sono due percorsi di **presentazione**, non
   due motori. Ne servono due istanze quando servono entrambi i percorsi: ognuna costruisce alla
@@ -122,6 +131,11 @@ Vincoli architetturali da rispettare quando modifichi:
 Suite JUnit Jupiter 5.x sotto `src/test/java`, con surefire configurato in `pom.xml`. Copre i
 formatter/renderer di `combat.io` e la generazione di `combat.factory`. I test del motore vivono nel
 repository del motore.
+
+I test seguono i sotto-package di `combat.io`: il grosso sta in `render`, dove il testo prodotto è
+verificabile senza far girare niente. `replay` è l'unico sotto-package senza test propri, e non è
+una lacuna da colmare per completezza: i due `CombatReplay` sono orchestratori sottili, e il testo
+che mostrano è già coperto dai test dei renderer.
 
 - Assertion solo con `org.junit.jupiter.api.Assertions` (**niente AssertJ**). Non aggiungere dipendenze di test se non strettamente necessario.
 - Il supporto ai test arriva dal `test-jar` del motore: `it.fantasycombatsystem.testsupport.CombatFixtures` per costruire `Fighter` deterministici, `StubDiceRoller` e `RecordingStubDiceRoller` per pilotare i dadi.

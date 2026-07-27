@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.render;
 
 /**
  * Profilo stabile di un combattente per {@link BattleSceneRenderer}: nome, indice di squadra

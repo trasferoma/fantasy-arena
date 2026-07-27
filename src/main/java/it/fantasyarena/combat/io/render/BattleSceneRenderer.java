@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.render;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -212,7 +212,7 @@ public class BattleSceneRenderer {
     if (round.turns().isEmpty()) {
       return null;
     }
-    List<FighterVitals> vitals = round.turns().get(0).turn().vitals();
+    List<FighterVitals> vitals = round.turns().getFirst().turn().vitals();
     return (vitals.isEmpty() ? null : vitals);
   }
 

@@ -1,9 +1,11 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.log;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import it.fantasyarena.combat.io.render.FighterCardFormatter;
+import it.fantasyarena.combat.io.render.TurnLogFormatter;
 import it.fantasycombatsystem.engine.FavoriteEstimator;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.CombatOutcome;

@@ -1,5 +1,9 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.replay;
 
+import it.fantasyarena.combat.io.log.CombatLogger;
+import it.fantasyarena.combat.io.terminal.ScreenCleaner;
+import it.fantasyarena.combat.io.terminal.ScreenRefresh;
+import it.fantasyarena.combat.io.terminal.TurnPacer;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.CombatResult;
 import it.fantasycombatsystem.result.TurnLogEntry;

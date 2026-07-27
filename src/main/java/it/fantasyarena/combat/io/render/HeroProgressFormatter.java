@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.render;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import it.fantasyarena.combat.hero.HeroProgress;
 import it.fantasyarena.combat.hero.HeroProgress.ArmourUpgrade;
 import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
+import it.fantasyarena.combat.io.log.ConsoleArenaLogger;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 

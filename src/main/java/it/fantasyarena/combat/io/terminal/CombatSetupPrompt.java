@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.terminal;
 
 import java.io.IOException;
 import java.io.InputStream;

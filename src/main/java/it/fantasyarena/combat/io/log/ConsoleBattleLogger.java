@@ -1,9 +1,13 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.log;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import it.fantasyarena.combat.io.render.BattleSceneRenderer;
+import it.fantasyarena.combat.io.render.FighterCardFormatter;
+import it.fantasyarena.combat.io.render.FighterProfile;
+import it.fantasyarena.combat.io.render.TurnLogFormatter;
 import it.fantasycombatsystem.battle.BattleResult;
 import it.fantasycombatsystem.battle.BattleSetup;
 import it.fantasycombatsystem.battle.RoundLogEntry;

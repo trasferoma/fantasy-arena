@@ -1,16 +1,17 @@
 package it.fantasyarena.combat;
 
-import it.fantasyarena.combat.io.CombatLogger;
-import it.fantasyarena.combat.io.CombatReplay;
-import it.fantasyarena.combat.io.ConsoleBattleLogger;
-import it.fantasyarena.combat.io.ConsoleCombatLogger;
-import it.fantasyarena.combat.io.EnterKeyTurnPacer;
-import it.fantasyarena.combat.io.LinearCombatReplay;
-import it.fantasyarena.combat.io.ReplayMode;
-import it.fantasyarena.combat.io.ScreenCleaner;
-import it.fantasyarena.combat.io.ScreenCombatReplay;
-import it.fantasyarena.combat.io.ScreenRefresh;
-import it.fantasyarena.combat.io.TurnPacer;
+import it.fantasyarena.combat.io.log.CombatLogger;
+import it.fantasyarena.combat.io.replay.CombatReplay;
+import it.fantasyarena.combat.io.log.ConsoleBattleLogger;
+import it.fantasyarena.combat.io.log.ConsoleCombatLogger;
+import it.fantasyarena.combat.io.terminal.EnterKeyTurnPacer;
+import it.fantasyarena.combat.io.replay.LinearCombatReplay;
+import it.fantasyarena.combat.io.replay.ReplayMode;
+import it.fantasyarena.combat.io.terminal.ScreenCleaner;
+import it.fantasyarena.combat.io.replay.ScreenCombatReplay;
+import it.fantasyarena.combat.io.terminal.ScreenRefresh;
+import it.fantasyarena.combat.io.terminal.TurnPacer;
+import it.fantasyarena.combat.io.render.CombatScreenRenderer;
 import it.fantasycombatsystem.CombatSystem;
 import it.fantasycombatsystem.battle.BattleResult;
 import it.fantasycombatsystem.battle.BattleSetup;
@@ -91,7 +92,7 @@ public class MatchRunner {
   /**
    * Costruito alla prima chiamata di {@link #playDuel}, con l'unico {@link TurnPacer} di questo runner.
    * In {@link ReplayMode#SCREEN} il pacer non stampa alcun suggerimento: la pagina prodotta da
-   * {@link it.fantasyarena.combat.io.CombatScreenRenderer} lo mostra già. In
+   * {@link CombatScreenRenderer} lo mostra già. In
    * {@link ReplayMode#LINEAR} il testo resta quello storico ("turno successivo").
    */
   private CombatReplay duelReplay() {

@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.render;
 
 import java.util.ArrayList;
 import java.util.Comparator;

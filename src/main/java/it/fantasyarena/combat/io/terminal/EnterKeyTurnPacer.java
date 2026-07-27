@@ -1,4 +1,4 @@
-package it.fantasyarena.combat.io;
+package it.fantasyarena.combat.io.terminal;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -1,7 +1,7 @@
 package it.fantasyarena;
 
 import it.fantasyarena.combat.Arena;
-import it.fantasyarena.combat.io.ScreenRefresh;
+import it.fantasyarena.combat.io.terminal.ScreenRefresh;
 import it.fantasycombatsystem.config.CombatSettings;
 
 /**

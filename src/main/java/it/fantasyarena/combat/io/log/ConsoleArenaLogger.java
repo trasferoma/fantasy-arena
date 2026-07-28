@@ -2,6 +2,7 @@ package it.fantasyarena.combat.io.log;
 
 import java.util.List;
 
+import it.fantasyarena.combat.RoundOutcome;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroProgress;
 import it.fantasyarena.combat.io.render.HeroProgressFormatter;
@@ -51,16 +52,22 @@ public class ConsoleArenaLogger {
   /**
    * La fine della corsa: il protagonista è caduto, oppure è rimasto in piedi senza però aver
    * abbattuto tutti. Sono due cose diverse e vanno dette in modo diverso.
+   *
+   * @throws IllegalArgumentException se l'esito è {@link RoundOutcome#WON}: una vittoria non è una
+   *     fine della corsa, ed è un uso sbagliato di questo metodo passargliela.
    */
-  public void reportEndOfRun(Hero hero, Fighter champion, int round) {
+  public void reportEndOfRun(Hero hero, RoundOutcome outcome, int round) {
+    String message = switch (outcome) {
+      case FELL -> hero.name() + " cade al round " + round + ". L'arena si chiude qui.";
+      case STOOD_WITHOUT_WINNING -> hero.name() + " resta in piedi al round " + round
+          + ", ma non ha vinto lo scontro: senza una vittoria piena non si passa al round successivo.";
+      case WON -> throw new IllegalArgumentException(
+          "reportEndOfRun non accetta un esito di vittoria: il round " + round + " non è finito qui.");
+    };
+
     System.out.println();
     System.out.println(SEPARATOR);
-    if (champion.isDefeated()) {
-      System.out.println(hero.name() + " cade al round " + round + ". L'arena si chiude qui.");
-    } else {
-      System.out.println(hero.name() + " resta in piedi al round " + round + ", ma non ha vinto lo scontro: "
-          + "senza una vittoria piena non si passa al round successivo.");
-    }
+    System.out.println(message);
     System.out.println(SEPARATOR);
   }
 

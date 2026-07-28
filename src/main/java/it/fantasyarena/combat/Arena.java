@@ -1,7 +1,7 @@
 package it.fantasyarena.combat;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.function.Function;
 
 import it.fantasyarena.combat.factory.FighterFactory;
 import it.fantasyarena.combat.hero.Hero;
@@ -37,8 +37,12 @@ import it.fantasytoolkitcore.core.model.Rarity;
  * scheda ({@code FighterFactory.summon}), ed è da qui che arriva la cura completa promessa dalla
  * procedura: non si guarisce nessuno, si torna in campo interi.
  *
- * <p>Si avanza solo con una vittoria piena. Sopravvivere non basta: vedi
- * {@link #hasWonOutright}.
+ * <p>Si avanza solo con una vittoria piena. Sopravvivere non basta: vedi {@link #outcomeOf}.
+ *
+ * <p>Ogni prova restituisce un {@link RoundReport}: la scheda cresciuta se il protagonista l'ha
+ * superata, o un rapporto di chiusura altrimenti. Non è un dettaglio cosmetico rispetto a un
+ * {@code Optional}: il rapporto è il posto giusto per accorciare la lettura in {@link #run()} con
+ * {@link RoundReport#andThen}, che gioca la prova successiva solo se questa è stata vinta.
  */
 public class Arena {
 
@@ -95,17 +99,20 @@ public class Arena {
   }
 
   /**
-   * Le tre prove in fila. Ogni round restituisce la scheda cresciuta se il protagonista lo ha
-   * vinto, oppure niente: un {@code Optional} vuoto è la fine dell'arena, e i round successivi
-   * semplicemente non accadono.
+   * Le tre prove in fila. Ogni round restituisce un rapporto: se il protagonista lo ha vinto porta
+   * la scheda cresciuta e apre la prova successiva, altrimenti è un rapporto di chiusura e i round
+   * successivi semplicemente non accadono.
    */
   public void run() {
     Hero protagonist = enterTheArena();
 
-    fightLoneChallenger(protagonist)
-        .flatMap(this::fightChallengerPair)
-        .flatMap(this::fightMirrorRival)
-        .ifPresent(logger::reportTriumph);
+    RoundReport lastRound = fightLoneChallenger(protagonist)
+        .andThen(this::fightChallengerPair)
+        .andThen(this::fightMirrorRival);
+
+    if (lastRound.isPassed()) {
+      logger.reportTriumph(lastRound.grownHero());
+    }
   }
 
   private Hero enterTheArena() {
@@ -117,7 +124,7 @@ public class Arena {
   /**
    * Prima prova: un avversario alla pari, equipaggiato come lui.
    */
-  private Optional<Hero> fightLoneChallenger(Hero hero) {
+  private RoundReport fightLoneChallenger(Hero hero) {
     return fightRound(FIRST_ROUND, FIRST_ROUND_DESCRIPTION, hero,
         fighterFactory.createChallengers(LONE_CHALLENGER), this::playAsBattle);
   }
@@ -125,7 +132,7 @@ public class Arena {
   /**
    * Seconda prova: due avversari insieme contro di lui.
    */
-  private Optional<Hero> fightChallengerPair(Hero hero) {
+  private RoundReport fightChallengerPair(Hero hero) {
     return fightRound(SECOND_ROUND, SECOND_ROUND_DESCRIPTION, hero,
         fighterFactory.createChallengers(CHALLENGER_PAIR), this::playAsBattle);
   }
@@ -136,23 +143,24 @@ public class Arena {
    * protagonista <em>com'è cresciuto</em> nei due round precedenti. Essendo un uno-contro-uno, è
    * l'unica prova mostrata col duello a schermate.
    */
-  private Optional<Hero> fightMirrorRival(Hero hero) {
+  private RoundReport fightMirrorRival(Hero hero) {
     return fightRound(FINAL_ROUND, FINAL_ROUND_DESCRIPTION, hero,
         List.of(fighterFactory.createMirrorRival(hero)), this::playAsDuel);
   }
 
-  private Optional<Hero> fightRound(int number, String description, Hero hero, List<Fighter> challengers,
+  private RoundReport fightRound(int number, String description, Hero hero, List<Fighter> challengers,
       FightPlay play) {
     logger.announceRound(number, description, hero, challengers);
 
     Fighter champion = fighterFactory.summon(hero);
     play.play(champion, challengers);
 
-    if (!hasWonOutright(champion, challengers)) {
-      logger.reportEndOfRun(hero, champion, number);
-      return Optional.empty();
+    RoundOutcome outcome = outcomeOf(champion, challengers);
+    if (outcome != RoundOutcome.WON) {
+      logger.reportEndOfRun(hero, outcome, number);
+      return RoundReport.endOfRun(outcome);
     }
-    return Optional.of(applyEndOfFightProcedure(hero, number));
+    return RoundReport.passed(applyEndOfFightProcedure(hero, number));
   }
 
   private void playAsBattle(Fighter champion, List<Fighter> challengers) {
@@ -171,10 +179,17 @@ public class Arena {
    * Si prosegue solo con una vittoria piena: il protagonista in piedi e tutti gli avversari
    * abbattuti. Restare vivo dopo un pareggio o una decisione ai punti non apre il round
    * successivo: il loot non dipende più da chi è caduto, ma resta il premio della prova superata, e
-   * da uno scontro non vinto non ne arriva nessuno.
+   * da uno scontro non vinto non ne arriva nessuno. La caduta e il pareggio sono comunque due esiti
+   * distinti, perché a valle vanno raccontati in modo diverso.
    */
-  private boolean hasWonOutright(Fighter champion, List<Fighter> challengers) {
-    return !champion.isDefeated() && challengers.stream().allMatch(Fighter::isDefeated);
+  private RoundOutcome outcomeOf(Fighter champion, List<Fighter> challengers) {
+    if (champion.isDefeated()) {
+      return RoundOutcome.FELL;
+    }
+    if (challengers.stream().allMatch(Fighter::isDefeated)) {
+      return RoundOutcome.WON;
+    }
+    return RoundOutcome.STOOD_WITHOUT_WINNING;
   }
 
   /**
@@ -205,5 +220,31 @@ public class Arena {
   private interface FightPlay {
 
     void play(Fighter champion, List<Fighter> challengers);
+  }
+
+  /**
+   * L'esito di una prova: l'{@link RoundOutcome} con cui è finita, e la scheda cresciuta se è stata
+   * superata. Esiste per non far uscire un {@code Optional} generico dai metodi di prova — il
+   * concetto non è "un eroe, forse", è "questa prova è andata così" — e per portare con sé
+   * {@link #andThen}, che incatena la prova successiva con la stessa cortocircuitazione che prima
+   * dava {@code flatMap}: se il rapporto non è di vittoria, la prova successiva non si gioca nemmeno.
+   */
+  private record RoundReport(RoundOutcome outcome, Hero grownHero) {
+
+    static RoundReport passed(Hero grownHero) {
+      return new RoundReport(RoundOutcome.WON, grownHero);
+    }
+
+    static RoundReport endOfRun(RoundOutcome outcome) {
+      return new RoundReport(outcome, null);
+    }
+
+    boolean isPassed() {
+      return outcome == RoundOutcome.WON;
+    }
+
+    RoundReport andThen(Function<Hero, RoundReport> nextRound) {
+      return isPassed() ? nextRound.apply(grownHero) : this;
+    }
   }
 }

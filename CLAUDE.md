@@ -91,13 +91,13 @@ Modelli ed enum condivise in `it.fantasytoolkitcore.core.model` (`Race`, `Charac
 | Package | Ruolo |
 | --- | --- |
 | `it.fantasyarena` | `Main`: thin. Apre `Arena` e basta. |
-| `combat` | `Arena`: la progressione. Scandisce le tre prove del protagonista e la procedura di fine scontro; non decide niente e non calcola niente. `MatchRunner`: fa giocare **un singolo scontro** e lo mette in scena, con `playDuel` (uno-contro-uno a schermate) o `playBattle` (NvN, scena ASCII round per round). Chiede l'esito al `CombatSystem` e decide solo con che ritmo rivelarlo. |
+| `combat` | `Arena`: la progressione. Scandisce le tre prove del protagonista e la procedura di fine scontro; non decide niente e non calcola niente. Ogni prova le restituisce un rapporto (`RoundReport`, record privato: l'esito e la scheda cresciuta se c'è) invece di un `Optional`, e i rapporti si concatenano cortocircuitando alla prima prova non superata. `RoundOutcome`: com'è finita una prova (`WON`/`FELL`/`STOOD_WITHOUT_WINNING`), calcolato una volta sola e passato a chi lo deve raccontare. `MatchRunner`: fa giocare **un singolo scontro** e lo mette in scena, con `playDuel` (uno-contro-uno a schermate) o `playBattle` (NvN, scena ASCII round per round). Chiede l'esito al `CombatSystem` e decide solo con che ritmo rivelarlo. |
 | `combat.hero` | Il protagonista: `Hero` (scheda immutabile che sopravvive ai round: arma, armatura per slot, gioielli per tipo), `HeroBrain` (**tutte** le sue scelte, compresi i tre comparatori di cernita e le due tabelle di bilanciamento del loot — rarità minima per livello e punti extra del gioiello), `Loot` (l'unico oggetto trovato a fine livello: arma, armatura o gioiello, mai più di uno), `HeroProgress` (resoconto della crescita, dati e non stringhe). |
 | `combat.factory` | `FighterFactory`: unico punto di contatto coi generatori del toolkit. Decide chi combatte e con che equipaggiamento, poi delega l'assemblaggio al `FighterAssembler` del motore. Genera anche il protagonista, gli sfidanti dei tre round e lo specchio finale, materializza il `Fighter` di ogni round da una `Hero` (`summon`) ed estrae il loot di fine livello (`rollLoot`: tipo a caso, rarità minima ricevuta dal cervello). |
 | `combat.io` | Solo contenitore: la presentazione vive nei quattro sotto-package che seguono, disposti a strati con dipendenze a senso unico (`replay` → `log` → `render`, e sia `replay` sia `log` → `terminal`). Nessuna classe sta direttamente qui. |
 | `combat.io.render` | Righe di testo pure, nessun I/O: `TurnLogFormatter` (il turno), `FighterCardFormatter` (la scheda del combattente), `BattleSceneRenderer` (scena ASCII NvN) col suo `FighterProfile`, `CombatScreenRenderer` (la pagina del duello a schermate), `HeroProgressFormatter` (la procedura di fine scontro). Strato foglia: non dipende da nessun altro sotto-package di `io`. |
 | `combat.io.terminal` | Il terminale e basta: `ScreenCleaner` e `ScreenRefresh` (pulizia dello schermo), `TurnPacer`/`EnterKeyTurnPacer` (il ritmo fra un turno e l'altro), `CombatSetupPrompt` (lettura delle preferenze). Strato foglia, indipendente dal `render`: qui vive l'I/O che non ha niente da formattare. |
-| `combat.io.log` | Chi stampa: `CombatLogger`/`ConsoleCombatLogger` (il duello), `ConsoleBattleLogger` (la battaglia NvN), `ConsoleArenaLogger` (la voce dell'arena fra uno scontro e l'altro). Compone le righe chiedendole al `render` e le manda a schermo. |
+| `combat.io.log` | Chi stampa: `CombatLogger`/`ConsoleCombatLogger` (il duello), `ConsoleBattleLogger` (la battaglia NvN), `ConsoleArenaLogger` (la voce dell'arena fra uno scontro e l'altro). Compone le righe chiedendole al `render` e le manda a schermo. Racconta la fine della corsa leggendo il `RoundOutcome` che riceve, non interrogando il `Fighter`. |
 | `combat.io.replay` | Il ritmo della rivelazione: `CombatReplay` con le due strategie `LinearCombatReplay`/`ScreenCombatReplay` e la `ReplayMode` (`LINEAR`/`SCREEN`) che le sceglie. Strato più alto: mette insieme logger, renderer e terminale, e decide solo *quando* mostrare cosa. |
 
 Vincoli architetturali da rispettare quando modifichi:
@@ -123,6 +123,12 @@ Vincoli architetturali da rispettare quando modifichi:
   vale un gioiello, quanto pregiato può essere il loot di quel livello, dove spendere i punti. Se ti
   trovi a scrivere un `if` di gioco dentro `Arena`, appartiene al cervello. `Arena` gli passa il
   numero della prova, non un criterio.
+- **Com'è finita una prova si stabilisce una volta sola.** `Arena` guarda il campo alla fine dello
+  scontro e ne ricava un `RoundOutcome`; da lì in poi quel dato viaggia. I logger non devono
+  ridedurre l'esito interrogando il `Fighter`: due letture dello stesso campo possono divergere, e
+  la narrazione finirebbe per dire una cosa diversa da quella che ha deciso la progressione. Vale
+  anche per le prove superate: `Arena` non restituisce mai un `Optional` per dire «è andata male»,
+  restituisce sempre un rapporto che contiene l'esito.
 - **`Hero` non è `Fighter`.** La scheda sopravvive ai round, il combattente vive un round solo. La
   cura di fine scontro non è un metodo: è la conseguenza del fatto che ogni round il protagonista
   viene materializzato di nuovo (`FighterFactory.summon`). Non aggiungere API di guarigione, né qui

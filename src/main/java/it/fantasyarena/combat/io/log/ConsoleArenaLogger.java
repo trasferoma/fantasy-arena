@@ -69,7 +69,8 @@ public class ConsoleArenaLogger {
     System.out.println(SEPARATOR);
     System.out.println(hero.name() + " ha superato tutte e tre le prove dell'arena.");
     System.out.println("Esce con " + hero.weapon().weapon() + " in pugno, " + hero.armourPieceCount()
-        + " pezzi d'armatura addosso e " + hero.totalCharacteristicPoints() + " punti caratteristica.");
+        + " pezzi d'armatura addosso, " + hero.jewelCount() + " gioielli indossati e "
+        + hero.totalCharacteristicPoints() + " punti caratteristica.");
     System.out.println(SEPARATOR);
   }
 

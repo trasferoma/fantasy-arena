@@ -7,7 +7,7 @@ import it.fantasyarena.combat.factory.FighterFactory;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroBrain;
 import it.fantasyarena.combat.hero.HeroProgress;
-import it.fantasyarena.combat.hero.Spoils;
+import it.fantasyarena.combat.hero.Loot;
 import it.fantasyarena.combat.io.log.ConsoleArenaLogger;
 import it.fantasyarena.combat.io.terminal.EnterKeyTurnPacer;
 import it.fantasyarena.combat.io.replay.ReplayMode;
@@ -16,6 +16,7 @@ import it.fantasyarena.combat.io.terminal.TurnPacer;
 import it.fantasycombatsystem.battle.BattleSetup;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
+import it.fantasytoolkitcore.core.model.Rarity;
 
 /**
  * L'arena del protagonista: un solo eroe, tre prove in fila, e fra una prova e l'altra la
@@ -151,7 +152,7 @@ public class Arena {
       logger.reportEndOfRun(hero, champion, number);
       return Optional.empty();
     }
-    return Optional.of(applyEndOfFightProcedure(hero, challengers));
+    return Optional.of(applyEndOfFightProcedure(hero, number));
   }
 
   private void playAsBattle(Fighter champion, List<Fighter> challengers) {
@@ -169,21 +170,25 @@ public class Arena {
   /**
    * Si prosegue solo con una vittoria piena: il protagonista in piedi e tutti gli avversari
    * abbattuti. Restare vivo dopo un pareggio o una decisione ai punti non apre il round
-   * successivo, ed è coerente col bottino — si saccheggia solo chi è caduto, quindi da uno scontro
-   * non vinto non ci sarebbe niente da raccogliere.
+   * successivo: il loot non dipende più da chi è caduto, ma resta il premio della prova superata, e
+   * da uno scontro non vinto non ne arriva nessuno.
    */
   private boolean hasWonOutright(Fighter champion, List<Fighter> challengers) {
     return !champion.isDefeated() && challengers.stream().allMatch(Fighter::isDefeated);
   }
 
   /**
-   * La procedura di fine scontro: cura, bottino, punti caratteristica. Viene raccontata per intero
-   * e poi attende l'INVIO, così chi guarda ha il tempo di leggere cosa è cambiato prima che lo
-   * schermo si pulisca per il round successivo.
+   * La procedura di fine scontro: cura, l'unico oggetto di loot della prova, punti caratteristica.
+   * Viene raccontata per intero e poi attende l'INVIO, così chi guarda ha il tempo di leggere cosa
+   * è cambiato prima che lo schermo si pulisca per il round successivo.
+   *
+   * <p>Il livello serve solo a stabilire quanto pregiato può essere il loot, e la soglia la decide
+   * il {@link HeroBrain}: qui si passa il numero della prova, non un criterio.
    */
-  private Hero applyEndOfFightProcedure(Hero hero, List<Fighter> challengers) {
-    Spoils spoils = Spoils.from(challengers);
-    HeroProgress progress = heroBrain.progressAfterVictory(hero, spoils);
+  private Hero applyEndOfFightProcedure(Hero hero, int level) {
+    Rarity rarityFloor = heroBrain.lootRarityFloor(level);
+    Loot loot = fighterFactory.rollLoot(rarityFloor);
+    HeroProgress progress = heroBrain.progressAfterVictory(hero, loot);
 
     logger.reportProgress(progress);
     roundPacer.awaitNextTurn();

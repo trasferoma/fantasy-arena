@@ -15,15 +15,18 @@ import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
 import it.fantasycombatsystem.testsupport.CombatFixtures;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
+import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
+import it.fantasytoolkitcore.core.model.Jewel;
 import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.Weapon;
 
 /**
- * Le decisioni del protagonista dopo una vittoria: cosa raccoglie dal terreno e dove finiscono i
- * punti guadagnati. Il {@link Random} è a seme fisso, così la distribuzione dei punti resta
- * verificabile senza ripetere le esecuzioni sperando in una statistica.
+ * Le decisioni del protagonista dopo una vittoria: se vale la pena tenere l'unico oggetto di loot
+ * trovato e dove finiscono i punti guadagnati, vittoria più eventuale bonus del gioiello. Il
+ * {@link Random} è a seme fisso, così la distribuzione dei punti resta verificabile senza ripetere
+ * le esecuzioni sperando in una statistica.
  */
 class HeroBrainTest {
 
@@ -32,96 +35,159 @@ class HeroBrainTest {
   private final HeroBrain brain = new HeroBrain(new Random(42));
 
   @Test
-  void raccoglieLArmaMiglioreLasciataSulTerreno() {
+  void laSogliaDiRaritaCresceConIlLivello() {
+    assertEquals(Rarity.UNCOMMON, brain.lootRarityFloor(1));
+    assertEquals(Rarity.RARE, brain.lootRarityFloor(2));
+    assertEquals(Rarity.RARE, brain.lootRarityFloor(3));
+  }
+
+  @Test
+  void impugnaLArmaTrovataSeBattePiuDellaSuaPerAttacco() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
-    Spoils spoils = new Spoils(List.of(sword(9, Rarity.COMMON)), List.of());
+    Loot loot = Loot.ofWeapon(sword(9, Rarity.COMMON));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertTrue(progress.weaponSwap().isPresent(), "un'arma che colpisce di più va raccolta");
+    assertTrue(progress.weaponSwap().isPresent(), "un'arma che colpisce di più va impugnata");
     assertEquals(9, progress.weaponSwap().get().taken().attack());
     assertEquals(5, progress.weaponSwap().get().dropped().attack());
     assertEquals(9, progress.grownHero().weapon().attack());
   }
 
   @Test
-  void tieneLaSuaArmaQuandoIlBottinoNonOffreDiMeglio() {
+  void scartaLArmaTrovataAParitaDiAttacco() {
     WeaponResult ownSword = sword(9, Rarity.COMMON);
     Hero hero = heroWith(ownSword, chestplate(4));
-    Spoils spoils = new Spoils(List.of(sword(9, Rarity.COMMON), sword(3, Rarity.COMMON)), List.of());
+    Loot loot = Loot.ofWeapon(sword(9, Rarity.COMMON));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
     assertTrue(progress.weaponSwap().isEmpty(), "a parità di valore non si cambia arma per niente");
     assertSame(ownSword, progress.grownHero().weapon());
   }
 
   @Test
-  void aParitaDiAttaccoPreferisceLArmaPiuRara() {
-    Hero hero = heroWith(sword(6, Rarity.COMMON), chestplate(4));
-    Spoils spoils = new Spoils(List.of(new WeaponResult(Weapon.AXE, Rarity.RARE, List.of(), List.of(), 6)), List.of());
+  void scartaLArmaTrovataQuandoBattePeggioDellaSua() {
+    Hero hero = heroWith(sword(9, Rarity.COMMON), chestplate(4));
+    Loot loot = Loot.ofWeapon(sword(3, Rarity.COMMON));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertTrue(progress.weaponSwap().isPresent(), "la rarità è lo spareggio a parità di attacco");
-    assertEquals(Rarity.RARE, progress.grownHero().weapon().rarity());
+    assertTrue(progress.weaponSwap().isEmpty());
+    assertEquals(9, progress.grownHero().weapon().attack());
   }
 
   @Test
-  void indossaUnPezzoCheCopreUnoSlotScoperto() {
+  void indossaIlPezzoTrovatoCheCopreUnoSlotScoperto() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
-    Spoils spoils = new Spoils(List.of(), List.of(piece(Armour.HELMET, 1)));
+    Loot loot = Loot.ofArmourPiece(piece(Armour.HELMET, 1));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertEquals(List.of(piece(Armour.HELMET, 1)), progress.newPieces(),
+    assertEquals(piece(Armour.HELMET, 1), progress.newPiece().orElseThrow(),
         "una parte del corpo scoperta si protegge anche con un pezzo scarso");
-    assertTrue(progress.armourUpgrades().isEmpty());
+    assertTrue(progress.armourUpgrade().isEmpty());
     assertEquals(2, progress.grownHero().armourPieceCount());
   }
 
   @Test
-  void sostituisceIlPezzoIndossatoSoloSeQuelloATerraDifendeDiPiu() {
+  void sostituisceIlPezzoIndossatoSoloSeQuelloTrovatoDifendeDiPiu() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
-    Spoils spoils = new Spoils(List.of(), List.of(piece(Armour.CHESTPLATE, 7)));
+    Loot loot = Loot.ofArmourPiece(piece(Armour.CHESTPLATE, 7));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertEquals(List.of(new ArmourUpgrade(chestplate(4), piece(Armour.CHESTPLATE, 7))), progress.armourUpgrades());
-    assertTrue(progress.newPieces().isEmpty(), "lo slot era già coperto: è un rimpiazzo, non una novità");
+    assertEquals(new ArmourUpgrade(chestplate(4), piece(Armour.CHESTPLATE, 7)), progress.armourUpgrade().orElseThrow());
+    assertTrue(progress.newPiece().isEmpty(), "lo slot era già coperto: è un rimpiazzo, non una novità");
     assertEquals(1, progress.grownHero().armourPieceCount());
     assertEquals(7, progress.grownHero().pieceCovering(Armour.CHESTPLATE).orElseThrow().defense());
   }
 
   @Test
-  void ignoraIlPezzoCheDifendeMenoDiQuelloIndossato() {
+  void scartaIlPezzoTrovatoCheDifendeMenoOQuantoQuelloIndossato() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(6));
-    Spoils spoils = new Spoils(List.of(), List.of(piece(Armour.CHESTPLATE, 2)));
+    Loot loot = Loot.ofArmourPiece(piece(Armour.CHESTPLATE, 2));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertTrue(progress.armourUpgrades().isEmpty());
-    assertTrue(progress.newPieces().isEmpty());
+    assertTrue(progress.armourUpgrade().isEmpty());
+    assertTrue(progress.newPiece().isEmpty());
     assertEquals(6, progress.grownHero().pieceCovering(Armour.CHESTPLATE).orElseThrow().defense());
   }
 
   @Test
-  void fraDuePezziDelloStessoSlotPrendeSoloIlMigliore() {
+  void indossaIlGioielloTrovatoSuUnTipoNonPossedutoEFruttaPuntiSecondoLaRarita() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
-    Spoils spoils = new Spoils(List.of(), List.of(piece(Armour.BOOTS, 2), piece(Armour.BOOTS, 5)));
+    int pointsBefore = hero.totalCharacteristicPoints();
+    Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.RARE));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, spoils);
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertEquals(1, progress.newPieces().size(), "due paia di stivali non si indossano entrambi");
-    assertEquals(5, progress.newPieces().getFirst().defense());
+    assertEquals(2, progress.newJewel().orElseThrow().points(), "RARE vale +2 punti extra");
+    assertTrue(progress.jewelUpgrade().isEmpty());
+    assertEquals(1, progress.grownHero().jewelCount());
+    assertEquals(Rarity.RARE, progress.grownHero().jewelOfType(Jewel.RING).orElseThrow().rarity());
+    int distributed = progress.characteristicGains().stream().mapToInt(CharacteristicGain::points).sum();
+    assertEquals(POINTS_PER_VICTORY + 2, distributed, "i punti del gioiello si sommano a quelli della vittoria");
+    assertEquals(pointsBefore + POINTS_PER_VICTORY + 2, progress.grownHero().totalCharacteristicPoints());
   }
 
   @Test
-  void distribuisceEsattamenteTrePuntiSulleCaratteristicheDelPersonaggio() {
+  void ilGioielloLegendaryValeQuattroPuntiExtra() {
+    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
+    Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.LEGENDARY));
+
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
+
+    assertEquals(4, progress.newJewel().orElseThrow().points());
+  }
+
+  @Test
+  void sostituisceIlGioielloIndossatoSoloSeQuelloTrovatoEPiuRaro() {
+    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4)).wearing(jewel(Jewel.RING, Rarity.UNCOMMON));
+    Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.EPIC));
+
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
+
+    assertEquals(3, progress.jewelUpgrade().orElseThrow().points(), "EPIC vale +3 punti extra");
+    assertEquals(Rarity.UNCOMMON, progress.jewelUpgrade().orElseThrow().dropped().rarity());
+    assertEquals(Rarity.EPIC, progress.jewelUpgrade().orElseThrow().taken().rarity());
+    assertTrue(progress.newJewel().isEmpty(), "il tipo era già occupato: è un rimpiazzo, non una novità");
+    assertEquals(1, progress.grownHero().jewelCount(), "due gioielli dello stesso tipo non convivono");
+    assertEquals(Rarity.EPIC, progress.grownHero().jewelOfType(Jewel.RING).orElseThrow().rarity());
+  }
+
+  @Test
+  void scartaIlGioielloTrovatoDiRaritaParioInferioreDelloStessoTipo() {
+    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4)).wearing(jewel(Jewel.RING, Rarity.RARE));
+    Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.RARE));
+
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
+
+    assertTrue(progress.newJewel().isEmpty());
+    assertTrue(progress.jewelUpgrade().isEmpty());
+    assertEquals(1, progress.grownHero().jewelCount());
+    assertEquals(Rarity.RARE, progress.grownHero().jewelOfType(Jewel.RING).orElseThrow().rarity());
+  }
+
+  @Test
+  void ilGioielloScartatoNonFruttaPuntiExtraOltreAiTreDellaVittoria() {
+    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4)).wearing(jewel(Jewel.RING, Rarity.RARE));
+    Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.COMMON));
+
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
+
+    int distributed = progress.characteristicGains().stream().mapToInt(CharacteristicGain::points).sum();
+    assertEquals(POINTS_PER_VICTORY, distributed, "il gioiello scartato non aggiunge punti oltre quelli della vittoria");
+  }
+
+  @Test
+  void distribuisceEsattamenteTrePuntiSulleCaratteristicheDelPersonaggioSenzaGioiello() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
     int pointsBefore = hero.totalCharacteristicPoints();
+    Loot loot = Loot.ofArmourPiece(piece(Armour.CHESTPLATE, 1));
 
-    HeroProgress progress = brain.progressAfterVictory(hero, new Spoils(List.of(), List.of()));
+    HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
     int distributed = progress.characteristicGains().stream().mapToInt(CharacteristicGain::points).sum();
     assertEquals(POINTS_PER_VICTORY, distributed);
@@ -134,7 +200,7 @@ class HeroBrainTest {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
     CharacterResult before = hero.character();
 
-    CharacterResult after = brain.progressAfterVictory(hero, new Spoils(List.of(), List.of()))
+    CharacterResult after = brain.progressAfterVictory(hero, Loot.ofArmourPiece(piece(Armour.CHESTPLATE, 1)))
         .grownHero()
         .character();
 
@@ -142,19 +208,6 @@ class HeroBrainTest {
     assertEquals(before.race(), after.race());
     assertEquals(before.characterClass(), after.characterClass());
     assertEquals(before.characteristics().size(), after.characteristics().size());
-  }
-
-  @Test
-  void senzaBottinoCresceComunqueInCaratteristiche() {
-    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
-
-    HeroProgress progress = brain.progressAfterVictory(hero, new Spoils(List.of(), List.of()));
-
-    assertTrue(progress.weaponSwap().isEmpty());
-    assertTrue(progress.newPieces().isEmpty());
-    assertTrue(progress.armourUpgrades().isEmpty());
-    assertEquals(POINTS_PER_VICTORY,
-        progress.characteristicGains().stream().mapToInt(CharacteristicGain::points).sum());
   }
 
   private Hero heroWith(WeaponResult weapon, ArmourResult armour) {
@@ -171,5 +224,9 @@ class HeroBrainTest {
 
   private ArmourResult piece(Armour slot, int defense) {
     return new ArmourResult(slot, Rarity.COMMON, List.of(), List.of(), defense);
+  }
+
+  private JewelResult jewel(Jewel type, Rarity rarity) {
+    return new JewelResult(type, rarity, List.of(), List.of());
   }
 }

@@ -1,6 +1,7 @@
 package it.fantasyarena.combat.factory;
 
 import it.fantasyarena.combat.hero.Hero;
+import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.factory.FighterAssembler;
 import it.fantasycombatsystem.model.Fighter;
@@ -10,6 +11,8 @@ import it.fantasytoolkit.charactergenerator.CharacterGeneratorTool;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.dicelauncher.DiceLauncherTool;
 import it.fantasytoolkit.dicelauncher.result.DiceRollResult;
+import it.fantasytoolkit.jewelgenerator.JewelGeneratorTool;
+import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.WeaponGeneratorTool;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
@@ -34,14 +37,14 @@ import java.util.stream.IntStream;
  * motore la traduzione in {@link Fighter} con i Rating intrinseci calcolati. Nessuno scudo in v1.
  *
  * <p>È l'unico punto di contatto del gioco coi generatori del toolkit: la casualità della
- * generazione (razza, nome, caratteristiche, rarità) vive qui, non nel motore, che i combattenti li
- * riceve già formati.
+ * generazione (razza, nome, caratteristiche, rarità, e ora anche il tipo di loot) vive qui, non nel
+ * motore, che i combattenti li riceve già formati.
  *
  * <p>Produce la {@link Hero} che sopravvive ai round e che a ogni round torna in campo come
  * combattente nuovo ({@link #summon}), più gli sfidanti che le si parano davanti — fino allo
  * specchio dell'ultimo round ({@link #createMirrorRival}). Tutti nascono equi-equipaggiati alla
  * stessa {@link #STANDARD_EQUIPMENT_RARITY}: le differenze se le conquista il protagonista dal
- * bottino, non gliele regala la generazione.
+ * loot di fine livello ({@link #rollLoot}), non gliele regala la generazione.
  */
 public class FighterFactory {
 
@@ -49,7 +52,7 @@ public class FighterFactory {
 
     /**
      * Rarita' con cui nasce l'equipaggiamento di chiunque scenda nell'arena, protagonista compreso:
-     * si parte tutti alla pari, e le differenze arrivano dopo, dal bottino.
+     * si parte tutti alla pari, e le differenze arrivano dopo, dal loot di fine livello.
      */
     private static final Rarity STANDARD_EQUIPMENT_RARITY = Rarity.UNCOMMON;
 
@@ -125,7 +128,9 @@ public class FighterFactory {
      * Il combattente di questo round, materializzato dalla scheda del protagonista. Nasce con vita
      * e stamina piene perche' e' un {@code Fighter} nuovo: e' cosi' che la cura di fine scontro si
      * realizza senza che nessuno debba "guarire" nessuno. I Rating tengono conto di tutti i pezzi
-     * indossati, ricalcolati qui a ogni discesa in campo.
+     * indossati, ricalcolati qui a ogni discesa in campo. I gioielli indossati non entrano in
+     * questa chiamata: il {@link FighterAssembler} non ha un overload che li accetti, e restano
+     * fuori dallo scontro anche se la {@link Hero} li custodisce.
      */
     public Fighter summon(Hero hero) {
         return assembler.assemble(hero.character(), hero.weapon(), hero.armourPieces(), null);
@@ -154,6 +159,20 @@ public class FighterFactory {
         WeaponResult weapon = generateWeapon(MIRROR_RIVAL_WEAPON_RARITY);
         List<ArmourResult> armourPieces = generateArmourSet(hero.armourPieceCount());
         return assembler.assemble(character, weapon, armourPieces, null);
+    }
+
+    /**
+     * Il loot di fine livello: un tipo estratto a caso fra arma, armatura e gioiello, generato alla
+     * rarita' minima decisa dal {@code HeroBrain} per quel livello. Qui vive solo l'estrazione e la
+     * generazione: se valga la pena tenere l'oggetto lo decide il cervello, non questa factory.
+     */
+    public Loot rollLoot(Rarity rarityFloor) {
+        LootKind kind = LootKind.values()[random.nextInt(LootKind.values().length)];
+        return switch (kind) {
+            case WEAPON -> Loot.ofWeapon(generateLootWeapon(rarityFloor));
+            case ARMOUR -> Loot.ofArmourPiece(generateLootArmour(rarityFloor));
+            case JEWEL -> Loot.ofJewel(generateJewel(rarityFloor));
+        };
     }
 
     /**
@@ -196,19 +215,37 @@ public class FighterFactory {
     }
 
     private WeaponResult generateWeapon(Rarity rarity) {
+        return WeaponGeneratorTool.building()
+                .weapon(pickMeleeWeapon())
+                .rarity(rarity)
+                .noStatusEffect()
+                .generate();
+    }
+
+    /**
+     * L'arma di loot pesca dallo stesso pool ristretto di mischia dell'equipaggiamento di partenza:
+     * il toolkit contiene anche armi a distanza e bastoni che nell'arena non ci sono mai stati, e il
+     * loot non deve introdurli di soppiatto.
+     */
+    private WeaponResult generateLootWeapon(Rarity rarityFloor) {
+        return WeaponGeneratorTool.building()
+                .weapon(pickMeleeWeapon())
+                .minRarity(rarityFloor)
+                .noStatusEffect()
+                .generate();
+    }
+
+    /**
+     * Il pool di mischia da cui pescano sia l'equipaggiamento di partenza sia il loot: il toolkit
+     * genera anche armi a distanza e bastoni, deliberatamente esclusi dall'arena.
+     */
+    private Weapon pickMeleeWeapon() {
         List<Weapon> weapons = List.of(Weapon.SWORD, Weapon.AXE, Weapon.BATTLEAXE, Weapon.DAGGER, Weapon.HAMMER);
         DiceRollResult roll = DiceLauncherTool.building()
                 .dice(1, 5)
                 .roll();
 
-        int weaponsIdx = roll.total() - 1;
-
-        return WeaponGeneratorTool.building()
-                .weapon(weapons.get(weaponsIdx))
-                // .randomWeapon()
-                .rarity(rarity)
-                .noStatusEffect()
-                .generate();
+        return weapons.get(roll.total() - 1);
     }
 
     /**
@@ -220,6 +257,30 @@ public class FighterFactory {
                 //.armour(Armour.CHESTPLATE)
                 .randomArmour()
                 .rarity(STANDARD_EQUIPMENT_RARITY)
+                .noStatusEffect()
+                .generate();
+    }
+
+    /**
+     * Il pezzo d'armatura di loot: slot casuale come l'equipaggiamento di partenza, ma con la
+     * rarita' minima del livello al posto di quella standard.
+     */
+    private ArmourResult generateLootArmour(Rarity rarityFloor) {
+        return ArmourGeneratorTool.building()
+                .randomArmour()
+                .minRarity(rarityFloor)
+                .noStatusEffect()
+                .generate();
+    }
+
+    /**
+     * Il gioiello di loot: non ha equivalente nell'equipaggiamento di partenza, perche' il gioiello
+     * non e' mai stato equipaggiamento nell'arena prima del loot.
+     */
+    private JewelResult generateJewel(Rarity rarityFloor) {
+        return JewelGeneratorTool.building()
+                .randomJewel()
+                .minRarity(rarityFloor)
                 .noStatusEffect()
                 .generate();
     }
@@ -263,6 +324,15 @@ public class FighterFactory {
                 .rarity(STANDARD_EQUIPMENT_RARITY)
                 .noStatusEffect()
                 .generate();
+    }
+
+    /**
+     * I tre tipi fra cui si estrae il loot di fine livello.
+     */
+    private enum LootKind {
+        WEAPON,
+        ARMOUR,
+        JEWEL
     }
 
 }

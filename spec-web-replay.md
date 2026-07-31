@@ -116,8 +116,12 @@ una passata che gioca e registra, e due presentazioni che leggono lo stesso regi
   oggi spostato di casa (logger, `CombatReplay`, `TurnPacer`, `ScreenCleaner`, l'attesa di lettura
   degli schieramenti), e una **muta**, che non mostra niente e non attende niente.
 - `ConsoleBattleLogger` e `ConsoleArenaLogger` guadagnano un'interfaccia ciascuno (`BattleLogger`,
-  `ArenaLogger`), con implementazione muta; `CombatLogger` ce l'ha già. `Arena` riceve
-  l'**interfaccia** nel costruttore con collaboratori espliciti, non più la classe concreta.
+  `ArenaLogger`); `CombatLogger` ce l'ha già. `Arena` riceve l'**interfaccia** nel costruttore con
+  collaboratori espliciti, non più la classe concreta. L'implementazione **muta** serve solo ad
+  `ArenaLogger`: per il duello e per la battaglia il silenzio lo produce `MatchPresentation` nella sua
+  forma muta, che tace l'intera presentazione invece di comporre logger che non stampano. Una prima
+  stesura ne aveva scritta una per ciascuna delle tre interfacce, e due sono rimaste senza chiamanti —
+  rimosse in Fase 11 (vedi il registro di `implementation-web-replay.md`).
 - L'ordine in cui la console stampa non cambia, anche se lo scontro viene giocato prima di mostrare
   gli schieramenti: le schede si compongono da dati immutabili (vedi *Contesto*), quindi l'output è
   identico riga per riga.
@@ -490,17 +494,52 @@ public static void main(String[] args) {
 
 Forma del JSON servito da `GET /api/chronicle`, per fissare le chiavi che il frontend legge:
 
+Forma effettiva, verificata sul JSON prodotto in Fase 7 (non più illustrativa) e aggiornata in Fase 9
+con `jewelBonusPoints`:
+
 ```
-{ "protagonist": { "name": ..., "race": ..., "characteristics": [ { "characteristic": ..., "value": ... } ],
-                   "weapon": {...}, "armour": [...], "jewels": [...] },
+{ "protagonist": { "name": ..., "race": "HUMAN", "characterClass": "WARRIOR",
+                   "characteristics": [ { "characteristic": "STRENGTH", "value": 12 } ],
+                   "weapon": { "kind": "WEAPON", "name": "SWORD", "rarity": "RARE", "power": 9 },
+                   "armourPieces": [...],
+                   "jewels": [ { "kind": "JEWEL", "name": "RING", "rarity": "EPIC", "power": null } ] },
   "trials": [ { "number": 1, "description": ..., "shape": "BATTLE",
                 "roster": [ { "rosterIndex": 0, "teamIndex": 0, "name": ..., "maxHealth": ..., ... } ],
                 "rounds": [ { "roundNumber": 1, "turns": [ { "attackerIndex": 0, "targetIndex": 1,
-                                                             "turn": { "description": ..., "action": {...} } } ],
+                                                             "turn": { "vitals": [...], "action": {...} } } ],
                               "vitals": [...], "events": [...] } ],
                 "turns": [],
                 "outcome": "WON",
                 "progress": { "found": {...}, "fate": "ARMOUR_REPLACED", "dropped": {...},
+                              "jewelBonusPoints": null,
                               "gains": [...], "heroAfter": {...} } } ],
-  "conclusion": { "triumph": true, "outcome": "WON", "lastTrial": 3 } }
+  "conclusion": { "outcome": "WON", "lastTrial": 3 } }
 ```
+
+Gli scostamenti dall'esempio con cui questa SPEC era stata scritta, tutti verificati e voluti:
+
+- La chiave dei pezzi indossati è **`armourPieces`**, non `armour`: è il nome che il codice usa già
+  (`Hero.armourPieces()`, `Fighter.armourPieces()`), e il JSON segue il codice.
+- **`triumph` non compare** nella conclusione: non essendo un componente del record ma un accessor
+  derivato senza prefisso `get`/`is`, Jackson non lo riconosce come proprietà. È il comportamento
+  voluto — il frontend deriva il trionfo da `outcome` — e c'è un test che lo constata, così se un
+  domani comparisse non sarebbe una sorpresa silenziosa.
+- I **valori nulli restano** nel JSON (`power` di un gioiello, `progress` di una prova non vinta,
+  `dropped` quando non c'è niente da lasciare, `jewelBonusPoints` nei sei destini che non lo hanno): una
+  chiave presente col valore nullo è più facile da leggere di una chiave che a volte non c'è, e tiene la
+  forma stabile.
+
+Un terzo scostamento, **aggiunto in Fase 9 e non previsto quando questa SPEC è stata scritta**:
+
+- `progress.jewelBonusPoints` — i punti caratteristica che il gioiello indossato vale. Scrivendo le frasi
+  della pagina è emerso che la cronaca **non era autosufficiente** su questo punto, e il criterio 14 era
+  quindi falso: la console dice «vale +N punti caratteristica» leggendo `HeroProgress.NewJewel#points()`
+  o `JewelUpgrade#points()`, ma la cronaca portava solo `gains`, cioè il totale già fuso con i tre punti
+  fissi della vittoria — `HeroBrain` distribuisce `CHARACTERISTIC_POINTS_PER_VICTORY +
+  jewelDecision.bonusPoints()` in un colpo solo, quindi da `gains` quel numero non si separa. Un lettore
+  della cronaca avrebbe dovuto **aggiungere un campo**, non comporre una frase, che è esattamente ciò che
+  il criterio 14 vieta. Il campo è un `Integer` nullabile, valorizzato solo per `JEWEL_WORN_ON_EMPTY_TYPE`
+  e `JEWEL_REPLACED` — gli unici due destini in cui `HeroBrain` assegna il bonus — e nullo negli altri
+  sei, `JEWEL_DISCARDED` compreso: un gioiello trovato ma non indossato non vale niente. L'alternativa
+  scartata era derivarlo nel frontend come `somma(gains) - 3`, che avrebbe portato una costante di
+  bilanciamento di `HeroBrain` dentro la pagina, cioè una regola di gioco fuori dal suo posto.

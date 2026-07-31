@@ -2,7 +2,6 @@ package it.fantasyarena.combat.io.render;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import it.fantasyarena.combat.hero.HeroProgress;
@@ -11,6 +10,7 @@ import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
 import it.fantasyarena.combat.hero.HeroProgress.JewelUpgrade;
 import it.fantasyarena.combat.hero.HeroProgress.NewJewel;
 import it.fantasyarena.combat.hero.HeroProgress.WeaponSwap;
+import it.fantasyarena.combat.hero.LootFate;
 import it.fantasyarena.combat.io.log.ConsoleArenaLogger;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
@@ -24,7 +24,8 @@ import it.fantasytoolkit.weapongenerator.result.WeaponResult;
  * <p>Legge un {@link HeroProgress}, cioè esattamente i dati che il {@code HeroBrain} ha prodotto
  * decidendo: il racconto non può divergere da quello che è successo davvero, perché è la stessa
  * cosa letta due volte. Dice sempre qualcosa sull'oggetto trovato anche quando è stato scartato —
- * "non ti serve" è un'informazione, il silenzio è un dubbio.
+ * "non ti serve" è un'informazione, il silenzio è un dubbio. La frase si sceglie sul
+ * {@link LootFate} già risolto da {@link HeroProgress#lootFate()}, non lo deduce da sé.
  */
 public class HeroProgressFormatter {
 
@@ -40,45 +41,62 @@ public class HeroProgressFormatter {
   }
 
   private String lootLine(HeroProgress progress) {
-    Optional<WeaponResult> weaponFound = progress.loot().weapon();
-    if (weaponFound.isPresent()) {
-      return weaponLootLine(weaponFound.get(), progress.weaponSwap());
-    }
-
-    Optional<ArmourResult> armourFound = progress.loot().armourPiece();
-    if (armourFound.isPresent()) {
-      return armourLootLine(armourFound.get(), progress.newPiece(), progress.armourUpgrade());
-    }
-
-    JewelResult jewelFound = progress.loot().jewel().orElseThrow();
-    return jewelLootLine(jewelFound, progress.newJewel(), progress.jewelUpgrade());
+    return switch (progress.lootFate()) {
+      case WEAPON_TAKEN -> weaponTakenLine(progress);
+      case WEAPON_DISCARDED -> weaponDiscardedLine(progress);
+      case ARMOUR_WORN_ON_EMPTY_SLOT -> armourWornLine(progress);
+      case ARMOUR_REPLACED -> armourReplacedLine(progress);
+      case ARMOUR_DISCARDED -> armourDiscardedLine(progress);
+      case JEWEL_WORN_ON_EMPTY_TYPE -> jewelWornLine(progress);
+      case JEWEL_REPLACED -> jewelReplacedLine(progress);
+      case JEWEL_DISCARDED -> jewelDiscardedLine(progress);
+    };
   }
 
-  private String weaponLootLine(WeaponResult found, Optional<WeaponSwap> swap) {
-    return swap
-        .map(taken -> "Arma: trovi " + describe(found) + ", lasci " + describe(taken.dropped()) + " e la impugni.")
-        .orElse("Arma: trovi " + describe(found) + ", non batte la tua: la scarti.");
+  private String weaponTakenLine(HeroProgress progress) {
+    WeaponResult found = progress.loot().weapon().orElseThrow();
+    WeaponSwap swap = progress.weaponSwap().orElseThrow();
+    return "Arma: trovi " + describe(found) + ", lasci " + describe(swap.dropped()) + " e la impugni.";
   }
 
-  private String armourLootLine(ArmourResult found, Optional<ArmourResult> newPiece,
-      Optional<ArmourUpgrade> upgrade) {
-    if (newPiece.isPresent()) {
-      return "Armatura: trovi " + describe(found) + ", copre una parte del corpo prima scoperta: la indossi.";
-    }
-    return upgrade
-        .map(taken -> "Armatura: trovi " + describe(found) + ", sostituisce " + describe(taken.dropped()) + ".")
-        .orElse("Armatura: trovi " + describe(found) + ", difende meno o quanto la tua: la scarti.");
+  private String weaponDiscardedLine(HeroProgress progress) {
+    WeaponResult found = progress.loot().weapon().orElseThrow();
+    return "Arma: trovi " + describe(found) + ", non batte la tua: la scarti.";
   }
 
-  private String jewelLootLine(JewelResult found, Optional<NewJewel> newJewel, Optional<JewelUpgrade> upgrade) {
-    if (newJewel.isPresent()) {
-      return "Gioiello: trovi " + describe(found) + ", è un tipo che non portavi ancora: lo indossi, vale +"
-          + newJewel.get().points() + " punti caratteristica.";
-    }
-    return upgrade
-        .map(taken -> "Gioiello: trovi " + describe(found) + ", sostituisce " + describe(taken.dropped())
-            + " e vale +" + taken.points() + " punti caratteristica.")
-        .orElse("Gioiello: trovi " + describe(found) + ", non batte quello che porti: lo scarti.");
+  private String armourWornLine(HeroProgress progress) {
+    ArmourResult found = progress.loot().armourPiece().orElseThrow();
+    return "Armatura: trovi " + describe(found) + ", copre una parte del corpo prima scoperta: la indossi.";
+  }
+
+  private String armourReplacedLine(HeroProgress progress) {
+    ArmourResult found = progress.loot().armourPiece().orElseThrow();
+    ArmourUpgrade upgrade = progress.armourUpgrade().orElseThrow();
+    return "Armatura: trovi " + describe(found) + ", sostituisce " + describe(upgrade.dropped()) + ".";
+  }
+
+  private String armourDiscardedLine(HeroProgress progress) {
+    ArmourResult found = progress.loot().armourPiece().orElseThrow();
+    return "Armatura: trovi " + describe(found) + ", difende meno o quanto la tua: la scarti.";
+  }
+
+  private String jewelWornLine(HeroProgress progress) {
+    JewelResult found = progress.loot().jewel().orElseThrow();
+    NewJewel newJewel = progress.newJewel().orElseThrow();
+    return "Gioiello: trovi " + describe(found) + ", è un tipo che non portavi ancora: lo indossi, vale +"
+        + newJewel.points() + " punti caratteristica.";
+  }
+
+  private String jewelReplacedLine(HeroProgress progress) {
+    JewelResult found = progress.loot().jewel().orElseThrow();
+    JewelUpgrade upgrade = progress.jewelUpgrade().orElseThrow();
+    return "Gioiello: trovi " + describe(found) + ", sostituisce " + describe(upgrade.dropped())
+        + " e vale +" + upgrade.points() + " punti caratteristica.";
+  }
+
+  private String jewelDiscardedLine(HeroProgress progress) {
+    JewelResult found = progress.loot().jewel().orElseThrow();
+    return "Gioiello: trovi " + describe(found) + ", non batte quello che porti: lo scarti.";
   }
 
   private String growthLine(List<CharacteristicGain> characteristicGains) {

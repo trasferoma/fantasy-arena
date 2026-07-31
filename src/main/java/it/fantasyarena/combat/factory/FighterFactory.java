@@ -45,7 +45,10 @@ import java.util.stream.IntStream;
  * combattente nuovo ({@link #summon}), più gli sfidanti che le si parano davanti — fino allo
  * specchio dell'ultimo round ({@link #createMirrorRival}). Tutti nascono equi-equipaggiati alla
  * stessa {@link #STANDARD_EQUIPMENT_RARITY}: le differenze se le conquista il protagonista dal
- * loot di fine livello ({@link #rollLoot}), non gliele regala la generazione.
+ * loot di fine livello ({@link #rollLoot}), non gliele regala la generazione. Il monte punti
+ * caratteristica degli sfidanti generati ({@link #createChallengers}) non è invece fisso: lo
+ * dichiara chi chiama, stazione per stazione — è così che il percorso dell'arena fa crescere la
+ * difficoltà senza toccare l'equipaggiamento.
  */
 public class FighterFactory {
 
@@ -99,12 +102,19 @@ public class FighterFactory {
         }
     }
 
+    private void validateCharacteristicPoints(int totalCharacteristicPoints) {
+        if (totalCharacteristicPoints < 1) {
+            throw new IllegalArgumentException(
+                    "totalCharacteristicPoints must be >= 1, was: " + totalCharacteristicPoints);
+        }
+    }
+
     /**
-     * Un avversario qualunque: arma e armatura alla rarita' standard, un pezzo solo addosso, e un
-     * nome che non collide con quelli gia' assegnati da questa factory.
+     * Un avversario qualunque, col monte punti richiesto: arma e armatura alla rarita' standard,
+     * un pezzo solo addosso, e un nome che non collide con quelli gia' assegnati da questa factory.
      */
-    private Fighter createChallenger() {
-        CharacterResult character = generateUniquelyNamed(this::generateWarrior);
+    private Fighter createChallenger(int totalCharacteristicPoints) {
+        CharacterResult character = generateUniquelyNamed(() -> generateWarrior(totalCharacteristicPoints));
         WeaponResult weapon = generateWeapon(STANDARD_EQUIPMENT_RARITY);
         ArmourResult armour = generateArmour();
         return assembler.assemble(character, weapon, armour);
@@ -119,7 +129,7 @@ public class FighterFactory {
      * sopravvivere agli scontri: il combattente di ogni round lo materializza {@link #summon}.
      */
     public Hero createProtagonist() {
-        CharacterResult character = generateUniquelyNamed(this::generateWarrior);
+        CharacterResult character = generateUniquelyNamed(() -> generateWarrior(TOTAL_CHARACTERISTIC_POINTS));
         WeaponResult weapon = generateWeapon(STANDARD_EQUIPMENT_RARITY);
         ArmourResult armour = generateArmour();
         return new Hero(character, weapon, List.of(armour));
@@ -138,12 +148,15 @@ public class FighterFactory {
     }
 
     /**
-     * Gli sfidanti di un round, equipaggiati come chiunque altro nell'arena.
+     * Gli sfidanti di una prova, equipaggiati come chiunque altro nell'arena ma col monte punti
+     * caratteristica che la stazione del percorso dichiara: la difficoltà cresce stazione dopo
+     * stazione spostando questo numero, non l'equipaggiamento.
      */
-    public List<Fighter> createChallengers(int count) {
+    public List<Fighter> createChallengers(int count, int totalCharacteristicPoints) {
         validateCount(count);
+        validateCharacteristicPoints(totalCharacteristicPoints);
         return IntStream.range(0, count)
-                .mapToObj(challenger -> createChallenger())
+                .mapToObj(challenger -> createChallenger(totalCharacteristicPoints))
                 .toList();
     }
 
@@ -205,14 +218,14 @@ public class FighterFactory {
                 character.characteristics());
     }
 
-    private CharacterResult generateWarrior() {
+    private CharacterResult generateWarrior(int totalCharacteristicPoints) {
         return CharacterGeneratorTool.building()
                 //.race(Race.HUMAN)
                 .randomRace()
                 .characterClass(CharacterClass.WARRIOR)
                 // .addNickname()
                 .allCharacteristics()
-                .totalPoints(TOTAL_CHARACTERISTIC_POINTS)
+                .totalPoints(totalCharacteristicPoints)
                 .generate();
     }
 

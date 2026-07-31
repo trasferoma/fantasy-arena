@@ -94,8 +94,8 @@ class ArenaFighterFactoryTest {
   @Test
   void gliSfidantiHannoNomiDistintiDaTuttiQuelliGiaScesiInCampo() {
     Hero hero = factory.createProtagonist();
-    List<Fighter> firstRound = factory.createChallengers(1);
-    List<Fighter> secondRound = factory.createChallengers(2);
+    List<Fighter> firstRound = factory.createChallengers(1, 15);
+    List<Fighter> secondRound = factory.createChallengers(2, 18);
     Fighter rival = factory.createMirrorRival(hero);
 
     Set<String> names = new HashSet<>();

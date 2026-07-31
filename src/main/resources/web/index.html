@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fantasy Arena — Replay</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="error-banner" class="error-banner" hidden></div>
+
+  <main id="app" hidden>
+    <section id="protagonist-entry" class="entry-card"></section>
+
+    <header id="trial-header" class="trial-header"></header>
+
+    <ol id="trial-path" class="trial-path" aria-label="Percorso dell'arena"></ol>
+
+    <section id="battlefield" class="battlefield">
+      <div id="team-0" class="team"></div>
+      <div id="battle-center" class="battle-center"></div>
+      <div id="team-1" class="team"></div>
+    </section>
+
+    <section id="step-panel" class="step-panel"></section>
+
+    <section id="progress-panel" class="progress-panel" hidden></section>
+
+    <section id="conclusion-panel" class="conclusion-panel" hidden></section>
+
+    <footer id="controls" class="controls">
+      <button id="btn-step-back" type="button">Passo indietro</button>
+      <button id="btn-play-pause" type="button">Play</button>
+      <button id="btn-step-forward" type="button">Passo avanti</button>
+
+      <label class="speed-control" for="speed-select">
+        Velocità
+        <select id="speed-select"></select>
+      </label>
+
+      <div class="timeline-control">
+        <input id="timeline" type="range" min="0" max="0" value="0" step="1">
+        <span id="timeline-position"></span>
+      </div>
+    </footer>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

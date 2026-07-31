@@ -15,6 +15,7 @@
         <exec.mainClass>it.fantasyarena.Main</exec.mainClass>
         <fantasy.combat.system.version>1.0-SNAPSHOT</fantasy.combat.system.version>
         <junit.jupiter.version>5.11.4</junit.jupiter.version>
+        <jackson.databind.version>2.20.1</jackson.databind.version>
     </properties>
 
     <dependencies>
@@ -40,6 +41,15 @@
             <groupId>it.fantasytoolkit</groupId>
             <artifactId>fantasytoolkit</artifactId>
             <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!--
+            Serializzazione della cronaca in JSON per la modalita' web. jackson-core e
+            jackson-annotations arrivano come transitive: non vanno dichiarate.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.databind.version}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

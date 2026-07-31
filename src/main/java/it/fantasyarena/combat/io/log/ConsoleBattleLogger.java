@@ -17,16 +17,14 @@ import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.Scorecard;
 
 /**
- * Logger testuale per la battaglia NvN: stampa gli schieramenti, la scena ASCII round per round
+ * {@link BattleLogger} di console: stampa gli schieramenti, la scena ASCII round per round
  * (delegata a {@link BattleSceneRenderer}) e l'esito finale, senza attesa dell'INVIO (a carico del
  * chiamante, fra un round e il successivo) e senza la messa in pagina a schermo del duello 1v1.
  * Riusa {@link TurnLogFormatter#describeVitals} per lo stato finale e {@link FighterCardFormatter}
  * per le schede dei combattenti, cosi' le due modalita' di presentazione restano testualmente
- * coerenti sull'esito. Una sola classe concreta, senza interfaccia dedicata: a differenza di
- * {@link CombatLogger} (un solo implementatore per ragioni storiche), qui non c'e' un secondo
- * utilizzo che giustifichi l'astrazione.
+ * coerenti sull'esito.
  */
-public class ConsoleBattleLogger {
+public class ConsoleBattleLogger implements BattleLogger {
 
   private final TurnLogFormatter turnFormatter = new TurnLogFormatter();
   private final FighterCardFormatter cardFormatter = new FighterCardFormatter();
@@ -34,13 +32,13 @@ public class ConsoleBattleLogger {
   private BattleSceneRenderer sceneRenderer;
 
   /**
-   * Stampa gli schieramenti: intestazione, poi per ogni squadra il nome e la scheda di ogni
-   * membro. I combattenti sono numerati progressivamente sull'intera battaglia (non ricominciando
-   * da 1 a ogni squadra), cosi' l'indice resta un identificatore stabile nel log. Costruisce anche
-   * il {@link BattleSceneRenderer} usato da {@link #logRound}, una sola volta per l'intera
-   * battaglia: le larghezze di colonna si calcolano cosi' dai valori massimi del roster e restano
-   * costanti round dopo round.
+   * Numera i combattenti progressivamente sull'intera battaglia (non ricominciando da 1 a ogni
+   * squadra), cosi' l'indice resta un identificatore stabile nel log. Costruisce anche il
+   * {@link BattleSceneRenderer} usato da {@link #logRound}, una sola volta per l'intera battaglia:
+   * le larghezze di colonna si calcolano cosi' dai valori massimi del roster e restano costanti
+   * round dopo round.
    */
+  @Override
   public void reportSetup(BattleSetup setup) {
     System.out.println("=== Schieramenti ===");
 
@@ -65,15 +63,13 @@ public class ConsoleBattleLogger {
    * dall'attaccante al bersaglio per scontro. Delega interamente a {@link BattleSceneRenderer},
    * costruito da {@link #reportSetup}.
    */
+  @Override
   public void logRound(RoundLogEntry round) {
     sceneRenderer.renderRound(round).forEach(System.out::println);
     System.out.println();
   }
 
-  /**
-   * Stampa l'esito finale della battaglia: intestazione, poi l'esito (con squadra vincitrice
-   * quando prevista), l'eventuale dettaglio a punti e lo stato finale di ogni combattente.
-   */
+  @Override
   public void reportOutcome(BattleResult result) {
     System.out.println();
     System.out.println("=== Esito della battaglia ===");

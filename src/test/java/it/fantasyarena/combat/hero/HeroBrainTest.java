@@ -2,6 +2,7 @@ package it.fantasyarena.combat.hero;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,22 +41,39 @@ class HeroBrainTest {
   private final HeroBrain brain = new HeroBrain(new Random(42));
 
   @Test
-  void laTabellaDiRaritaDelLootELaStessaDalSecondoLivelloInPoi() {
-    RarityTable secondLevelTable = brain.lootRarityTable(2);
-    RarityTable thirdLevelTable = brain.lootRarityTable(3);
+  void laTabellaDiRaritaDelLootSeguiQuattroScaglioniSulPercorsoADieciProve() {
+    assertSame(brain.lootRarityTable(1), brain.lootRarityTable(2),
+        "le prove 1 e 2 condividono lo scaglione d'apertura");
+    assertSame(brain.lootRarityTable(3), brain.lootRarityTable(5),
+        "le prove 3-5 condividono lo stesso scaglione");
+    assertSame(brain.lootRarityTable(6), brain.lootRarityTable(8),
+        "le prove 6-8 condividono lo stesso scaglione");
+    assertSame(brain.lootRarityTable(9), brain.lootRarityTable(10),
+        "le prove 9-10 condividono lo stesso scaglione");
 
-    assertSame(secondLevelTable, thirdLevelTable, "il secondo e il terzo livello condividono la stessa tabella");
+    assertNotSame(brain.lootRarityTable(2), brain.lootRarityTable(3),
+        "il secondo scaglione comincia alla terza prova, non più alla seconda");
+    assertNotSame(brain.lootRarityTable(5), brain.lootRarityTable(6),
+        "il terzo scaglione comincia alla sesta prova");
+    assertNotSame(brain.lootRarityTable(8), brain.lootRarityTable(9),
+        "il quarto scaglione comincia alla nona prova");
   }
 
   @Test
-  void laTabellaDiRaritaDelPrimoLivelloPuoScendereFinoAUncommonQuelleSuccessiveNo() {
-    Set<Rarity> firstLevelRarities = drawnRarities(brain.lootRarityTable(1), new Random(7));
-    Set<Rarity> laterLevelRarities = drawnRarities(brain.lootRarityTable(2), new Random(7));
+  void ilPavimentoDellaRaritaSiAlzaAOgniScaglione() {
+    Set<Rarity> openingRarities = drawnRarities(brain.lootRarityTable(1), new Random(7));
+    Set<Rarity> earlyRarities = drawnRarities(brain.lootRarityTable(3), new Random(7));
+    Set<Rarity> midRarities = drawnRarities(brain.lootRarityTable(6), new Random(7));
+    Set<Rarity> lateRarities = drawnRarities(brain.lootRarityTable(9), new Random(7));
 
-    assertTrue(EnumSet.of(Rarity.UNCOMMON, Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(firstLevelRarities),
-        "il primo livello non deve produrre nulla sotto UNCOMMON");
-    assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(laterLevelRarities),
-        "dal secondo livello in poi non deve comparire nulla sotto RARE");
+    assertTrue(EnumSet.of(Rarity.UNCOMMON, Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(openingRarities),
+        "le prove 1-2 non devono produrre nulla sotto UNCOMMON");
+    assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(earlyRarities),
+        "le prove 3-5 non devono produrre nulla sotto RARE");
+    assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(midRarities),
+        "le prove 6-8 non devono produrre nulla sotto RARE");
+    assertTrue(EnumSet.of(Rarity.EPIC, Rarity.LEGENDARY).containsAll(lateRarities),
+        "le prove 9-10 non devono produrre nulla sotto EPIC");
   }
 
   private Set<Rarity> drawnRarities(RarityTable table, Random random) {

@@ -1,25 +1,23 @@
 package it.fantasyarena;
 
-import it.fantasyarena.combat.Arena;
-import it.fantasyarena.combat.io.terminal.ScreenRefresh;
 import it.fantasycombatsystem.config.CombatSettings;
 
 /**
- * Punto d'ingresso dell'applicazione: apre l'arena del protagonista e le lascia condurre la
- * partita. Tutto quello che c'era da chiedere all'utente sulla forma dello scontro non serve più —
- * le tre prove e la loro numerosità le decide l'{@link Arena} — e resta soltanto la scelta di come
- * rinfrescare lo schermo.
+ * Punto d'ingresso dell'applicazione: legge la {@link UiMode} dagli argomenti della riga di comando
+ * e la lascia avviarsi. Nessun argomento apre l'arena in console, esattamente come prima che la
+ * modalità web esistesse; l'argomento {@code "web"} avvia il server al suo posto, senza giocare né
+ * stampare nessuno scontro in console.
  *
  * <p>I singoli scontri li mette in scena {@code it.fantasyarena.combat.MatchRunner}, di cui l'arena
- * si serve una volta per prova.
+ * si serve una volta per prova, sia in console sia nella partita muta che alimenta il server.
+ *
+ * <p></p>Accedi a http://127.0.0.1:8080/ per la versione web.</p>
  */
 public class Main {
 
   public static void main(String[] args) {
     CombatSettings settings = CombatSettings.defaults();
-    // ScreenRefresh screenRefresh = new CombatSetupPrompt().askScreenRefresh();
-    ScreenRefresh screenRefresh = ScreenRefresh.CLEAR;
 
-    new Arena(settings, screenRefresh).run();
+    UiMode.fromArgs(args).launch(settings);
   }
 }

@@ -15,13 +15,16 @@ import it.fantasytoolkitcore.core.model.Characteristic;
  * narrazione non può divergere da quello che è davvero successo: è la stessa cosa, letta due
  * volte.
  *
- * <p>Il {@link #loot()} c'è sempre, ma il suo destino è uno solo fra sei, ed è mutuamente
- * esclusivo col tipo di oggetto trovato: un'arma diventa {@link #weaponSwap()} o niente (tenuta la
- * propria), un pezzo d'armatura diventa {@link #newPiece()} o {@link #armourUpgrade()} o niente
- * (scartato), un gioiello diventa {@link #newJewel()} o {@link #jewelUpgrade()} o niente
- * (scartato). Nessuna stringa qui dentro: la formattazione è del renderer. I campi del destino sono
- * nulli quando quel destino non si è verificato e affiorano come {@link Optional} solo in lettura,
- * come già {@code weaponSwap} prima di questo cambio.
+ * <p>Il {@link #loot()} c'è sempre, e il suo destino si legge con {@link #lootFate()}: un
+ * {@link LootFate} fra otto, mutuamente esclusivo col tipo di oggetto trovato. I cinque campi che
+ * seguono restano il dettaglio da cui quel destino si ricava — un'arma diventa
+ * {@link #weaponSwap()} o niente (tenuta la propria), un pezzo d'armatura diventa
+ * {@link #newPiece()} o {@link #armourUpgrade()} o niente (scartato), un gioiello diventa
+ * {@link #newJewel()} o {@link #jewelUpgrade()} o niente (scartato) — ma chi vuole sapere solo
+ * <em>cosa</em> è successo, non ricostruirlo, legge {@link #lootFate()}. Nessuna stringa qui
+ * dentro: la formattazione è del renderer. I campi del destino sono nulli quando quel destino non
+ * si è verificato e affiorano come {@link Optional} solo in lettura, come già {@code weaponSwap}
+ * prima di questo cambio.
  */
 public final class HeroProgress {
 
@@ -63,6 +66,39 @@ public final class HeroProgress {
    */
   public Loot loot() {
     return loot;
+  }
+
+  /**
+   * Il destino dell'oggetto trovato, risolto in un punto solo incrociando il tipo di {@link #loot()}
+   * con quale dei cinque campi del destino è valorizzato. È la lettura da preferire a chi vuole
+   * discriminare il caso senza ricostruirlo da una catena di {@link Optional#isPresent()}.
+   */
+  public LootFate lootFate() {
+    if (loot.weapon().isPresent()) {
+      return weaponFate();
+    }
+    if (loot.armourPiece().isPresent()) {
+      return armourFate();
+    }
+    return jewelFate();
+  }
+
+  private LootFate weaponFate() {
+    return weaponSwap != null ? LootFate.WEAPON_TAKEN : LootFate.WEAPON_DISCARDED;
+  }
+
+  private LootFate armourFate() {
+    if (newPiece != null) {
+      return LootFate.ARMOUR_WORN_ON_EMPTY_SLOT;
+    }
+    return armourUpgrade != null ? LootFate.ARMOUR_REPLACED : LootFate.ARMOUR_DISCARDED;
+  }
+
+  private LootFate jewelFate() {
+    if (newJewel != null) {
+      return LootFate.JEWEL_WORN_ON_EMPTY_TYPE;
+    }
+    return jewelUpgrade != null ? LootFate.JEWEL_REPLACED : LootFate.JEWEL_DISCARDED;
   }
 
   /**

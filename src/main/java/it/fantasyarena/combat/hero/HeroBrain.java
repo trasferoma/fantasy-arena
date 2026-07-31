@@ -63,10 +63,10 @@ public class HeroBrain {
       Rarity.LEGENDARY, 4);
 
   /**
-   * La distribuzione della rarità del loot alla prova d'apertura: è la più generosa delle due, con
-   * un margine di fortuna che arriva fino a {@code LEGENDARY} ma resta improbabile.
+   * La distribuzione della rarità del loot alle prove 1-2: è la più generosa dei quattro scaglioni,
+   * con un margine di fortuna che arriva fino a {@code LEGENDARY} ma resta improbabile.
    */
-  private static final RarityTable OPENING_TRIAL_LOOT_RARITY_TABLE = RarityTable.builder()
+  private static final RarityTable OPENING_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
       .entry(Rarity.UNCOMMON, 50)
       .entry(Rarity.RARE, 24)
       .entry(Rarity.EPIC, 16)
@@ -74,14 +74,34 @@ public class HeroBrain {
       .build();
 
   /**
-   * La distribuzione della rarità del loot dalla seconda prova in poi: alza il grado minimo
-   * estraibile a {@code RARE} rispetto a {@link #OPENING_TRIAL_LOOT_RARITY_TABLE} e resta uguale fra
-   * la seconda e la terza prova.
+   * La distribuzione della rarità del loot alle prove 3-5: alza il grado minimo estraibile a
+   * {@code RARE} rispetto a {@link #OPENING_TRIALS_LOOT_RARITY_TABLE}.
    */
-  private static final RarityTable ADVANCED_TRIAL_LOOT_RARITY_TABLE = RarityTable.builder()
+  private static final RarityTable EARLY_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
       .entry(Rarity.RARE, 48)
       .entry(Rarity.EPIC, 32)
       .entry(Rarity.LEGENDARY, 20)
+      .build();
+
+  /**
+   * La distribuzione della rarità del loot alle prove 6-8: resta con lo stesso pavimento
+   * {@code RARE} di {@link #EARLY_TRIALS_LOOT_RARITY_TABLE}, ma sposta il peso principale su
+   * {@code EPIC}.
+   */
+  private static final RarityTable MID_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
+      .entry(Rarity.RARE, 25)
+      .entry(Rarity.EPIC, 50)
+      .entry(Rarity.LEGENDARY, 25)
+      .build();
+
+  /**
+   * La distribuzione della rarità del loot alle prove 9-10, l'ultimo tratto del percorso: alza il
+   * pavimento a {@code EPIC} e resta l'unico scaglione in cui {@code LEGENDARY} supera un terzo
+   * delle estrazioni, pur restando minoritario.
+   */
+  private static final RarityTable LATE_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
+      .entry(Rarity.EPIC, 65)
+      .entry(Rarity.LEGENDARY, 35)
       .build();
 
   private static final Comparator<WeaponResult> BY_OFFENSIVE_VALUE = Comparator
@@ -115,21 +135,27 @@ public class HeroBrain {
 
   /**
    * La tabella con cui viene estratta la rarità del loot di quel livello. È il punto unico da
-   * toccare per ritarare la progressione della rarità.
+   * toccare per ritarare la progressione della rarità, a quattro scaglioni sul percorso a dieci
+   * prove: 1-2, 3-5, 6-8, 9-10.
    *
    * <p>La distribuzione è pesata, non uniforme: un pavimento espresso come rarità minima
    * ({@code minRarity}) renderebbe equiprobabili tutti i gradi dalla soglia in su, e un
    * {@code LEGENDARY} finirebbe per uscire tanto spesso quanto il grado del pavimento stesso — col
    * risultato che il loot sopra il raro diventa la norma invece dell'eccezione. È il difetto che
-   * questa tabella corregge. I pesi derivano dalla distribuzione
+   * ogni scaglione di questa tabella corregge, mantenendo {@code LEGENDARY} minoritario anche
+   * nell'ultimo tratto del percorso. I pesi del primo scaglione derivano dalla distribuzione
    * standard del toolkit (COMMON 50, UNCOMMON 25, RARE 12, EPIC 8, LEGENDARY 5), troncata del
    * grado {@code COMMON} e rinormalizzata a 100: nell'arena il loot di una vittoria non può mai
-   * essere comune.
+   * essere comune. I tre scaglioni successivi alzano progressivamente il pavimento e spostano il
+   * peso principale verso l'alto, così che un pavimento più alto a metà percorso non produca loot
+   * inerte contro slot ormai occupati da pezzi migliori.
    */
   public RarityTable lootRarityTable(int level) {
     return switch (level) {
-      case 1 -> OPENING_TRIAL_LOOT_RARITY_TABLE;
-      default -> ADVANCED_TRIAL_LOOT_RARITY_TABLE;
+      case 1, 2 -> OPENING_TRIALS_LOOT_RARITY_TABLE;
+      case 3, 4, 5 -> EARLY_TRIALS_LOOT_RARITY_TABLE;
+      case 6, 7, 8 -> MID_TRIALS_LOOT_RARITY_TABLE;
+      default -> LATE_TRIALS_LOOT_RARITY_TABLE;
     };
   }
 

@@ -17,20 +17,23 @@ import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
- * Verifica {@link FighterFactory#createChallengers(int)} (numerosità richiesta, nomi tutti
- * distinti, rarità di arma/armatura condivise da tutti, cosi' che nessuno parta avvantaggiato) e
- * {@link FighterFactory#rollLoot(RarityTable)} (rarità sempre contenuta in quelle dichiarate nella
- * tabella, tutti i tipi estraibili su più generazioni).
+ * Verifica {@link FighterFactory#createChallengers(int, int)} (numerosità e monte punti richiesti,
+ * nomi tutti distinti, rarità di arma/armatura condivise da tutti, cosi' che nessuno parta
+ * avvantaggiato) e {@link FighterFactory#rollLoot(RarityTable)} (rarità sempre contenuta in quelle
+ * dichiarate nella tabella, tutti i tipi estraibili su più generazioni).
  */
 class FighterFactoryTest {
 
   private static final int MANY_ROLLS = 200;
+
+  private static final int CHALLENGER_CHARACTERISTIC_POINTS = 15;
 
   private static final RarityTable RARE_TO_LEGENDARY_TABLE = RarityTable.builder()
       .entry(Rarity.RARE, 50)
@@ -46,7 +49,7 @@ class FighterFactoryTest {
 
   @Test
   void creaCinqueCombattentiConCinqueNomiDistintiEStessaRarita() {
-    List<Fighter> fighters = factory.createChallengers(5);
+    List<Fighter> fighters = factory.createChallengers(5, CHALLENGER_CHARACTERISTIC_POINTS);
 
     assertEquals(5, fighters.size());
 
@@ -63,9 +66,36 @@ class FighterFactoryTest {
     assertEquals(1, armourRarities.size(), "l'armatura deve avere la stessa rarità per tutti");
   }
 
+  /**
+   * Il monte punti richiesto è la base distribuita dal generatore, non la somma finale: i bonus di
+   * razza e classe restano attivi per gli sfidanti (a differenza dello specchio, che li disattiva
+   * per eguagliare esattamente il protagonista) e sono sempre positivi, quindi la somma reale supera
+   * sempre quella richiesta, mai la eguaglia né la scavalca al ribasso.
+   */
+  @Test
+  void ogniSfidanteRiceveAlmenoIlMontePuntiRichiestoPiuIBonusDiRazzaEClasse() {
+    int requestedPoints = 24;
+
+    List<Fighter> fighters = factory.createChallengers(3, requestedPoints);
+
+    fighters.forEach(fighter -> {
+      int totalPoints = fighter.character().characteristics().stream()
+          .mapToInt(CharacterCharacteristic::value)
+          .sum();
+      assertTrue(totalPoints > requestedPoints,
+          "il monte punti richiesto è la base: i bonus di razza e classe la fanno sempre crescere");
+    });
+  }
+
   @Test
   void rifiutaUnaNumerositaMinoreDiUno() {
-    assertThrows(IllegalArgumentException.class, () -> factory.createChallengers(0));
+    assertThrows(IllegalArgumentException.class,
+        () -> factory.createChallengers(0, CHALLENGER_CHARACTERISTIC_POINTS));
+  }
+
+  @Test
+  void rifiutaUnMontePuntiMinoreDiUno() {
+    assertThrows(IllegalArgumentException.class, () -> factory.createChallengers(1, 0));
   }
 
   @Test

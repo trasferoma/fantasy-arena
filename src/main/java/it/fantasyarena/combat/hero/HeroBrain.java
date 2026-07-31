@@ -20,6 +20,7 @@ import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Characteristic;
 import it.fantasytoolkitcore.core.model.Rarity;
+import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
  * Tutte le scelte del protagonista, in un posto solo: se l'unico oggetto trovato a fine livello
@@ -61,6 +62,28 @@ public class HeroBrain {
       Rarity.EPIC, 3,
       Rarity.LEGENDARY, 4);
 
+  /**
+   * La distribuzione della rarità del loot alla prova d'apertura: è la più generosa delle due, con
+   * un margine di fortuna che arriva fino a {@code LEGENDARY} ma resta improbabile.
+   */
+  private static final RarityTable OPENING_TRIAL_LOOT_RARITY_TABLE = RarityTable.builder()
+      .entry(Rarity.UNCOMMON, 50)
+      .entry(Rarity.RARE, 24)
+      .entry(Rarity.EPIC, 16)
+      .entry(Rarity.LEGENDARY, 10)
+      .build();
+
+  /**
+   * La distribuzione della rarità del loot dalla seconda prova in poi: alza il grado minimo
+   * estraibile a {@code RARE} rispetto a {@link #OPENING_TRIAL_LOOT_RARITY_TABLE} e resta uguale fra
+   * la seconda e la terza prova.
+   */
+  private static final RarityTable ADVANCED_TRIAL_LOOT_RARITY_TABLE = RarityTable.builder()
+      .entry(Rarity.RARE, 48)
+      .entry(Rarity.EPIC, 32)
+      .entry(Rarity.LEGENDARY, 20)
+      .build();
+
   private static final Comparator<WeaponResult> BY_OFFENSIVE_VALUE = Comparator
       .comparingInt(WeaponResult::attack)
       .thenComparingInt(weapon -> weapon.rarity().ordinal());
@@ -91,14 +114,22 @@ public class HeroBrain {
   }
 
   /**
-   * La rarità minima con cui il loot di quel livello viene generato: la prova d'apertura è la più
-   * generosa nel margine di fortuna concesso, le due successive alzano il pavimento e restano
-   * uguali fra loro. È il punto unico da toccare per ritarare la progressione della rarità.
+   * La tabella con cui viene estratta la rarità del loot di quel livello. È il punto unico da
+   * toccare per ritarare la progressione della rarità.
+   *
+   * <p>La distribuzione è pesata, non uniforme: un pavimento espresso come rarità minima
+   * ({@code minRarity}) renderebbe equiprobabili tutti i gradi dalla soglia in su, e un
+   * {@code LEGENDARY} finirebbe per uscire tanto spesso quanto il grado del pavimento stesso — col
+   * risultato che il loot sopra il raro diventa la norma invece dell'eccezione. È il difetto che
+   * questa tabella corregge. I pesi derivano dalla distribuzione
+   * standard del toolkit (COMMON 50, UNCOMMON 25, RARE 12, EPIC 8, LEGENDARY 5), troncata del
+   * grado {@code COMMON} e rinormalizzata a 100: nell'arena il loot di una vittoria non può mai
+   * essere comune.
    */
-  public Rarity lootRarityFloor(int level) {
+  public RarityTable lootRarityTable(int level) {
     return switch (level) {
-      case 1 -> Rarity.UNCOMMON;
-      default -> Rarity.RARE;
+      case 1 -> OPENING_TRIAL_LOOT_RARITY_TABLE;
+      default -> ADVANCED_TRIAL_LOOT_RARITY_TABLE;
     };
   }
 

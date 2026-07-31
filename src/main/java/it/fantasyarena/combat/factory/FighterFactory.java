@@ -20,6 +20,7 @@ import it.fantasytoolkitcore.core.model.CharacterClass;
 import it.fantasytoolkitcore.core.model.ClassBonusTable;
 import it.fantasytoolkitcore.core.model.RaceBonusTable;
 import it.fantasytoolkitcore.core.model.Rarity;
+import it.fantasytoolkitcore.core.model.RarityTable;
 import it.fantasytoolkitcore.core.model.Weapon;
 
 import java.util.ArrayList;
@@ -162,16 +163,17 @@ public class FighterFactory {
     }
 
     /**
-     * Il loot di fine livello: un tipo estratto a caso fra arma, armatura e gioiello, generato alla
-     * rarita' minima decisa dal {@code HeroBrain} per quel livello. Qui vive solo l'estrazione e la
-     * generazione: se valga la pena tenere l'oggetto lo decide il cervello, non questa factory.
+     * Il loot di fine livello: un tipo estratto a caso fra arma, armatura e gioiello, generato con
+     * la rarita' pescata dalla {@code RarityTable} decisa dal {@code HeroBrain} per quel livello.
+     * Qui vive solo l'estrazione e la generazione: se valga la pena tenere l'oggetto lo decide il
+     * cervello, non questa factory.
      */
-    public Loot rollLoot(Rarity rarityFloor) {
+    public Loot rollLoot(RarityTable rarityTable) {
         LootKind kind = LootKind.values()[random.nextInt(LootKind.values().length)];
         return switch (kind) {
-            case WEAPON -> Loot.ofWeapon(generateLootWeapon(rarityFloor));
-            case ARMOUR -> Loot.ofArmourPiece(generateLootArmour(rarityFloor));
-            case JEWEL -> Loot.ofJewel(generateJewel(rarityFloor));
+            case WEAPON -> Loot.ofWeapon(generateLootWeapon(rarityTable));
+            case ARMOUR -> Loot.ofArmourPiece(generateLootArmour(rarityTable));
+            case JEWEL -> Loot.ofJewel(generateJewel(rarityTable));
         };
     }
 
@@ -227,10 +229,10 @@ public class FighterFactory {
      * il toolkit contiene anche armi a distanza e bastoni che nell'arena non ci sono mai stati, e il
      * loot non deve introdurli di soppiatto.
      */
-    private WeaponResult generateLootWeapon(Rarity rarityFloor) {
+    private WeaponResult generateLootWeapon(RarityTable rarityTable) {
         return WeaponGeneratorTool.building()
                 .weapon(pickMeleeWeapon())
-                .minRarity(rarityFloor)
+                .rarityTable(rarityTable)
                 .noStatusEffect()
                 .generate();
     }
@@ -263,12 +265,12 @@ public class FighterFactory {
 
     /**
      * Il pezzo d'armatura di loot: slot casuale come l'equipaggiamento di partenza, ma con la
-     * rarita' minima del livello al posto di quella standard.
+     * rarita' pescata dalla tabella del livello al posto di quella standard.
      */
-    private ArmourResult generateLootArmour(Rarity rarityFloor) {
+    private ArmourResult generateLootArmour(RarityTable rarityTable) {
         return ArmourGeneratorTool.building()
                 .randomArmour()
-                .minRarity(rarityFloor)
+                .rarityTable(rarityTable)
                 .noStatusEffect()
                 .generate();
     }
@@ -277,10 +279,10 @@ public class FighterFactory {
      * Il gioiello di loot: non ha equivalente nell'equipaggiamento di partenza, perche' il gioiello
      * non e' mai stato equipaggiamento nell'arena prima del loot.
      */
-    private JewelResult generateJewel(Rarity rarityFloor) {
+    private JewelResult generateJewel(RarityTable rarityTable) {
         return JewelGeneratorTool.building()
                 .randomJewel()
-                .minRarity(rarityFloor)
+                .rarityTable(rarityTable)
                 .noStatusEffect()
                 .generate();
     }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -19,16 +20,27 @@ import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Rarity;
+import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
  * Verifica {@link FighterFactory#createChallengers(int)} (numerosità richiesta, nomi tutti
  * distinti, rarità di arma/armatura condivise da tutti, cosi' che nessuno parta avvantaggiato) e
- * {@link FighterFactory#rollLoot(Rarity)} (rarità mai sotto la soglia, tutti i tipi estraibili su
- * più generazioni).
+ * {@link FighterFactory#rollLoot(RarityTable)} (rarità sempre contenuta in quelle dichiarate nella
+ * tabella, tutti i tipi estraibili su più generazioni).
  */
 class FighterFactoryTest {
 
   private static final int MANY_ROLLS = 200;
+
+  private static final RarityTable RARE_TO_LEGENDARY_TABLE = RarityTable.builder()
+      .entry(Rarity.RARE, 50)
+      .entry(Rarity.EPIC, 30)
+      .entry(Rarity.LEGENDARY, 20)
+      .build();
+
+  private static final RarityTable COMMON_ONLY_TABLE = RarityTable.builder()
+      .entry(Rarity.COMMON, 100)
+      .build();
 
   private final FighterFactory factory = FighterFactory.withDefaultRatings(CombatSettings.defaults());
 
@@ -57,13 +69,13 @@ class FighterFactoryTest {
   }
 
   @Test
-  void ilLootNonScendeMaiSottoLaSogliaDiRarita() {
-    for (Rarity floor : Rarity.values()) {
-      IntStream.range(0, MANY_ROLLS)
-          .mapToObj(roll -> factory.rollLoot(floor))
-          .forEach(loot -> assertTrue(rarityOf(loot).ordinal() >= floor.ordinal(),
-              "il loot non deve mai scendere sotto " + floor));
-    }
+  void ilLootRestaSempreDentroLeRaritaDichiarateNellaTabella() {
+    Set<Rarity> allowedRarities = EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY);
+
+    IntStream.range(0, MANY_ROLLS)
+        .mapToObj(roll -> factory.rollLoot(RARE_TO_LEGENDARY_TABLE))
+        .forEach(loot -> assertTrue(allowedRarities.contains(rarityOf(loot)),
+            "il loot deve restare fra le rarità dichiarate nella tabella"));
   }
 
   @Test
@@ -71,7 +83,7 @@ class FighterFactoryTest {
     Set<String> kindsFound = new HashSet<>();
 
     for (int roll = 0; roll < MANY_ROLLS; roll++) {
-      Loot loot = factory.rollLoot(Rarity.COMMON);
+      Loot loot = factory.rollLoot(COMMON_ONLY_TABLE);
       loot.weapon().ifPresent(found -> kindsFound.add("WEAPON"));
       loot.armourPiece().ifPresent(found -> kindsFound.add("ARMOUR"));
       loot.jewel().ifPresent(found -> kindsFound.add("JEWEL"));

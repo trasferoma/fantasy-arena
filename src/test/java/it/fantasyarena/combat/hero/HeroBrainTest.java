@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +22,7 @@ import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
 import it.fantasytoolkitcore.core.model.Jewel;
 import it.fantasytoolkitcore.core.model.Rarity;
+import it.fantasytoolkitcore.core.model.RarityTable;
 import it.fantasytoolkitcore.core.model.Weapon;
 
 /**
@@ -32,13 +35,35 @@ class HeroBrainTest {
 
   private static final int POINTS_PER_VICTORY = 3;
 
+  private static final int RARITY_SAMPLE_SIZE = 500;
+
   private final HeroBrain brain = new HeroBrain(new Random(42));
 
   @Test
-  void laSogliaDiRaritaCresceConIlLivello() {
-    assertEquals(Rarity.UNCOMMON, brain.lootRarityFloor(1));
-    assertEquals(Rarity.RARE, brain.lootRarityFloor(2));
-    assertEquals(Rarity.RARE, brain.lootRarityFloor(3));
+  void laTabellaDiRaritaDelLootELaStessaDalSecondoLivelloInPoi() {
+    RarityTable secondLevelTable = brain.lootRarityTable(2);
+    RarityTable thirdLevelTable = brain.lootRarityTable(3);
+
+    assertSame(secondLevelTable, thirdLevelTable, "il secondo e il terzo livello condividono la stessa tabella");
+  }
+
+  @Test
+  void laTabellaDiRaritaDelPrimoLivelloPuoScendereFinoAUncommonQuelleSuccessiveNo() {
+    Set<Rarity> firstLevelRarities = drawnRarities(brain.lootRarityTable(1), new Random(7));
+    Set<Rarity> laterLevelRarities = drawnRarities(brain.lootRarityTable(2), new Random(7));
+
+    assertTrue(EnumSet.of(Rarity.UNCOMMON, Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(firstLevelRarities),
+        "il primo livello non deve produrre nulla sotto UNCOMMON");
+    assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(laterLevelRarities),
+        "dal secondo livello in poi non deve comparire nulla sotto RARE");
+  }
+
+  private Set<Rarity> drawnRarities(RarityTable table, Random random) {
+    Set<Rarity> rarities = EnumSet.noneOf(Rarity.class);
+    for (int draw = 0; draw < RARITY_SAMPLE_SIZE; draw++) {
+      rarities.add(table.draw(random));
+    }
+    return rarities;
   }
 
   @Test

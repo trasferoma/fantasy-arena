@@ -36,6 +36,7 @@ import it.fantasycombatsystem.factory.FighterAssembler;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.CombatOutcome;
 import it.fantasycombatsystem.result.CombatResult;
+import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.TurnLogEntry;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 
@@ -195,6 +196,17 @@ class ArenaTest {
   }
 
   @Test
+  void ogniProvaPortaLoStatoFinaleDeiCombattenti() {
+    ScriptedFights fights = scriptedAllWins();
+
+    ArenaChronicle chronicle = arenaWith(fights).run();
+
+    for (TrialChronicle trial : chronicle.trials()) {
+      assertFalse(trial.finalVitals().isEmpty(), "prova numero " + trial.number() + " senza stato finale");
+    }
+  }
+
+  @Test
   void ogniProvaVintaPortaIDatiDellaProceduraDiFineScontro() {
     ScriptedFights fights = scriptedAllWins();
 
@@ -323,6 +335,13 @@ class ArenaTest {
    */
   private static final class ScriptedFights extends MatchRunner {
 
+    /**
+     * Stato finale fabbricato, uguale per ogni prova del copione: basta a verificare che
+     * {@link Arena} lo trasporti nella cronaca, non a raccontare un combattimento vero.
+     */
+    private static final List<FighterVitals> STUB_FINAL_VITALS =
+        List.of(new FighterVitals("Campione", 20, 40, 10, 20), new FighterVitals("Sfidante", 0, 40, 0, 20));
+
     private final List<FightOutcome> outcomes;
     private final List<List<Fighter>> challengersByRound = new ArrayList<>();
     private final List<Presentation> presentationByRound = new ArrayList<>();
@@ -359,7 +378,7 @@ class ArenaTest {
      */
     private BattleResult oneRoundBattleResult() {
       return new BattleResult(CombatOutcome.DRAW, null, 1,
-          List.of(new RoundLogEntry(1, List.of(), List.of(), List.of())), List.of(), List.of(), List.of());
+          List.of(new RoundLogEntry(1, List.of(), List.of(), List.of())), STUB_FINAL_VITALS, List.of(), List.of());
     }
 
     /**
@@ -368,7 +387,7 @@ class ArenaTest {
      */
     private CombatResult oneTurnCombatResult() {
       return new CombatResult(CombatOutcome.DRAW, null, 1, List.of(new TurnLogEntry(1, "Scambio di prova")),
-          List.of(), List.of());
+          STUB_FINAL_VITALS, List.of());
     }
 
     private void play(List<Fighter> heroTeam, List<Fighter> challengers) {

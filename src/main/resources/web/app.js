@@ -130,6 +130,7 @@ function buildMoments(chronicle) {
   const totalTrials = chronicle.plannedTrials;
   const moments = [];
   chronicle.trials.forEach((trial, trialIndex) => {
+    moments.push(buildSetupMoment(trial, trialIndex, totalTrials));
     buildTrialStepMoments(trial, trialIndex, totalTrials).forEach(moment => moments.push(moment));
     if (trial.progress) {
       moments.push(buildProgressMoment(trial, trialIndex, totalTrials));
@@ -139,32 +140,87 @@ function buildMoments(chronicle) {
   return moments;
 }
 
-function buildTrialStepMoments(trial, trialIndex, totalTrials) {
-  const isBattle = trial.shape === 'BATTLE';
-  const steps = isBattle ? trial.rounds : trial.turns;
-  return steps.map((step, stepIndex) => {
-    const isFinalStep = stepIndex === steps.length - 1;
-    return isBattle
-        ? buildBattleStepMoment(trial, trialIndex, totalTrials, step, isFinalStep)
-        : buildDuelStepMoment(trial, trialIndex, totalTrials, step, isFinalStep);
-  });
-}
-
-function buildBattleStepMoment(trial, trialIndex, totalTrials, round, isFinalStep) {
-  const vitals = alignVitalsToRoster(trial.roster, round.vitals);
-  const engagements = round.turns.map(engagementTurn => buildEngagement(trial.roster, engagementTurn));
-  // Nella battaglia l'attore di uno scambio è, per costruzione del motore, chi ha vinto
-  // l'iniziativa: l'indice non richiede nessuna inferenza per nome (decisione 6 della SPEC).
-  const initiativeRosterIndexes = round.turns.map(engagementTurn => engagementTurn.attackerIndex);
+// I campi comuni a ogni momento di una prova (passo, procedura, o il passo zero di apertura):
+// fattorizzati qui perché i quattro costruttori che seguono li ripeterebbero altrimenti tutti e
+// sei identici, con l'unica differenza del tipo di momento e se l'esito va già rivelato.
+function buildTrialMomentBase(kind, trial, trialIndex, totalTrials, showOutcome) {
   return {
-    kind: 'step',
+    kind,
     trialIndex,
     trialNumber: trial.number,
     totalTrials,
     description: trial.description,
     shape: trial.shape,
     outcome: trial.outcome,
-    showOutcome: isFinalStep,
+    showOutcome,
+  };
+}
+
+// Il passo zero di ogni prova: schede, equipaggiamento e caratteristiche già pronti, ma vita e
+// stamina piene e nessuno scambio ancora accaduto. Non è una finzione, è lo stato vero dell'istante
+// che precede lo scontro: a ogni prova il protagonista viene materializzato di nuovo dalla sua
+// scheda (è da lì che arriva la cura completa) e gli sfidanti nascono in quello stesso istante, mai
+// feriti prima del primo passo.
+function buildSetupMoment(trial, trialIndex, totalTrials) {
+  return {
+    ...buildTrialMomentBase('setup', trial, trialIndex, totalTrials, false),
+    roster: trial.roster,
+    vitals: fullVitalsOf(trial.roster),
+  };
+}
+
+// Vita e stamina piene per l'intero roster, ricavate dai massimi che ogni voce del roster porta
+// già: non serve una fotografia in più dal backend, il passo zero è interamente derivabile da dati
+// che la cronaca ha comunque.
+function fullVitalsOf(roster) {
+  return roster.map(fighter => ({
+    name: fighter.name,
+    currentHealth: fighter.maxHealth,
+    maxHealth: fighter.maxHealth,
+    currentStamina: fighter.maxStamina,
+    maxStamina: fighter.maxStamina,
+  }));
+}
+
+function buildTrialStepMoments(trial, trialIndex, totalTrials) {
+  const isBattle = trial.shape === 'BATTLE';
+  const steps = isBattle ? trial.rounds : trial.turns;
+  return steps.map((step, stepIndex) => {
+    const isFinalStep = stepIndex === steps.length - 1;
+    const vitalsAfter = vitalsAfterStep(trial, steps, stepIndex, isBattle);
+    return isBattle
+        ? buildBattleStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter)
+        : buildDuelStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter);
+  });
+}
+
+// Il motore fotografa i vitali in due istanti diversi nelle due forme, ed è una trappola che vale
+// la pena documentare ogni volta che la si incontra: il round della battaglia porta già lo stato di
+// fine round (BattleEngine.buildRoundLogEntry), ma il turno del duello porta lo stato di inizio
+// turno (EngagementTurnPlayer.play, "startOfRoundVitals"). Questo è l'unico punto che risolve "lo
+// stato dopo il passo" per entrambe le forme, così la pagina racconta lo stesso momento della
+// console (vedi CombatScreenRenderer.vitalsAfter, che affronta esattamente lo stesso problema).
+function vitalsAfterStep(trial, steps, stepIndex, isBattle) {
+  return isBattle ? steps[stepIndex].vitals : duelVitalsAfterTurn(trial, steps, stepIndex);
+}
+
+// Il turno successivo porta lo stato dopo il passo corrente; per l'ultimo turno — o quando il
+// turno successivo non ha vitali utilizzabili — si ripiega su "trial.finalVitals", l'unico posto in
+// cui lo stato dopo l'ultimo turno del duello è disponibile (il log non lo contiene mai).
+function duelVitalsAfterTurn(trial, turns, stepIndex) {
+  const nextTurn = turns[stepIndex + 1];
+  const hasUsableNextVitals = nextTurn && nextTurn.vitals && nextTurn.vitals.length > 0;
+  return hasUsableNextVitals ? nextTurn.vitals : trial.finalVitals;
+}
+
+function buildBattleStepMoment(trial, trialIndex, totalTrials, round, isFinalStep, vitalsAfter) {
+  const vitals = alignVitalsToRoster(trial.roster, vitalsAfter);
+  const engagements = round.turns.map(engagementTurn => buildEngagement(trial.roster, engagementTurn));
+  // Nella battaglia l'attore di uno scambio è, per costruzione del motore, chi ha vinto
+  // l'iniziativa: l'indice non richiede nessuna inferenza per nome (decisione 6 della SPEC).
+  const initiativeRosterIndexes = round.turns.map(engagementTurn => engagementTurn.attackerIndex);
+  return {
+    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep),
     roster: trial.roster,
     vitals,
     initiativeRosterIndexes,
@@ -243,21 +299,14 @@ function resolveRosterIndexByName(roster, name) {
   return matches.length === 1 ? matches[0].rosterIndex : null;
 }
 
-function buildDuelStepMoment(trial, trialIndex, totalTrials, turn, isFinalStep) {
-  const vitals = alignVitalsToRoster(trial.roster, turn.vitals);
+function buildDuelStepMoment(trial, trialIndex, totalTrials, turn, isFinalStep, vitalsAfter) {
+  const vitals = alignVitalsToRoster(trial.roster, vitalsAfter);
   // Un turno di duello può non portare il report d'iniziativa: senza guardia, "chosenName" spegne
   // la pagina con un TypeError (il difetto latente segnalato dalla SPEC).
   const chosenName = turn.initiative ? turn.initiative.chosenName : null;
   const actorIndex = resolveRosterIndexByName(trial.roster, chosenName);
   return {
-    kind: 'step',
-    trialIndex,
-    trialNumber: trial.number,
-    totalTrials,
-    description: trial.description,
-    shape: trial.shape,
-    outcome: trial.outcome,
-    showOutcome: isFinalStep,
+    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep),
     roster: trial.roster,
     vitals,
     initiativeRosterIndexes: actorIndex === null ? [] : [actorIndex],
@@ -285,14 +334,7 @@ function buildDuelCenterExchange(roster, actorIndex, action) {
 
 function buildProgressMoment(trial, trialIndex, totalTrials) {
   return {
-    kind: 'progress',
-    trialIndex,
-    trialNumber: trial.number,
-    totalTrials,
-    description: trial.description,
-    shape: trial.shape,
-    outcome: trial.outcome,
-    showOutcome: true,
+    ...buildTrialMomentBase('progress', trial, trialIndex, totalTrials, true),
     progress: trial.progress,
   };
 }
@@ -723,6 +765,16 @@ function renderStepPanel(moment) {
   }
 }
 
+// Il pannello del passo zero: nessuno scambio da raccontare, solo la dichiarazione che lo scontro
+// non è ancora cominciato. Nel registro delle altre fasi (vedi "vita e stamina tornano piene" della
+// procedura di fine scontro).
+function renderSetupStepPanel() {
+  const panel = document.getElementById('step-panel');
+  clearChildren(panel);
+  panel.appendChild(textEl('h3', 'Prima dello scontro'));
+  panel.appendChild(textEl('p', 'Vita e stamina sono piene: lo scontro non è ancora cominciato.'));
+}
+
 function renderProgressPanel(moment) {
   const panel = document.getElementById('progress-panel');
   clearChildren(panel);
@@ -755,6 +807,18 @@ function renderConclusionPanel(conclusion) {
 function renderMoment(moment) {
   renderHeader(moment);
   updateTrialPath(moment);
+  if (moment.kind === 'setup') {
+    showSection('battlefield');
+    showSection('step-panel');
+    hideSection('progress-panel');
+    hideSection('conclusion-panel');
+    // Nessuna iniziativa e nessuno scambio prima del primo passo: schieramenti pieni, colonna
+    // centrale vuota.
+    renderBattlefield(moment.roster, moment.vitals, []);
+    renderBattleCenter([]);
+    renderSetupStepPanel();
+    return;
+  }
   if (moment.kind === 'step') {
     showSection('battlefield');
     showSection('step-panel');
@@ -788,6 +852,9 @@ function updateControls(status) {
   playPauseButton.disabled = status.atEnd && !status.playing;
   playPauseButton.textContent = status.playing ? 'Pausa' : 'Play';
 
+  // La barra e il contatore restano nascosti in vista (".timeline-control[hidden]" in app.css),
+  // non rimossi dal DOM: sono uno spoiler nascosto, non un comando tolto. Continuano quindi ad
+  // aggiornarsi a ogni passo, pronti a ricomparire se un giorno la scelta di nasconderli cambiasse.
   const timeline = document.getElementById('timeline');
   timeline.max = String(status.totalMoments - 1);
   timeline.value = String(status.currentIndex);
@@ -804,6 +871,8 @@ function wireControls(player) {
   const speedSelect = document.getElementById('speed-select');
   speedSelect.addEventListener('change', () => player.setSpeed(Number(speedSelect.value)));
 
+  // Il listener resta agganciato anche a barra nascosta: un input di tipo "range" non smette di
+  // generare eventi solo perché il suo contenitore è "hidden", e in futuro potrebbe tornare visibile.
   const timeline = document.getElementById('timeline');
   timeline.addEventListener('input', () => player.jumpToIndex(Number(timeline.value)));
 }

@@ -149,6 +149,7 @@ class ChronicleJsonTest {
     assertVitalsKeys(turnLog.get("vitals").get(0));
     assertTrue(turnLog.get("action").has("damage"));
     assertTrue(battleTrial.get("rounds").get(0).has("events"));
+    assertVitalsKeys(battleTrial.get("finalVitals").get(0));
   }
 
   private void assertDuelTrialKeys(JsonNode duelTrial) {
@@ -160,6 +161,7 @@ class ChronicleJsonTest {
     assertTrue(turnLog.has("description"));
     assertVitalsKeys(turnLog.get("vitals").get(0));
     assertTrue(turnLog.get("action").has("critical"));
+    assertVitalsKeys(duelTrial.get("finalVitals").get(0));
   }
 
   private void assertVitalsKeys(JsonNode vitals) {
@@ -228,8 +230,11 @@ class ChronicleJsonTest {
 
     ProgressChronicle progress = progressChronicle(protagonist);
 
+    List<FighterVitals> finalVitals = List.of(new FighterVitals("Protagonista", 40, 40, 20, 20),
+        new FighterVitals("Rivale", 0, 40, 20, 20));
+
     return new TrialChronicle(1, "il primo avversario", TrialShape.BATTLE, List.of(heroSnapshot, rivalSnapshot),
-        List.of(round), List.of(), RoundOutcome.WON, progress);
+        List.of(round), List.of(), finalVitals, RoundOutcome.WON, progress);
   }
 
   private TrialChronicle duelTrial() {
@@ -251,7 +256,7 @@ class ChronicleJsonTest {
         .withAction(action);
 
     return new TrialChronicle(3, "lo sfidante speculare", TrialShape.DUEL, List.of(), List.of(), List.of(turnLog),
-        RoundOutcome.WON, null);
+        vitals, RoundOutcome.WON, null);
   }
 
   private ProgressChronicle progressChronicle(HeroSnapshot heroAfter) {

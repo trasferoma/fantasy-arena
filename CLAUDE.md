@@ -61,13 +61,37 @@ mvn exec:java -Dexec.args="web 9000"     # come sopra, su una porta scelta
 mvn package                              # produce il jar in target/
 ```
 
+Per la modalità web ci sono due script PowerShell nella radice, che sono il modo consigliato di avviarla
+perché fanno da soli le due cose che a mano si dimenticano (vedi le trappole qui sotto):
+
+```powershell
+.\start-web.ps1                          # rigenera le risorse, avvia staccato, attende la porta
+.\start-web.ps1 -Port 9000               # su una porta scelta
+.\stop-web.ps1                           # ferma chi ascolta sulla porta 8080
+.\stop-web.ps1 -Port 9000                # la porta va ripetuta anche allo stop
+```
+
+`start-web.ps1` restituisce il prompt e manda l'output del server in `target/web-server.log`, dove si
+leggono gli errori se la porta non si apre; rifiuta di partire se la porta è già occupata, dicendo quale
+PID la tiene. `stop-web.ps1` è idempotente: fermare ciò che è già fermo esce con successo. Sono UTF-8
+**con BOM**, che è ciò che rende leggibili gli accenti a Windows PowerShell 5.1: se li riscrivi senza
+BOM, i commenti e i messaggi si corrompono.
+
 In modalità web su console va **soltanto** l'indirizzo da aprire: la partita si guarda nel browser, e
 ogni ricarica della pagina è una partita nuova. La porta è opzionale e vale `8080` per difetto; se è già
 occupata l'avvio **fallisce con un messaggio esplicito** che la nomina, invece di cercarne una libera in
 silenzio — l'indirizzo stampato deve restare prevedibile. Un argomento non riconosciuto è un errore che
 elenca le modalità ammesse, non un ripiego silenzioso sulla console.
 
-Attenzione a una trappola quando si prova a mano: **fermare il processo Maven non uccide la JVM che ha
+Attenzione a **due** trappole quando si prova a mano — sono la ragione per cui i due script esistono.
+
+La prima: **`exec:java` non aggiorna le risorse della pagina.** La pagina si serve dal classpath
+(`target/classes/web/`), e `exec:java` da solo non ricopia `src/main/resources/web/`. Chi modifica
+`index.html`, `app.js` o `app.css` e riavvia senza `mvn process-resources` (o `mvn compile`) guarda la
+versione vecchia e non capisce perché la modifica «non c'è». Il sintomo è insidioso perché il server
+risponde normalmente: serve solo un file diverso da quello che hai appena scritto.
+
+La seconda: **fermare il processo Maven non uccide la JVM che ha
 generato**, che resta in ascolto e continua a tenere la porta. Se una verifica sul server dà un
 risultato inspiegabile, controllare *chi* ascolta (`netstat -ano | grep 8080`) e chiudere quel PID:
 altrimenti si sta interrogando il processo vecchio con le classi di prima.

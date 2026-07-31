@@ -29,6 +29,7 @@ import it.fantasycombatsystem.battle.RoundLogEntry;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.CombatResult;
+import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.TurnLogEntry;
 import it.fantasytoolkitcore.core.model.RarityTable;
 
@@ -233,8 +234,8 @@ public class Arena {
    */
   private TrialChronicle chronicleOf(int number, String description, TrialSteps steps,
       List<CombatantSnapshot> roster, RoundOutcome outcome, ProgressChronicle progress) {
-    return new TrialChronicle(number, description, steps.shape(), roster, steps.rounds(), steps.turns(), outcome,
-        progress);
+    return new TrialChronicle(number, description, steps.shape(), roster, steps.rounds(), steps.turns(),
+        steps.finalVitals(), outcome, progress);
   }
 
   /**
@@ -257,7 +258,7 @@ public class Arena {
 
   private TrialSteps playAsBattle(Fighter champion, List<Fighter> challengers) {
     BattleResult result = battleRunner.playBattle(BattleSetup.of(List.of(List.of(champion), challengers)));
-    return TrialSteps.ofBattle(result.roundLog());
+    return TrialSteps.ofBattle(result.roundLog(), result.finalVitals());
   }
 
   /**
@@ -266,7 +267,7 @@ public class Arena {
    */
   private TrialSteps playAsDuel(Fighter champion, List<Fighter> challengers) {
     CombatResult result = duelRunner.playDuel(champion, challengers.getFirst());
-    return TrialSteps.ofDuel(result.log());
+    return TrialSteps.ofDuel(result.log(), result.finalVitals());
   }
 
   /**
@@ -321,18 +322,21 @@ public class Arena {
 
   /**
    * I passi prodotti dal motore per una prova, nella forma che il motore ha deciso: una lista di
-   * {@link RoundLogEntry} per la battaglia, una di {@link TurnLogEntry} per il duello. L'altra lista
-   * resta vuota — {@link #shape()} dice quale delle due leggere — perché fabbricare indici o turni
-   * per l'una a partire dall'altra significherebbe inventare un dato che il motore non ha deciso.
+   * {@link RoundLogEntry} per la battaglia, una di {@link TurnLogEntry} per il duello, più lo stato
+   * finale dei combattenti ({@link TrialChronicle#finalVitals()} spiega perché serve). L'altra lista
+   * di passi resta vuota — {@link #shape()} dice quale delle due leggere — perché fabbricare indici
+   * o turni per l'una a partire dall'altra significherebbe inventare un dato che il motore non ha
+   * deciso.
    */
-  private record TrialSteps(TrialShape shape, List<RoundLogEntry> rounds, List<TurnLogEntry> turns) {
+  private record TrialSteps(TrialShape shape, List<RoundLogEntry> rounds, List<TurnLogEntry> turns,
+      List<FighterVitals> finalVitals) {
 
-    static TrialSteps ofBattle(List<RoundLogEntry> rounds) {
-      return new TrialSteps(TrialShape.BATTLE, rounds, List.of());
+    static TrialSteps ofBattle(List<RoundLogEntry> rounds, List<FighterVitals> finalVitals) {
+      return new TrialSteps(TrialShape.BATTLE, rounds, List.of(), finalVitals);
     }
 
-    static TrialSteps ofDuel(List<TurnLogEntry> turns) {
-      return new TrialSteps(TrialShape.DUEL, List.of(), turns);
+    static TrialSteps ofDuel(List<TurnLogEntry> turns, List<FighterVitals> finalVitals) {
+      return new TrialSteps(TrialShape.DUEL, List.of(), turns, finalVitals);
     }
   }
 

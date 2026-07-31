@@ -1,6 +1,7 @@
 /* Foglio di stile della pagina di riproduzione: campo di battaglia a tre colonne (squadra,
-   colonna centrale con la freccia, squadra) con barre di vita e stamina, timeline in basso,
-   nessuna dipendenza grafica esterna e nessuna arte ASCII. */
+   colonna centrale con la freccia, squadra) con barre di vita e stamina, timeline nascosta perché
+   spoiler (vedi .timeline-control[hidden] più sotto), nessuna dipendenza grafica esterna e nessuna
+   arte ASCII. */
 
 :root {
   --color-background: #f4f5f7;
@@ -52,6 +53,18 @@ body {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 1rem;
+}
+
+/* L'altezza è fissa e non un min-height: un min-height lascerebbe il pannello crescere sui
+   round più affollati, cioè esattamente il salto in altezza che questa regola vuole eliminare.
+   Il valore è tarato sul caso che si vede più spesso durante la riproduzione: il passo zero
+   (~130px), un turno di duello (~190px) e un round da due scambi con le sue note (~330px)
+   rientrano tutti senza scorrimento. Perdita dichiarata: un round da tre scambi, il massimo
+   previsto dal percorso, supera i 22rem e scorre dentro il pannello invece di allungarlo; è il
+   prezzo scelto per tenere stabile tutto ciò che sta sotto. */
+.step-panel {
+  height: 22rem;
+  overflow-y: auto;
 }
 
 .trial-header {
@@ -351,6 +364,14 @@ body {
   align-items: center;
   gap: 0.5rem;
   flex: 1 1 220px;
+}
+
+/* Stessa trappola già documentata per ".battlefield[hidden]": l'attributo "hidden" vale
+   "display: none" solo nel foglio di stile del browser, e ".timeline-control" dichiara sopra un
+   "display: flex" che lo batte. Senza questa riga la barra e il contatore di passo — che
+   rivelano quanto è lunga la registrazione — resterebbero visibili nonostante l'attributo. */
+.timeline-control[hidden] {
+  display: none;
 }
 
 #timeline {

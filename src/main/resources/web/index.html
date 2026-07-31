@@ -38,7 +38,10 @@
         <select id="speed-select"></select>
       </label>
 
-      <div class="timeline-control">
+      <!-- Nascosta e non rimossa: rivelerebbe quanti passi ha registrato la corsa, cioè quanto è
+           lunga. Il blocco resta nel DOM e continua ad aggiornarsi (vedi updateControls/wireControls
+           in app.js), è solo lo spoiler a sparire dalla vista. -->
+      <div class="timeline-control" hidden>
         <input id="timeline" type="range" min="0" max="0" value="0" step="1">
         <span id="timeline-position"></span>
       </div>

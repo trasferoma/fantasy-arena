@@ -12,6 +12,7 @@ import it.fantasycombatsystem.config.CombatSettings;
  * si serve una volta per prova, sia in console sia nella partita muta che alimenta il server.
  *
  * <p></p>Accedi a http://127.0.0.1:8080/ per la versione web.</p>
+ * <p>mvn exec:java -Dexec.args="web" = accende il server</p>
  */
 public class Main {
 

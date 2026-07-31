@@ -99,6 +99,7 @@ class SilentArenaRunTest {
     assertEquals(lastTrial.outcome(), chronicle.conclusion().outcome(),
         "la conclusione racconta l'esito dell'ultima prova registrata");
     assertEquals(lastTrial.number(), chronicle.conclusion().lastTrial());
+    assertFalse(lastTrial.finalVitals().isEmpty(), "il motore vero calcola sempre lo stato finale dei combattenti");
   }
 
   private String output() {

@@ -40,7 +40,7 @@ class ArenaChronicleTest {
   }
 
   private TrialChronicle trial(int number) {
-    return new TrialChronicle(number, "prova " + number, TrialShape.DUEL, List.of(), List.of(), List.of(),
+    return new TrialChronicle(number, "prova " + number, TrialShape.DUEL, List.of(), List.of(), List.of(), List.of(),
         RoundOutcome.WON, null);
   }
 }

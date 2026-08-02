@@ -192,11 +192,20 @@ function buildTrialMomentBase(kind, trial, trialIndex, totalTrials, showOutcome,
 // scheda (è da lì che arriva la cura completa) e gli sfidanti nascono in quello stesso istante, mai
 // feriti prima del primo passo.
 function buildSetupMoment(trial, trialIndex, totalTrials, progression) {
+  const vitals = fullVitalsOf(trial.roster);
+  const activeOpponentRosterIndex = firstOpponentRosterIndexOf(trial.roster);
   return {
     ...buildTrialMomentBase('setup', trial, trialIndex, totalTrials, false, progression),
     roster: trial.roster,
-    vitals: fullVitalsOf(trial.roster),
-    opponentCount: opponentCountOf(trial.roster),
+    vitals,
+    // Nessuna iniziativa e nessuno scambio prima del primo passo: le stesse liste vuote di un
+    // momento di scontro senza scambi, così "renderBattlefield" legge lo stesso insieme di campi
+    // da ogni momento e non serve più passargliele a mano da "renderMoment".
+    initiativeRosterIndexes: [],
+    engagedOpponentRosterIndexes: [],
+    activeOpponentRosterIndex,
+    leftFighterMarkers: buildFighterMarkers(trial.roster, vitals, TEAM_LEFT, protagonistRosterIndexOf(trial.roster)),
+    rightFighterMarkers: buildFighterMarkers(trial.roster, vitals, TEAM_RIGHT, activeOpponentRosterIndex),
   };
 }
 
@@ -213,32 +222,57 @@ function fullVitalsOf(roster) {
   }));
 }
 
-// Il numero di avversari della prova, usato dalla scena per riproporzionare la colonna di destra
-// (sezione 4): calcolato una sola volta qui, mai contando nodi nel DOM.
-function opponentCountOf(roster) {
-  return roster.filter(fighter => fighter.teamIndex === TEAM_RIGHT).length;
+// Il primo avversario nell'ordine del roster: l'attivo di default quando non c'è ancora uno
+// scambio da cui derivarlo, cioè al passo zero e al primissimo scambio della prova.
+function firstOpponentRosterIndexOf(roster) {
+  return roster.find(fighter => fighter.teamIndex === TEAM_RIGHT).rosterIndex;
+}
+
+// La squadra di sinistra ha sempre esattamente un membro, il protagonista: la sua scheda è quella
+// sempre mostrata, quindi il suo segnalino è sempre l'attivo (vedi "buildFighterMarker").
+function protagonistRosterIndexOf(roster) {
+  return roster.find(fighter => fighter.teamIndex === TEAM_LEFT).rosterIndex;
+}
+
+// I segnalini di una squadra: una voce per ogni suo membro nell'ordine del roster, con la vita già
+// allineata al momento corrente (stesso ordine e posizione di "roster"). Restano dati puri: la
+// sezione 4 li disegna, non li calcola. La stessa funzione serve sia la fila sopra la scheda del
+// protagonista sia quella sopra la scheda dell'avversario attivo: cambiano solo la squadra e
+// l'indice del membro mostrato per intero.
+function buildFighterMarkers(roster, vitals, teamIndex, activeRosterIndex) {
+  return roster
+      .map((fighter, position) => buildFighterMarker(fighter, vitals[position], teamIndex, activeRosterIndex))
+      .filter(marker => marker !== null);
+}
+
+// La vita mancante non si inventa: la voce la dichiara con "vital: null" invece di un valore
+// fittizio, e chi è abbattuto si stabilisce solo quando quel dato esiste davvero.
+function buildFighterMarker(fighter, vital, teamIndex, activeRosterIndex) {
+  if (fighter.teamIndex !== teamIndex) {
+    return null;
+  }
+  return {
+    name: fighter.name,
+    rosterIndex: fighter.rosterIndex,
+    vital,
+    defeated: vital ? vital.currentHealth <= 0 : false,
+    active: fighter.rosterIndex === activeRosterIndex,
+  };
 }
 
 function buildTrialStepMoments(trial, trialIndex, totalTrials, progression) {
-  const isBattle = trial.shape === 'BATTLE';
-  const steps = isBattle ? trial.rounds : trial.turns;
-  return steps.map((step, stepIndex) => {
-    const isFinalStep = stepIndex === steps.length - 1;
-    const vitalsAfter = vitalsAfterStep(trial, steps, stepIndex, isBattle);
-    return isBattle
-        ? buildBattleStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter, progression)
-        : buildDuelStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter, progression);
-  });
+  return trial.shape === 'BATTLE'
+      ? buildBattleStepMoments(trial, trialIndex, totalTrials, progression)
+      : buildDuelStepMoments(trial, trialIndex, totalTrials, progression);
 }
 
-// Il motore fotografa i vitali in due istanti diversi nelle due forme, ed è una trappola che vale
-// la pena documentare ogni volta che la si incontra: il round della battaglia porta già lo stato di
-// fine round (BattleEngine.buildRoundLogEntry), ma il turno del duello porta lo stato di inizio
-// turno (EngagementTurnPlayer.play, "startOfRoundVitals"). Questo è l'unico punto che risolve "lo
-// stato dopo il passo" per entrambe le forme, così la pagina racconta lo stesso momento della
-// console (vedi CombatScreenRenderer.vitalsAfter, che affronta esattamente lo stesso problema).
-function vitalsAfterStep(trial, steps, stepIndex, isBattle) {
-  return isBattle ? steps[stepIndex].vitals : duelVitalsAfterTurn(trial, steps, stepIndex);
+function buildDuelStepMoments(trial, trialIndex, totalTrials, progression) {
+  const turns = trial.turns;
+  return turns.map((turn, turnIndex) => {
+    const isFinalStep = turnIndex === turns.length - 1;
+    const vitalsAfter = duelVitalsAfterTurn(trial, turns, turnIndex);
+    return buildDuelStepMoment(trial, trialIndex, totalTrials, turn, isFinalStep, vitalsAfter, progression);
+  });
 }
 
 // Il turno successivo porta lo stato dopo il passo corrente; per l'ultimo turno — o quando il
@@ -250,48 +284,115 @@ function duelVitalsAfterTurn(trial, turns, stepIndex) {
   return hasUsableNextVitals ? nextTurn.vitals : trial.finalVitals;
 }
 
-function buildBattleStepMoment(trial, trialIndex, totalTrials, round, isFinalStep, vitalsAfter, progression) {
+// Espande i round della battaglia in una lista di momenti, uno per scambio ("round.turns"): con più
+// di un avversario la scena mostra una sola scheda per volta (sezione 4), quindi ogni scambio deve
+// poter avanzare da solo invece di condividere lo schermo con gli altri scambi del suo round.
+// L'avversario attivo si ricava scambio per scambio e si ricorda da un momento al successivo,
+// perché un riposo del protagonista (nessun avversario coinvolto) non deve cambiare la scheda
+// mostrata: vedi "activeOpponentRosterIndexOf".
+function buildBattleStepMoments(trial, trialIndex, totalTrials, progression) {
+  const moments = [];
+  let previousRoundVitals = fullVitalsOf(trial.roster);
+  let previousActiveOpponentRosterIndex = null;
+  trial.rounds.forEach((round, roundIndex) => {
+    const isFinalRound = roundIndex === trial.rounds.length - 1;
+    round.turns.forEach((engagementTurn, turnIndex) => {
+      const isFinalTurnOfRound = turnIndex === round.turns.length - 1;
+      const activeOpponentRosterIndex = activeOpponentRosterIndexOf(
+          trial.roster, engagementTurn, previousActiveOpponentRosterIndex);
+      previousActiveOpponentRosterIndex = activeOpponentRosterIndex;
+      // Il motore fotografa i vitali solo a fine round (BattleEngine.buildRoundLogEntry): uno
+      // scambio che non è l'ultimo del suo round mostra ancora lo stato di fine round precedente
+      // (vita e stamina piene per il primissimo round), e solo l'ultimo scambio rivela "round.vitals".
+      // È la stessa trappola già documentata per il duello (vedi "duelVitalsAfterTurn"), qui riscritta
+      // per la nuova granularità.
+      const vitalsAfter = isFinalTurnOfRound ? round.vitals : previousRoundVitals;
+      const events = isFinalTurnOfRound ? round.events : [];
+      const showOutcome = isFinalRound && isFinalTurnOfRound;
+      moments.push(buildBattleEngagementMoment(
+          trial, trialIndex, totalTrials, round, engagementTurn, progression, showOutcome, vitalsAfter,
+          events, activeOpponentRosterIndex));
+    });
+    previousRoundVitals = round.vitals;
+  });
+  return moments;
+}
+
+function buildBattleEngagementMoment(
+    trial, trialIndex, totalTrials, round, engagementTurn, progression, showOutcome, vitalsAfter, events,
+    activeOpponentRosterIndex) {
   const vitals = alignVitalsToRoster(trial.roster, vitalsAfter);
-  const engagements = round.turns.map(engagementTurn => buildEngagement(trial.roster, engagementTurn));
+  const engagement = buildEngagement(trial.roster, engagementTurn);
   // Nella battaglia l'attore di uno scambio è, per costruzione del motore, chi ha vinto
   // l'iniziativa: l'indice non richiede nessuna inferenza per nome (decisione 6 della SPEC).
-  const initiativeRosterIndexes = round.turns.map(engagementTurn => engagementTurn.attackerIndex);
-  const engagedOpponentRosterIndexes = engagedOpponentIndexesOf(trial.roster, round.turns);
+  const initiativeRosterIndexes = [engagementTurn.attackerIndex];
+  const engagedOpponentRosterIndexes = engagedOpponentRosterIndexesOf(trial.roster, engagementTurn);
   return {
-    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep, progression),
+    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, showOutcome, progression),
     roster: trial.roster,
     vitals,
     initiativeRosterIndexes,
     engagedOpponentRosterIndexes,
-    opponentCount: opponentCountOf(trial.roster),
-    battle: { roundNumber: round.roundNumber, engagements, events: round.events },
+    activeOpponentRosterIndex,
+    leftFighterMarkers: buildFighterMarkers(trial.roster, vitals, TEAM_LEFT, protagonistRosterIndexOf(trial.roster)),
+    rightFighterMarkers: buildFighterMarkers(trial.roster, vitals, TEAM_RIGHT, activeOpponentRosterIndex),
+    battle: { roundNumber: round.roundNumber, engagements: [engagement], events },
   };
 }
 
-// Gli avversari che partecipano ad almeno uno scambio del round si spostano verso il protagonista
-// nella scena (sezione 4): l'insieme si limita alla squadra di destra, perché il protagonista è
-// sempre solo e sempre coinvolto in ogni scambio (è l'unico membro della sua squadra), e uno
-// scostamento costante non comunicherebbe nessun cambiamento. Il riposo non è uno scambio: chi
-// riposa non ingaggia nessuno, come già per la colonna centrale (vedi "buildCenterExchange").
-function engagedOpponentIndexesOf(roster, turns) {
-  const engagedIndexes = new Set();
-  turns.forEach(engagementTurn => {
-    const action = engagementTurn.turn.action;
-    const isExchange = action != null && action.kind !== 'REST';
-    if (!isExchange) {
-      return;
-    }
-    addOpponentRosterIndex(engagedIndexes, roster, engagementTurn.attackerIndex);
-    addOpponentRosterIndex(engagedIndexes, roster, engagementTurn.targetIndex);
-  });
-  return Array.from(engagedIndexes);
+// Lo scambio è "vero" quando porta un'azione diversa dal riposo: la stessa guardia di
+// "buildCenterExchange", che per questo motivo non disegna la freccia su un riposo. Serve qui
+// perché il motore registra comunque un "targetIndex" anche quando chi agisce riposa (il
+// bersaglio "appiccicoso" dello scontro): senza questa guardia quel bersaglio sembrerebbe un
+// partecipante vero.
+function isRealExchange(action) {
+  return action != null && action.kind !== 'REST';
 }
 
-function addOpponentRosterIndex(rosterIndexes, roster, rosterIndex) {
-  const fighter = findFighterByRosterIndex(roster, rosterIndex);
-  if (fighter && fighter.teamIndex === TEAM_RIGHT) {
-    rosterIndexes.add(rosterIndex);
+// L'avversario in scena per questo scambio: l'attaccante, se è lui ad agire — anche quando la sua
+// azione è un riposo, perché un avversario che riposa sta comunque agendo ed è giusto vederlo. Se
+// invece ad agire è il protagonista, il bersaglio conta solo quando lo scambio è vero: altrimenti
+// è il bersaglio "appiccicoso" del riposo, non un avversario che sta facendo qualcosa. "null"
+// quando lo scambio non porta in scena nessun avversario: vale allora il trascinamento dal momento
+// precedente (vedi "activeOpponentRosterIndexOf").
+function opponentOnStageOf(roster, engagementTurn) {
+  const attacker = findFighterByRosterIndex(roster, engagementTurn.attackerIndex);
+  if (attacker && attacker.teamIndex === TEAM_RIGHT) {
+    return attacker.rosterIndex;
   }
+  if (!isRealExchange(engagementTurn.turn.action)) {
+    return null;
+  }
+  const target = findFighterByRosterIndex(roster, engagementTurn.targetIndex);
+  return target && target.teamIndex === TEAM_RIGHT ? target.rosterIndex : null;
+}
+
+// L'avversario mostrato in campo per questo scambio: quello in scena, oppure — quando lo scambio
+// non ne porta in scena nessuno — quello del momento precedente della stessa prova, o il primo del
+// roster se questo è il primissimo scambio.
+function activeOpponentRosterIndexOf(roster, engagementTurn, previousActiveOpponentRosterIndex) {
+  const onStage = opponentOnStageOf(roster, engagementTurn);
+  if (onStage !== null) {
+    return onStage;
+  }
+  return previousActiveOpponentRosterIndex !== null
+      ? previousActiveOpponentRosterIndex
+      : firstOpponentRosterIndexOf(roster);
+}
+
+// L'avversario è "ingaggiato" solo quando lo scambio è vero e vi partecipa: un avversario che
+// riposa è in scena (vedi "opponentOnStageOf") ma non ingaggia nessuno, e uno rimasto a schermo
+// per trascinamento non è nemmeno in scena per questo scambio.
+function engagedOpponentRosterIndexesOf(roster, engagementTurn) {
+  if (!isRealExchange(engagementTurn.turn.action)) {
+    return [];
+  }
+  const attacker = findFighterByRosterIndex(roster, engagementTurn.attackerIndex);
+  if (attacker && attacker.teamIndex === TEAM_RIGHT) {
+    return [attacker.rosterIndex];
+  }
+  const target = findFighterByRosterIndex(roster, engagementTurn.targetIndex);
+  return target && target.teamIndex === TEAM_RIGHT ? [target.rosterIndex] : [];
 }
 
 function buildEngagement(roster, engagementTurn) {
@@ -371,16 +472,21 @@ function buildDuelStepMoment(trial, trialIndex, totalTrials, turn, isFinalStep, 
   // la pagina con un TypeError (il difetto latente segnalato dalla SPEC).
   const chosenName = turn.initiative ? turn.initiative.chosenName : null;
   const actorIndex = resolveRosterIndexByName(trial.roster, chosenName);
+  // Il duello ha un solo avversario: è sempre lui l'attivo, e il campo esiste solo perché il
+  // rendering non deve conoscere la differenza fra duello e battaglia (vedi "renderTeamColumn").
+  const activeOpponentRosterIndex = firstOpponentRosterIndexOf(trial.roster);
   return {
     ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep, progression),
     roster: trial.roster,
     vitals,
     initiativeRosterIndexes: actorIndex === null ? [] : [actorIndex],
-    // Il duello ha un solo avversario, sempre coinvolto in ogni turno: uno scostamento costante
-    // non comunicherebbe nulla, e la scheda deve restare esattamente come oggi. Lo scostamento
-    // verso il protagonista resta quindi una caratteristica solo della battaglia NvN.
+    // Il duello ha un solo avversario, sempre coinvolto in ogni turno: marcarlo come ingaggiato
+    // non distinguerebbe nulla, perché è comunque sempre lui a comparire in campo. La scheda deve
+    // restare esattamente come oggi, senza il marcatore ⚔.
     engagedOpponentRosterIndexes: [],
-    opponentCount: opponentCountOf(trial.roster),
+    activeOpponentRosterIndex,
+    leftFighterMarkers: buildFighterMarkers(trial.roster, vitals, TEAM_LEFT, protagonistRosterIndexOf(trial.roster)),
+    rightFighterMarkers: buildFighterMarkers(trial.roster, vitals, TEAM_RIGHT, activeOpponentRosterIndex),
     duel: {
       turnNumber: turn.turnNumber,
       actingName: chosenName,
@@ -707,14 +813,14 @@ function buildHeroCard(hero, heading) {
 // quelle in campo, equipaggiamento compreso: il "Fighter" del motore le porta effettive, non c'è
 // una base da confrontare come nella scheda del protagonista fuori dallo scontro.
 function buildCombatantCard(fighter, vital, hasInitiative, isEngaged) {
-  const card = el('article', isEngaged ? 'fighter-card engaged' : 'fighter-card');
+  const card = el('article', 'fighter-card');
   card.appendChild(buildCombatantNameLine(fighter, hasInitiative, isEngaged));
   card.appendChild(textEl('p', `${fighter.race} · ${fighter.characterClass}`, 'fighter-subtitle'));
   card.appendChild(textEl('p', `Arma: ${describeItem(fighter.weapon)}`));
   card.appendChild(buildArmourList(fighter.armourPieces));
-  card.appendChild(textEl('p', `Rating offensivo ${fighter.offensiveRating} · difensivo ${fighter.defensiveRating}`));
   card.appendChild(textEl('p', 'Caratteristiche in campo, equipaggiamento compreso:', 'fighter-subtitle'));
   card.appendChild(buildCharacteristicsList(fighter.characteristics));
+  card.appendChild(textEl('p', `Rating offensivo ${fighter.offensiveRating} · difensivo ${fighter.defensiveRating}`));
   appendVitalsBars(card, vital);
   return card;
 }
@@ -740,9 +846,10 @@ function buildInitiativeMarker() {
   return marker;
 }
 
-// Sullo stesso modello della stellina dell'iniziativa: lo scostamento della scheda verso il
-// protagonista (vedi ".fighter-card.engaged" in app.css) non è l'unico segnale, perché non si può
-// affidare l'informazione al solo spostamento visivo.
+// Il marcatore ⚔ è ormai l'unico segnale di questo stato: lo scostamento della scheda che un
+// tempo lo affiancava non esiste più, perché in campo si vede una sola scheda avversaria per
+// volta. Distingue l'avversario che partecipa davvero allo scambio corrente da quello mostrato
+// solo per trascinamento, come nel riposo del protagonista.
 function buildEngagedMarker() {
   const marker = textEl('span', '⚔', 'engaged-marker');
   marker.setAttribute('role', 'img');
@@ -786,25 +893,83 @@ function renderHeader(moment) {
   }
 }
 
-function renderTeam(containerId, roster, vitals, teamIndex, initiativeRosterIndexes, engagedRosterIndexes) {
-  const container = document.getElementById(containerId);
-  clearChildren(container);
-  roster.forEach((fighter, position) => {
-    if (fighter.teamIndex === teamIndex) {
-      const hasInitiative = initiativeRosterIndexes.includes(fighter.rosterIndex);
-      const isEngaged = engagedRosterIndexes.includes(fighter.rosterIndex);
-      container.appendChild(buildCombatantCard(fighter, vitals[position], hasInitiative, isEngaged));
-    }
-  });
+// Legge dal momento tutti i campi che il campo di battaglia richiede: ogni momento di scontro
+// (passo zero compreso) li porta tutti nella stessa forma, quindi non serve più che chi chiama
+// li elenchi a mano — è il motivo per cui "buildSetupMoment" ora porta anche le due liste vuote.
+// Le due colonne condividono la stessa forma — fila di segnalini sopra, una sola scheda sotto —
+// quindi le disegna la stessa funzione, "renderTeamColumn": cambiano solo la squadra, l'indice
+// del membro mostrato per intero e le liste di iniziativa/ingaggio pertinenti a quella squadra.
+function renderBattlefield(moment) {
+  renderTeamColumn(
+      'team-0', moment.roster, moment.vitals, moment.initiativeRosterIndexes, [],
+      protagonistRosterIndexOf(moment.roster), moment.leftFighterMarkers);
+  renderTeamColumn(
+      'team-1', moment.roster, moment.vitals, moment.initiativeRosterIndexes,
+      moment.engagedOpponentRosterIndexes, moment.activeOpponentRosterIndex, moment.rightFighterMarkers);
 }
 
-// Il numero di avversari guida la larghezza della colonna di destra in app.css: un attributo dato
-// sul contenitore, letto dal foglio di stile, mai un conteggio di nodi del DOM. Solo gli avversari
-// (squadra di destra) possono ingaggiare: il protagonista resta uno solo e non si sposta mai.
-function renderBattlefield(roster, vitals, initiativeRosterIndexes, engagedOpponentRosterIndexes, opponentCount) {
-  document.getElementById('battlefield').dataset.opponentCount = String(opponentCount);
-  renderTeam('team-0', roster, vitals, TEAM_LEFT, initiativeRosterIndexes, []);
-  renderTeam('team-1', roster, vitals, TEAM_RIGHT, initiativeRosterIndexes, engagedOpponentRosterIndexes);
+// Una colonna del campo di battaglia: la fila di segnalini della squadra, sempre presente — è
+// quello che tiene le due colonne allineate in altezza, un solo membro a sinistra o più a destra
+// che siano — e sotto la scheda per intero del solo membro mostrato (il protagonista a sinistra,
+// l'avversario attivo a destra).
+function renderTeamColumn(
+    containerId, roster, vitals, initiativeRosterIndexes, engagedRosterIndexes, shownRosterIndex,
+    fighterMarkers) {
+  const container = document.getElementById(containerId);
+  clearChildren(container);
+  container.appendChild(buildFighterMarkersRow(fighterMarkers));
+  const shownFighter = findFighterByRosterIndex(roster, shownRosterIndex);
+  const shownFighterPosition = roster.indexOf(shownFighter);
+  const hasInitiative = initiativeRosterIndexes.includes(shownRosterIndex);
+  const isEngaged = engagedRosterIndexes.includes(shownRosterIndex);
+  container.appendChild(
+      buildCombatantCard(shownFighter, vitals[shownFighterPosition], hasInitiative, isEngaged));
+}
+
+// La fila di segnalini sopra la scheda mostrata: non sono cliccabili, non promettono nessuna
+// interazione, servono solo a riassumere lo stato di ogni membro della squadra, compreso quello
+// la cui scheda si vede già per intero sotto.
+function buildFighterMarkersRow(fighterMarkers) {
+  const row = el('div', 'fighter-markers');
+  fighterMarkers.forEach(marker => row.appendChild(buildFighterMarkerItem(marker)));
+  return row;
+}
+
+function buildFighterMarkerItem(marker) {
+  const classNames = ['fighter-marker'];
+  if (marker.active) {
+    classNames.push('active');
+  }
+  if (marker.defeated) {
+    classNames.push('defeated');
+  }
+  const item = el('div', classNames.join(' '));
+  item.setAttribute('aria-label', describeFighterMarker(marker));
+  item.appendChild(textEl('p', marker.name, 'fighter-marker-name'));
+  item.appendChild(buildFighterMarkerBar(marker.vital));
+  return item;
+}
+
+// Lo stato del combattente non si affida al solo colore, come già per la stellina dell'iniziativa e
+// per le stazioni del percorso: un abbattuto lo dichiara l'etichetta accessibile, e in "app.css" un
+// tratto barrato lo distingue anche a schermo.
+function describeFighterMarker(marker) {
+  const status = marker.defeated ? 'abbattuto' : 'in campo';
+  return `${marker.name}, ${status}`;
+}
+
+// La mini-barra di vita del segnalino: riusa "percentage" senza duplicarne il calcolo, con una
+// struttura più semplice di "createBar" perché qui non serve né l'etichetta testuale né la
+// distinzione fra vita e stamina.
+function buildFighterMarkerBar(vital) {
+  if (!vital) {
+    return textEl('p', 'Vita non disponibile', 'fighter-marker-bar-missing');
+  }
+  const track = el('div', 'fighter-marker-bar-track');
+  const fill = el('div', 'fighter-marker-bar-fill');
+  fill.style.width = percentage(vital.currentHealth, vital.maxHealth) + '%';
+  track.appendChild(fill);
+  return track;
 }
 
 // Le voci della colonna centrale del passo corrente: una per scambio nella battaglia, l'unica del
@@ -969,8 +1134,8 @@ function renderMoment(moment, trialOutcomesByNumber) {
     hideSection('progress-panel');
     hideSection('conclusion-panel');
     // Nessuna iniziativa e nessuno scambio prima del primo passo: schieramenti pieni, colonna
-    // centrale vuota, nessuno ingaggiato.
-    renderBattlefield(moment.roster, moment.vitals, [], [], moment.opponentCount);
+    // centrale vuota, nessuno ingaggiato (le liste vuote nascono già nel momento, sezione 2).
+    renderBattlefield(moment);
     renderBattleCenter([]);
     renderSetupStepPanel(moment.budget);
     return;
@@ -980,9 +1145,7 @@ function renderMoment(moment, trialOutcomesByNumber) {
     showSection('step-panel');
     hideSection('progress-panel');
     hideSection('conclusion-panel');
-    renderBattlefield(
-        moment.roster, moment.vitals, moment.initiativeRosterIndexes,
-        moment.engagedOpponentRosterIndexes, moment.opponentCount);
+    renderBattlefield(moment);
     renderBattleCenter(centerExchangesOf(moment));
     renderStepPanel(moment);
     return;

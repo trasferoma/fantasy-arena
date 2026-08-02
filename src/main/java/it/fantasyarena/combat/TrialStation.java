@@ -5,7 +5,8 @@ import it.fantasyarena.combat.chronicle.TrialShape;
 /**
  * Una stazione del percorso dell'arena: il numero della prova, la sua descrizione, quanti sfidanti
  * la popolano, come nascono ({@link ChallengerOrigin}) e — solo per gli sfidanti generati — il monte
- * punti caratteristica con cui nascono.
+ * punti caratteristica dell'intero schieramento con cui nascono, non del singolo sfidante:
+ * {@code FighterFactory.createChallengers} lo ripartisce fra i suoi sfidanti.
  *
  * <p>{@link #shape()} non è un componente del record: è duello quando l'avversario è uno solo,
  * battaglia quando sono più di uno, e custodirla accanto al numero di sfidanti creerebbe due campi

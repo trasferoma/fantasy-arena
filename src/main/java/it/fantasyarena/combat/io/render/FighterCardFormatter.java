@@ -3,10 +3,13 @@ package it.fantasyarena.combat.io.render;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.model.IntrinsicRatings;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 
@@ -17,6 +20,11 @@ import it.fantasytoolkit.weapongenerator.result.WeaponResult;
  * a larghezza contenuta (le righe troppo lunghe sono troncate con "..."), cosi' da poter
  * essere affiancata ad altre colonne. Riusato dal riepilogo pre-combattimento, dal renderer
  * a schermo e dal riepilogo finale: una sola sorgente di formattazione della scheda.
+ *
+ * <p>I bonus che arma e armatura portano finché restano equipaggiate compaiono su una riga
+ * propria sotto l'oggetto, solo nella scheda piena ({@link #card}): la {@link #compactCard}
+ * esiste per il poco spazio verticale del replay a schermo e già omette le caratteristiche, quindi
+ * omette anche i bonus.
  */
 public class FighterCardFormatter {
 
@@ -35,24 +43,35 @@ public class FighterCardFormatter {
     return buildCard(index, fighter, false);
   }
 
-  private List<String> buildCard(int index, Fighter fighter, boolean withCharacteristics) {
+  private List<String> buildCard(int index, Fighter fighter, boolean withEquipmentDetail) {
     CharacterResult character = fighter.character();
-    WeaponResult weapon = fighter.weapon();
     IntrinsicRatings ratings = fighter.ratings();
 
     List<String> lines = new ArrayList<>();
     lines.add(truncate("[" + index + "] " + fighter.name()));
     lines.add(truncate(character.race() + " " + character.characterClass()));
-    if (withCharacteristics) {
-      character.characteristics()
-          .forEach(characteristic -> lines.add(truncate(characteristic.characteristic().name() + " " + characteristic.value())));
+    if (withEquipmentDetail) {
+      appendCharacteristics(lines, character);
     }
-    lines.add(truncate("Arma  " + weapon.weapon() + " (" + weapon.rarity() + ") atk " + weapon.attack()));
-    fighter.armourPieces().forEach(piece -> lines.add(truncate(armourLine(piece))));
+    appendWeapon(lines, fighter.weapon(), withEquipmentDetail);
+    appendArmourPieces(lines, fighter.armourPieces(), withEquipmentDetail);
     lines.add(truncate("VIT " + ratings.maxHealth() + "  STA " + ratings.maxStamina()));
     lines.add(truncate("ATK " + formatRating(ratings.offensiveRating())
         + "  DEF " + formatRating(ratings.defensiveRating())));
     return lines;
+  }
+
+  private void appendCharacteristics(List<String> lines, CharacterResult character) {
+    character.characteristics().forEach(characteristic ->
+        lines.add(truncate(characteristic.characteristic().name() + " " + characteristic.value())));
+  }
+
+  private void appendWeapon(List<String> lines, WeaponResult weapon, boolean withEquipmentDetail) {
+    lines.add(truncate("Arma  " + weapon.weapon() + " (" + weapon.rarity() + ") atk "
+        + weapon.attack()));
+    if (withEquipmentDetail) {
+      bonusLine(weapon.buffs()).ifPresent(line -> lines.add(truncate(line)));
+    }
   }
 
   /**
@@ -60,8 +79,28 @@ public class FighterCardFormatter {
    * esattamente l'informazione che serve. Le colonne che ospitano la scheda si dimensionano
    * sull'altezza effettiva, quindi il numero variabile di righe non sfonda alcun layout.
    */
+  private void appendArmourPieces(List<String> lines, List<ArmourResult> pieces,
+      boolean withEquipmentDetail) {
+    pieces.forEach(piece -> {
+      lines.add(truncate(armourLine(piece)));
+      if (withEquipmentDetail) {
+        bonusLine(piece.buffs()).ifPresent(line -> lines.add(truncate(line)));
+      }
+    });
+  }
+
   private String armourLine(ArmourResult piece) {
     return "Arm.  " + piece.armour() + " (" + piece.rarity() + ") def " + piece.defense();
+  }
+
+  private Optional<String> bonusLine(List<BuffElement> buffs) {
+    if (buffs.isEmpty()) {
+      return Optional.empty();
+    }
+    String formatted = buffs.stream()
+        .map(buff -> "+" + buff.value() + " " + buff.characteristic())
+        .collect(Collectors.joining(", "));
+    return Optional.of("Bonus " + formatted);
   }
 
   private String formatRating(double rating) {

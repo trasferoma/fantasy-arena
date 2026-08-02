@@ -185,8 +185,8 @@ class ArenaWebServerTest {
   }
 
   private static ArenaChronicle sampleChronicle() {
-    HeroSnapshot protagonist =
-        new HeroSnapshot(PROTAGONIST_NAME, Race.HUMAN, CharacterClass.WARRIOR, List.of(), null, List.of(), List.of());
+    HeroSnapshot protagonist = new HeroSnapshot(PROTAGONIST_NAME, Race.HUMAN, CharacterClass.WARRIOR, List.of(),
+        List.of(), null, List.of(), List.of());
 
     return new ArenaChronicle(protagonist, 10, List.of(), new RunConclusion(RoundOutcome.WON, 1));
   }

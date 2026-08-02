@@ -26,12 +26,31 @@ body {
   color: var(--color-text);
 }
 
+/* Nessun limite di larghezza qui: il campo di battaglia con più di un avversario deve poter
+   occupare più spazio della colonna di lettura, quindi il limite di 960px si sposta sui singoli
+   pannelli (vedi la regola subito sotto) invece che sul contenitore. "#app" finisce così largo
+   quanto il corpo della pagina, che è già la larghezza realmente disponibile al netto della barra
+   di scorrimento verticale: non serve nessun calcolo in "vw", che quella barra la includerebbe.
+   "align-items: center" centra i pannelli più stretti dentro questo spazio pieno. */
 #app {
-  max-width: 960px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 1rem;
+}
+
+/* Il gruppo di pannelli che restano alla larghezza di lettura di sempre: senza questo vincolo
+   esplicito erediterebbero la larghezza piena di "#app" (che ora non la limita più) invece del
+   "fit-content" che "align-items: center" produce di default sui figli di un flex in colonna. */
+.entry-card,
+.trial-header,
+.trial-path,
+.step-panel,
+.progress-panel,
+.conclusion-panel,
+.controls {
+  width: 100%;
+  max-width: 960px;
 }
 
 .error-banner {
@@ -87,9 +106,9 @@ body {
 }
 
 /* Il percorso: una stazione per ogni prova prevista, con le linee di collegamento disegnate come
-   pseudo-elemento fra una stazione e la successiva. Passata, corrente e da raggiungere sono la
-   sola differenza fra le stazioni: una mai giocata è indistinguibile da una non ancora
-   raggiunta, perché entrambe ricevono la sola classe "future". */
+   pseudo-elemento fra una stazione e la successiva. Passata, attraversata senza vittoria, corrente
+   e da raggiungere sono la sola differenza fra le stazioni: una mai giocata è indistinguibile da
+   una non ancora raggiunta, perché entrambe ricevono la sola classe "future". */
 .trial-path {
   display: flex;
   list-style: none;
@@ -117,7 +136,8 @@ body {
 }
 
 /* Le stazioni si distinguono per forma e non solo per colore, come nel percorso disegnato a mano
-   (O--O--X--[]--[]): quelle camminate sono cerchi pieni, quella corrente è un cerchio marcato,
+   (O--O--X--◇--[]--[]): quelle vinte sono cerchi pieni, quella corrente è un cerchio marcato,
+   quelle attraversate senza vittoria sono un rombo (vedi ".trial-station.crossed" più sotto) e
    quelle da raggiungere restano quadrate e spente. Il colore da solo non basterebbe a chi non lo
    distingue. */
 .trial-station {
@@ -152,6 +172,26 @@ body {
   box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.25);
 }
 
+/* La prova attraversata senza vittoria (il pareggio che fa proseguire senza premio) riceve una
+   quarta forma, un rombo, che non si affida al solo colore: non il cerchio pieno delle superate,
+   non il quadrato spento di quelle da raggiungere. Il rombo nasce da uno pseudo-elemento ruotato
+   dietro al numero, che così resta orizzontale e leggibile invece di ruotare insieme al rombo. */
+.trial-station.crossed {
+  border: none;
+  background: none;
+  color: var(--color-muted);
+}
+
+.trial-station.crossed::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: rotate(45deg);
+  background: var(--color-surface);
+  border: 2px solid var(--color-muted);
+}
+
 /* Le stazioni oltre la corrente sono disabilitate: nessuna promessa dal cursore, nessuna reazione
    al passaggio del mouse. Quelle fino alla corrente si possono rivedere. */
 .trial-station:disabled {
@@ -166,10 +206,48 @@ body {
   border-color: var(--color-accent);
 }
 
+.trial-station.crossed:not(:disabled):hover::before {
+  border-color: var(--color-accent);
+}
+
 .battlefield {
   display: grid;
   grid-template-columns: 1fr minmax(150px, 220px) 1fr;
   gap: 1rem;
+  width: 100%;
+  max-width: 960px;
+}
+
+/* Il numero di avversari (1 per il duello, 2 o 3 per la battaglia NvN) arriva come attributo dato
+   sul contenitore, calcolato nel momento e mai contato qui. Il duello (data-opponent-count="1")
+   non ha una regola propria: resta sulla regola di base qui sopra, 960px pixel per pixel come
+   prima di questa modifica.
+   Con due o tre avversari il campo esce invece dalla colonna di lettura, allargando il proprio
+   "max-width" oltre i 960px di "#app": lo spazio in più serve alla sola colonna di destra, non a
+   quella del protagonista né a quella centrale, che restano due lunghezze fisse (380px e 180px)
+   proprio perché non devono né crescere né restringersi. La colonna di destra resta "1fr":
+   assorbe tutto lo spazio restante e, se anche quello non bastasse a tenere le schede in fila
+   (finestre strette ma sopra i 720px del collasso a una colonna), sono le schede stesse ad andare
+   a capo dentro la propria colonna (".fighter-card { flex: 1 1 200px }" più sotto), non la pagina
+   a scorrere in orizzontale.
+   Le tre colonne usano "minmax(0, …)" anche dove il valore è un numero fisso: è la protezione
+   standard contro il "grid blowout", il minimo automatico a "auto" che altrimenti impedirebbe a
+   una colonna di restringersi sotto il contenuto minimo dei suoi figli e romperebbe la promessa di
+   non avere mai scorrimento orizzontale della pagina. */
+.battlefield[data-opponent-count="2"],
+.battlefield[data-opponent-count="3"] {
+  grid-template-columns: minmax(0, 380px) minmax(0, 180px) minmax(0, 1fr);
+}
+
+/* Le due ampiezze bastano a tenere le schede avversarie in fila, senza andare a capo, sulle
+   finestre di larghezza ordinaria (misurato da 1024px in su): 1080px per due schede da 200px con
+   12px di distacco, 1320px per tre. */
+.battlefield[data-opponent-count="2"] {
+  max-width: 1080px;
+}
+
+.battlefield[data-opponent-count="3"] {
+  max-width: 1320px;
 }
 
 /* L'attributo "hidden" vale "display: none" solo per il foglio di stile del browser, e una regola
@@ -182,7 +260,9 @@ body {
 }
 
 @media (max-width: 720px) {
-  .battlefield {
+  .battlefield,
+  .battlefield[data-opponent-count="2"],
+  .battlefield[data-opponent-count="3"] {
     grid-template-columns: 1fr;
   }
 }
@@ -191,6 +271,28 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+/* Con più di un avversario le schede della squadra di destra si dispongono in orizzontale invece
+   che impilate, con un ripiego a capo (non uno scorrimento) quando lo spazio non basta: la stessa
+   regola vale sotto i 720px, dove la griglia collassa a una colonna. Il duello, che ha una sola
+   scheda per parte, non passa da qui: resta in colonna come ".team" qui sopra, e la direzione non
+   ha comunque alcun effetto visivo su un elemento solo. */
+.battlefield[data-opponent-count="2"] #team-1,
+.battlefield[data-opponent-count="3"] #team-1 {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  /* Più largo dello 0.75rem di ".team" perché qui il distacco fa un secondo mestiere: è lo spazio
+     dentro cui la scheda ingaggiata si sposta in avanti senza toccare la vicina. Stringerlo
+     costringerebbe a stringere anche lo scostamento, fino a renderlo impercettibile. */
+  gap: 1.5rem;
+}
+
+.battlefield[data-opponent-count="2"] #team-1 .fighter-card,
+.battlefield[data-opponent-count="3"] #team-1 .fighter-card {
+  flex: 1 1 200px;
+  min-width: 200px;
 }
 
 .fighter-card,
@@ -214,6 +316,33 @@ body {
 .initiative-marker {
   margin-left: 0.35rem;
   color: #c99a00;
+}
+
+.engaged-marker {
+  margin-left: 0.35rem;
+  color: var(--color-accent);
+}
+
+/* Chi partecipa allo scambio del passo corrente si sposta verso il protagonista: uno scostamento
+   orizzontale con una transizione morbida perché il passaggio da un passo all'altro si legga come
+   un movimento e non come un salto. Riguarda solo gli avversari (squadra di destra): il
+   protagonista è sempre solo e sempre coinvolto in ogni scambio della battaglia, e uno scostamento
+   costante non comunicherebbe nulla. Ristretto ai due e tre avversari per doppia sicurezza: il
+   duello non marca mai una scheda come "engaged" (vedi "buildDuelStepMoment" in app.js), ma questa
+   regola non dipenderebbe comunque da quella scelta se cambiasse.
+   Lo scostamento è di 1rem (16px), volutamente minore del distacco di 1.5rem (24px) fra le schede
+   affiancate: una scheda ingaggiata non deve sovrapporsi a quella alla sua sinistra, altrimenti il
+   passo avanti si legge come un difetto di allineamento invece che come un movimento. Il margine
+   fra i due valori è però quello che rende lo spostamento **visibile**: a 8px su un distacco di
+   12px, provato a schermo, il movimento non si notava. */
+.battlefield[data-opponent-count="2"] #team-1 .fighter-card,
+.battlefield[data-opponent-count="3"] #team-1 .fighter-card {
+  transition: transform 250ms ease;
+}
+
+.battlefield[data-opponent-count="2"] #team-1 .fighter-card.engaged,
+.battlefield[data-opponent-count="3"] #team-1 .fighter-card.engaged {
+  transform: translateX(-1rem);
 }
 
 /* La colonna centrale del campo di battaglia: chi attacca chi nel passo corrente, con la formula

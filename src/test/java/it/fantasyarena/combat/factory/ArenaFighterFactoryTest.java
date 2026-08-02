@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -12,12 +13,16 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
+import it.fantasyarena.combat.hero.EquipmentBonus;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
+import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkitcore.core.model.Armour;
+import it.fantasytoolkitcore.core.model.Characteristic;
 import it.fantasytoolkitcore.core.model.Rarity;
 
 /**
@@ -66,17 +71,77 @@ class ArenaFighterFactoryTest {
   }
 
   @Test
-  void loSfidanteSpecularePareggiaPuntiEPezziMaImpugnaUnArmaRara() {
+  void ilProtagonistaScendeInCampoConLeCaratteristicheEffettive() {
+    Hero hero = factory.createProtagonist();
+
+    Fighter fighter = factory.summon(hero);
+
+    int fighterTotal = fighter.character().characteristics().stream().mapToInt(CharacterCharacteristic::value).sum();
+    int effectiveTotal = hero.effectiveCharacter().characteristics().stream()
+        .mapToInt(CharacterCharacteristic::value)
+        .sum();
+    assertEquals(effectiveTotal, fighterTotal, "il combattente deve nascere con le caratteristiche effettive");
+    assertTrue(fighterTotal > hero.totalCharacteristicPoints(),
+        "arma e armatura nascono sempre con almeno un buff, quindi le effettive superano le base");
+  }
+
+  @Test
+  void sostituireUnPezzoCambiaLeCaratteristicheDelCombattenteMaterializzato() {
+    Hero protagonist = factory.createProtagonist();
+    Armour freeSlot = anySlotUncoveredOf(protagonist);
+    Hero withWeakPiece = protagonist.wearing(pieceWithBuff(freeSlot, 2, Characteristic.STRENGTH, 1));
+    Hero withStrongerPiece = withWeakPiece.wearing(pieceWithBuff(freeSlot, 6, Characteristic.STRENGTH, 5));
+
+    Fighter weaklyEquipped = factory.summon(withWeakPiece);
+    Fighter stronglyEquipped = factory.summon(withStrongerPiece);
+
+    int weakValue = valueOf(weaklyEquipped.character(), Characteristic.STRENGTH);
+    int strongValue = valueOf(stronglyEquipped.character(), Characteristic.STRENGTH);
+    assertEquals(4, strongValue - weakValue,
+        "il combattente materializzato dopo il cambio riflette i buff del pezzo preso e non più quelli lasciato");
+  }
+
+  private int valueOf(CharacterResult character, Characteristic characteristic) {
+    return character.characteristics().stream()
+        .filter(entry -> entry.characteristic() == characteristic)
+        .mapToInt(CharacterCharacteristic::value)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private ArmourResult pieceWithBuff(Armour slot, int defense, Characteristic characteristic, int buffValue) {
+    return new ArmourResult(slot, Rarity.COMMON, List.of(new BuffElement(characteristic, buffValue)), List.of(),
+        defense);
+  }
+
+  /**
+   * Lo specchio pareggia i punti caratteristica <em>base</em> del protagonista, non quelli
+   * effettivi: i buff dell'equipaggiamento che lo specchio stesso indossa restano, ma quelli del
+   * protagonista non vengono ricalcati. È la conseguenza dichiarata della SPEC (lo specchio resta
+   * indietro quando il protagonista ha accumulato equipaggiamento pregiato), non un difetto di
+   * questo test.
+   */
+  @Test
+  void loSfidanteSpecularePareggiaPuntiBaseEPezziMaImpugnaUnArmaRara() {
     Hero hero = wearingTwoMorePieces(factory.createProtagonist());
 
     Fighter rival = factory.createMirrorRival(hero);
 
-    int rivalPoints = rival.character().characteristics().stream()
+    int rivalEffectivePoints = rival.character().characteristics().stream()
         .mapToInt(CharacterCharacteristic::value)
         .sum();
-    assertEquals(hero.totalCharacteristicPoints(), rivalPoints, "lo specchio deve pareggiare i punti caratteristica");
+    int rivalBonusPoints = EquipmentBonus.totalValueOf(rivalBuffs(rival));
+    int rivalBasePoints = rivalEffectivePoints - rivalBonusPoints;
+    assertEquals(hero.totalCharacteristicPoints(), rivalBasePoints,
+        "lo specchio deve pareggiare i punti caratteristica base del protagonista, non gli effettivi");
     assertEquals(hero.armourPieceCount(), rival.armourPieces().size());
     assertEquals(Rarity.RARE, rival.weapon().rarity(), "l'unico vantaggio dichiarato è l'arma");
+  }
+
+  private List<BuffElement> rivalBuffs(Fighter rival) {
+    List<BuffElement> buffs = new ArrayList<>(rival.weapon().buffs());
+    rival.armourPieces().forEach(piece -> buffs.addAll(piece.buffs()));
+    return buffs;
   }
 
   @Test

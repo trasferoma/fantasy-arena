@@ -17,10 +17,12 @@ import it.fantasyarena.combat.hero.HeroProgress.ArmourUpgrade;
 import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
 import it.fantasycombatsystem.testsupport.CombatFixtures;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
+import it.fantasytoolkitcore.core.model.Characteristic;
 import it.fantasytoolkitcore.core.model.Jewel;
 import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.RarityTable;
@@ -60,7 +62,7 @@ class HeroBrainTest {
   }
 
   @Test
-  void ilPavimentoDellaRaritaSiAlzaAOgniScaglione() {
+  void ilPavimentoDellaRaritaRestaUncommonFinoAllaProva5EPoiSaleARare() {
     Set<Rarity> openingRarities = drawnRarities(brain.lootRarityTable(1), new Random(7));
     Set<Rarity> earlyRarities = drawnRarities(brain.lootRarityTable(3), new Random(7));
     Set<Rarity> midRarities = drawnRarities(brain.lootRarityTable(6), new Random(7));
@@ -68,12 +70,12 @@ class HeroBrainTest {
 
     assertTrue(EnumSet.of(Rarity.UNCOMMON, Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(openingRarities),
         "le prove 1-2 non devono produrre nulla sotto UNCOMMON");
-    assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(earlyRarities),
-        "le prove 3-5 non devono produrre nulla sotto RARE");
+    assertTrue(EnumSet.of(Rarity.UNCOMMON, Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(earlyRarities),
+        "le prove 3-5 restano con lo stesso pavimento UNCOMMON delle prove 1-2");
     assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(midRarities),
-        "le prove 6-8 non devono produrre nulla sotto RARE");
-    assertTrue(EnumSet.of(Rarity.EPIC, Rarity.LEGENDARY).containsAll(lateRarities),
-        "le prove 9-10 non devono produrre nulla sotto EPIC");
+        "solo dalla prova 6 il pavimento sale a RARE");
+    assertTrue(EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY).containsAll(lateRarities),
+        "le prove 9-10 condividono il pavimento RARE con le prove 6-8, non lo alzano a EPIC");
   }
 
   private Set<Rarity> drawnRarities(RarityTable table, Random random) {
@@ -159,45 +161,64 @@ class HeroBrainTest {
   }
 
   @Test
-  void indossaIlGioielloTrovatoSuUnTipoNonPossedutoEFruttaPuntiSecondoLaRarita() {
+  void indossaIlGioielloTrovatoSuUnTipoNonPossedutoENonFruttaPuntiOltreAiTreDellaVittoria() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
     int pointsBefore = hero.totalCharacteristicPoints();
     Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.RARE));
 
     HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertEquals(2, progress.newJewel().orElseThrow().points(), "RARE vale +2 punti extra");
+    assertTrue(progress.newJewel().isPresent());
     assertTrue(progress.jewelUpgrade().isEmpty());
     assertEquals(1, progress.grownHero().jewelCount());
     assertEquals(Rarity.RARE, progress.grownHero().jewelOfType(Jewel.RING).orElseThrow().rarity());
     int distributed = progress.characteristicGains().stream().mapToInt(CharacteristicGain::points).sum();
-    assertEquals(POINTS_PER_VICTORY + 2, distributed, "i punti del gioiello si sommano a quelli della vittoria");
-    assertEquals(pointsBefore + POINTS_PER_VICTORY + 2, progress.grownHero().totalCharacteristicPoints());
+    assertEquals(POINTS_PER_VICTORY, distributed, "il gioiello indossato non aggiunge punti oltre quelli della vittoria");
+    assertEquals(pointsBefore + POINTS_PER_VICTORY, progress.grownHero().totalCharacteristicPoints());
   }
 
   @Test
-  void ilGioielloLegendaryValeQuattroPuntiExtra() {
-    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4));
-    Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.LEGENDARY));
-
-    HeroProgress progress = brain.progressAfterVictory(hero, loot);
-
-    assertEquals(4, progress.newJewel().orElseThrow().points());
-  }
-
-  @Test
-  void sostituisceIlGioielloIndossatoSoloSeQuelloTrovatoEPiuRaro() {
+  void sostituisceIlGioielloIndossatoSoloSeQuelloTrovatoEPiuRaroAParitaDiBuff() {
     Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4)).wearing(jewel(Jewel.RING, Rarity.UNCOMMON));
     Loot loot = Loot.ofJewel(jewel(Jewel.RING, Rarity.EPIC));
 
     HeroProgress progress = brain.progressAfterVictory(hero, loot);
 
-    assertEquals(3, progress.jewelUpgrade().orElseThrow().points(), "EPIC vale +3 punti extra");
     assertEquals(Rarity.UNCOMMON, progress.jewelUpgrade().orElseThrow().dropped().rarity());
     assertEquals(Rarity.EPIC, progress.jewelUpgrade().orElseThrow().taken().rarity());
     assertTrue(progress.newJewel().isEmpty(), "il tipo era già occupato: è un rimpiazzo, non una novità");
     assertEquals(1, progress.grownHero().jewelCount(), "due gioielli dello stesso tipo non convivono");
     assertEquals(Rarity.EPIC, progress.grownHero().jewelOfType(Jewel.RING).orElseThrow().rarity());
+  }
+
+  @Test
+  void tieneIlGioielloDaiBuffPiuAltiEScartaAParitaDiValore() {
+    JewelResult worn = jewelWithBuff(Jewel.RING, Rarity.RARE, Characteristic.STRENGTH, 4);
+    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4)).wearing(worn);
+    JewelResult strongerFound = jewelWithBuff(Jewel.RING, Rarity.RARE, Characteristic.STRENGTH, 7);
+
+    HeroProgress strongerProgress = brain.progressAfterVictory(hero, Loot.ofJewel(strongerFound));
+
+    assertEquals(strongerFound, strongerProgress.jewelUpgrade().orElseThrow().taken(),
+        "un valore di buff maggiore vale il rimpiazzo anche a parità di rarità");
+
+    JewelResult sameValueFound = jewelWithBuff(Jewel.RING, Rarity.RARE, Characteristic.STRENGTH, 4);
+
+    HeroProgress tieProgress = brain.progressAfterVictory(hero, Loot.ofJewel(sameValueFound));
+
+    assertTrue(tieProgress.jewelUpgrade().isEmpty(), "a parità di valore dei buff e di rarità si tiene il proprio");
+  }
+
+  @Test
+  void laRaritaDelGioielloDecideSoloAParitaDiValoreDeiBuff() {
+    JewelResult worn = jewelWithBuff(Jewel.RING, Rarity.UNCOMMON, Characteristic.STRENGTH, 4);
+    Hero hero = heroWith(sword(5, Rarity.COMMON), chestplate(4)).wearing(worn);
+    JewelResult rarerSameValueFound = jewelWithBuff(Jewel.RING, Rarity.EPIC, Characteristic.STRENGTH, 4);
+
+    HeroProgress progress = brain.progressAfterVictory(hero, Loot.ofJewel(rarerSameValueFound));
+
+    assertEquals(rarerSameValueFound, progress.jewelUpgrade().orElseThrow().taken(),
+        "a parità di valore dei buff decide la rarità");
   }
 
   @Test
@@ -271,5 +292,9 @@ class HeroBrainTest {
 
   private JewelResult jewel(Jewel type, Rarity rarity) {
     return new JewelResult(type, rarity, List.of(), List.of());
+  }
+
+  private JewelResult jewelWithBuff(Jewel type, Rarity rarity, Characteristic characteristic, int buffValue) {
+    return new JewelResult(type, rarity, List.of(new BuffElement(characteristic, buffValue)), List.of());
   }
 }

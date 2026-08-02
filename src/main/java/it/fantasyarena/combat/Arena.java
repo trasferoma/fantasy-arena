@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import it.fantasyarena.combat.chronicle.ArenaChronicle;
+import it.fantasyarena.combat.chronicle.ChallengerBudgetChronicle;
 import it.fantasyarena.combat.chronicle.ChronicleMapper;
 import it.fantasyarena.combat.chronicle.CombatantSnapshot;
 import it.fantasyarena.combat.chronicle.HeroSnapshot;
@@ -52,12 +53,14 @@ import it.fantasytoolkitcore.core.model.RarityTable;
  * scheda ({@code FighterFactory.summon}), ed è da qui che arriva la cura completa promessa dalla
  * procedura: non si guarisce nessuno, si torna in campo interi.
  *
- * <p>Si avanza solo con una vittoria piena. Sopravvivere non basta: vedi {@link #outcomeOf}.
+ * <p>Si avanza fino alla caduta: una vittoria piena fa crescere il protagonista, un pareggio lo
+ * lascia proseguire senza premio, e solo la caduta chiude la corsa. Vedi {@link #outcomeOf}.
  *
- * <p>Ogni prova restituisce un {@link RoundReport}: la scheda cresciuta se il protagonista l'ha
- * superata, o un rapporto di chiusura altrimenti. Non è un dettaglio cosmetico rispetto a un
- * {@code Optional}: il rapporto è il posto giusto per accorciare la lettura in {@link #run()} con
- * {@link RoundReport#andThen}, che gioca la prova successiva solo se questa è stata vinta.
+ * <p>Ogni prova restituisce un {@link RoundReport}: la scheda — cresciuta dopo una vittoria,
+ * invariata dopo un pareggio — oppure un rapporto di chiusura se il protagonista è caduto. Non è un
+ * dettaglio cosmetico rispetto a un {@code Optional}: il rapporto è il posto giusto per accorciare
+ * la lettura in {@link #run()} con {@link RoundReport#andThen}, che gioca la prova successiva finché
+ * il protagonista non cade.
  *
  * <p>{@link #run()} non gioca soltanto: registra anche la cronaca della corsa e la restituisce come
  * {@link ArenaChronicle}. La scansione resta esattamente quella di sempre — questa classe non
@@ -128,16 +131,20 @@ public class Arena {
 
   /**
    * Le stazioni del percorso, una dopo l'altra. Ogni prova restituisce un rapporto: se il
-   * protagonista l'ha vinta porta la scheda cresciuta e apre la stazione successiva, altrimenti è
-   * un rapporto di chiusura e le stazioni successive semplicemente non si giocano. Il rapporto
-   * porta con sé anche la cronaca scritta fin qui, così alla fine basta leggerla dall'ultimo
-   * rapporto della catena.
+   * protagonista l'ha vinta porta la scheda cresciuta e apre la stazione successiva; se resta in
+   * piedi senza vincere apre comunque la stazione successiva, ma con la scheda invariata; solo se
+   * cade il rapporto è di chiusura e le stazioni successive non si giocano più. Il rapporto porta
+   * con sé anche la cronaca scritta fin qui, così alla fine basta leggerla dall'ultimo rapporto
+   * della catena.
    *
    * <p>Il ciclo concatena {@link RoundReport#andThen} stazione per stazione invece di piegare la
    * lista con una {@code reduce}: una {@code reduce} sequenziale richiederebbe un combinatore mai
    * invocato, cioè una riga che esiste solo per il compilatore. La valutazione resta comunque pigra
    * quanto basta: {@link #fightStation} — e con esso {@code createMirrorRival} sulla stazione dello
-   * specchio — si invoca solo quando la stazione precedente è stata vinta, non prima.
+   * specchio — si invoca solo quando il protagonista non è ancora caduto, non prima.
+   *
+   * <p>Il trionfo non si deriva da «la catena non si è interrotta»: un pareggio la lascia proseguire
+   * quanto una vittoria, quindi va letto l'esito con cui è finita l'ultima prova giocata.
    */
   public ArenaChronicle run() {
     Hero protagonist = enterTheArena();
@@ -148,11 +155,11 @@ public class Arena {
       lastRound = lastRound.andThen(previous -> fightStation(station, previous));
     }
 
-    if (lastRound.passed()) {
+    TrialChronicle lastTrial = lastRound.trials().getLast();
+    if (lastTrial.outcome() == RoundOutcome.WON) {
       logger.reportTriumph(lastRound.grownHero(), plan.length());
     }
 
-    TrialChronicle lastTrial = lastRound.trials().getLast();
     return new ArenaChronicle(protagonistSnapshot, plan.length(), lastRound.trials(),
         new RunConclusion(lastTrial.outcome(), lastTrial.number()));
   }
@@ -169,20 +176,27 @@ public class Arena {
    * dichiara ({@link #playFor}).
    */
   private RoundReport fightStation(TrialStation station, RoundReport previous) {
-    List<Fighter> challengers = challengersFor(station, previous.grownHero());
+    StationChallengers challengers = challengersFor(station, previous.grownHero());
     return fightRound(station.number(), station.description(), previous, challengers, playFor(station));
   }
 
   /**
    * Chi affronta il protagonista in questa stazione: sfidanti generati col monte punti che la
-   * stazione dichiara, oppure lo specchio del protagonista com'è cresciuto fin qui. Lo switch è
-   * esaustivo e senza {@code default}: una terza origine deve fermare la compilazione, non sparire
-   * in un ramo dimenticato.
+   * stazione dichiara, scontato dalla fortuna effettiva del protagonista ({@link ChallengerBudget}),
+   * oppure lo specchio del protagonista com'è cresciuto fin qui — che non passa da nessuno sconto,
+   * perché ricalca il protagonista e non nasce da un monte punti proprio. Lo switch è esaustivo e
+   * senza {@code default}: una terza origine deve fermare la compilazione, non sparire in un ramo
+   * dimenticato. Il budget viaggia insieme agli sfidanti ({@link StationChallengers}) perché la
+   * cronaca ne ha bisogno quanto ne ha bisogno la generazione: {@code null} per lo specchio.
    */
-  private List<Fighter> challengersFor(TrialStation station, Hero hero) {
+  private StationChallengers challengersFor(TrialStation station, Hero hero) {
     return switch (station.challengerOrigin()) {
-      case GENERATED -> fighterFactory.createChallengers(station.challengerCount(), station.characteristicPoints());
-      case MIRROR -> List.of(fighterFactory.createMirrorRival(hero));
+      case GENERATED -> {
+        ChallengerBudget budget = ChallengerBudget.of(station.characteristicPoints(), hero, station.challengerCount());
+        List<Fighter> fighters = fighterFactory.createChallengers(station.challengerCount(), budget.squadPoints());
+        yield new StationChallengers(fighters, budget);
+      }
+      case MIRROR -> new StationChallengers(List.of(fighterFactory.createMirrorRival(hero)), null);
     };
   }
 
@@ -200,42 +214,55 @@ public class Arena {
 
   /**
    * La scansione di una prova: annuncio, materializzazione, fotografia del roster, scontro,
-   * verifica dell'esito, procedura di fine scontro se vinta. La fotografia del roster avviene
-   * <em>prima</em> di {@code play}, quando il campione e gli sfidanti sono ancora integri: è così
-   * che la cronaca non porta mai le ferite dello scontro appena giocato.
+   * verifica dell'esito, e una lettura esaustiva delle tre chiusure possibili — vittoria piena con
+   * la procedura di fine scontro, pareggio che prosegue senza premio, caduta che chiude la corsa. La
+   * fotografia del roster avviene <em>prima</em> di {@code play}, quando il campione e gli sfidanti
+   * sono ancora integri: è così che la cronaca non porta mai le ferite dello scontro appena giocato.
    */
-  private RoundReport fightRound(int number, String description, RoundReport previous, List<Fighter> challengers,
+  private RoundReport fightRound(int number, String description, RoundReport previous, StationChallengers lineup,
       FightPlay play) {
     Hero hero = previous.grownHero();
-    logger.announceRound(number, description, hero, challengers);
+    List<Fighter> challengers = lineup.fighters();
+    logger.announceRound(number, description, hero, challengers, lineup.budget());
 
     Fighter champion = fighterFactory.summon(hero);
     List<CombatantSnapshot> roster = snapshotRoster(champion, challengers);
     TrialSteps steps = play.play(champion, challengers);
 
     RoundOutcome outcome = outcomeOf(champion, challengers);
-    if (outcome != RoundOutcome.WON) {
-      logger.reportEndOfRun(hero, outcome, number);
-      return previous.lostTrial(chronicleOf(number, description, steps, roster, outcome, null));
-    }
-
-    HeroProgress progress = applyEndOfFightProcedure(hero, number);
-    ProgressChronicle progressChronicle = chronicleMapper.snapshotProgress(progress);
-    return previous.wonTrial(progress.grownHero(),
-        chronicleOf(number, description, steps, roster, outcome, progressChronicle));
+    return switch (outcome) {
+      case FELL -> {
+        logger.reportEndOfRun(hero, outcome, number);
+        yield previous.lostTrial(chronicleOf(number, description, steps, roster, lineup.budget(), outcome, null));
+      }
+      case STOOD_WITHOUT_WINNING -> {
+        logger.reportTrialCrossed(hero, number);
+        yield previous.crossedTrial(hero,
+            chronicleOf(number, description, steps, roster, lineup.budget(), outcome, null));
+      }
+      case WON -> {
+        HeroProgress progress = applyEndOfFightProcedure(hero, number);
+        ProgressChronicle progressChronicle = chronicleMapper.snapshotProgress(progress);
+        yield previous.wonTrial(progress.grownHero(),
+            chronicleOf(number, description, steps, roster, lineup.budget(), outcome, progressChronicle));
+      }
+    };
   }
 
   /**
-   * La voce di cronaca di una prova, assemblata una volta sola: la usano sia il ramo vinto sia
-   * quello non vinto di {@link #fightRound}, che si distinguono solo per {@code progress} ({@code
-   * null} quando la prova non è stata vinta). Tenerla in un solo posto evita che le due costruzioni
-   * — identiche per sei degli otto argomenti — divergano silenziosamente se {@link TrialChronicle}
-   * cambia forma.
+   * La voce di cronaca di una prova, assemblata una volta sola: la usano tutti e tre i rami di
+   * {@link #fightRound}, che si distinguono solo per {@code progress} ({@code null} per gli esiti
+   * diversi da {@link RoundOutcome#WON}). Tenerla in un solo posto evita che le tre costruzioni —
+   * identiche per sette degli otto argomenti — divergano silenziosamente se {@link TrialChronicle}
+   * cambia forma. Il budget arriva ancora come tipo di dominio ({@link ChallengerBudget}, {@code
+   * null} per lo specchio) e si traduce qui nella sua fotografia, nello stesso istante in cui si
+   * traducono gli altri dati della voce.
    */
   private TrialChronicle chronicleOf(int number, String description, TrialSteps steps,
-      List<CombatantSnapshot> roster, RoundOutcome outcome, ProgressChronicle progress) {
-    return new TrialChronicle(number, description, steps.shape(), roster, steps.rounds(), steps.turns(),
-        steps.finalVitals(), outcome, progress);
+      List<CombatantSnapshot> roster, ChallengerBudget budget, RoundOutcome outcome, ProgressChronicle progress) {
+    ChallengerBudgetChronicle budgetChronicle = budget == null ? null : chronicleMapper.snapshotChallengerBudget(budget);
+    return new TrialChronicle(number, description, steps.shape(), roster, budgetChronicle, steps.rounds(),
+        steps.turns(), steps.finalVitals(), outcome, progress);
   }
 
   /**
@@ -271,11 +298,12 @@ public class Arena {
   }
 
   /**
-   * Si prosegue solo con una vittoria piena: il protagonista in piedi e tutti gli avversari
-   * abbattuti. Restare vivo dopo un pareggio o una decisione ai punti non apre il round
-   * successivo: il loot non dipende più da chi è caduto, ma resta il premio della prova superata, e
-   * da uno scontro non vinto non ne arriva nessuno. La caduta e il pareggio sono comunque due esiti
-   * distinti, perché a valle vanno raccontati in modo diverso.
+   * Si prosegue fino alla caduta. Una vittoria piena — il protagonista in piedi e tutti gli
+   * avversari abbattuti — apre la stazione successiva con la scheda cresciuta; restare vivo dopo un
+   * pareggio o una decisione ai punti apre comunque la stazione successiva, ma senza loot né punti
+   * caratteristica, perché il premio resta legato alla sola vittoria piena. Solo la caduta chiude la
+   * corsa. La caduta e il pareggio restano due esiti distinti perché a valle vanno raccontati in
+   * modo diverso.
    */
   private RoundOutcome outcomeOf(Fighter champion, List<Fighter> challengers) {
     if (champion.isDefeated()) {
@@ -321,6 +349,16 @@ public class Arena {
   }
 
   /**
+   * Gli sfidanti di una stazione insieme al budget che li ha generati ({@code null} per lo
+   * specchio, che ricalca il protagonista e non passa da nessuno sconto). Viaggiano insieme perché
+   * {@link #fightRound} ne ha bisogno in due momenti distinti — gli sfidanti per giocare lo
+   * scontro, il budget per la voce di cronaca — e separarli in due parametri sciolti costringerebbe
+   * {@link #fightStation} a portarli a mano attraverso una firma più densa.
+   */
+  private record StationChallengers(List<Fighter> fighters, ChallengerBudget budget) {
+  }
+
+  /**
    * I passi prodotti dal motore per una prova, nella forma che il motore ha deciso: una lista di
    * {@link RoundLogEntry} per la battaglia, una di {@link TurnLogEntry} per il duello, più lo stato
    * finale dei combattenti ({@link TrialChronicle#finalVitals()} spiega perché serve). L'altra lista
@@ -341,30 +379,32 @@ public class Arena {
   }
 
   /**
-   * L'esito di una prova in costruzione: se la catena può proseguire ({@link #passed}), la scheda
-   * cresciuta se sì, e la cronaca scritta fino a qui compresa. Esiste per non far uscire un
-   * {@code Optional} generico dai metodi di prova — il concetto non è "un eroe, forse", è "questa
-   * prova è andata così" — e per portare con sé {@link #andThen}, che incatena la prova successiva
-   * con la stessa cortocircuitazione che prima dava {@code flatMap}: se il rapporto non è di
-   * vittoria, la prova successiva non si gioca nemmeno.
+   * L'esito di una prova in costruzione: se la catena può proseguire ({@link #continues}), la
+   * scheda con cui proseguire — cresciuta dopo una vittoria, invariata dopo un pareggio — e la
+   * cronaca scritta fino a qui compresa. Esiste per non far uscire un {@code Optional} generico dai
+   * metodi di prova — il concetto non è "un eroe, forse", è "questa prova è andata così" — e per
+   * portare con sé {@link #andThen}, che incatena la prova successiva con la stessa
+   * cortocircuitazione che prima dava {@code flatMap}: solo la caduta del protagonista interrompe la
+   * catena, la prova successiva non si gioca nemmeno.
    *
    * <p>Non porta un {@link RoundOutcome} proprio: quello con cui è finita l'ultima prova giocata è
    * già dentro l'ultima voce di {@link #trials()} ({@code TrialChronicle#outcome()}), e {@link
    * #run()} lo legge da lì. Duplicarlo qui vorrebbe dire custodire due copie dello stesso dato
    * invece di risolverlo alla lettura da un'unica fonte — e la seconda copia sarebbe scomoda da
-   * riempire onestamente prima che la prima prova sia stata giocata. {@link #passed} resta perciò
-   * un semplice segnale di via libera per {@link #andThen}: vero anche all'ingresso nell'arena,
-   * quando nessuna prova è stata ancora giocata, perché lì significa solo "si può cominciare", non
-   * "si è vinto".
+   * riempire onestamente prima che la prima prova sia stata giocata. {@link #continues} resta
+   * perciò un semplice segnale di via libera per {@link #andThen}: vero anche all'ingresso
+   * nell'arena, quando nessuna prova è stata ancora giocata, e vero anche dopo un pareggio, perché
+   * in entrambi i casi significa solo "si gioca la prova successiva", non "si è vinto".
    *
-   * <p>{@link #trials()} è l'accumulatore della cronaca: {@link #wonTrial} e {@link #lostTrial}
-   * costruiscono il rapporto successivo aggiungendovi una voce, senza mai mutare la lista che
-   * portavano. Ogni {@code RoundReport} resta così un valore immutabile — non un contenitore che
-   * cresce nel tempo — ed è per questo che la cronaca vive qui invece che in un campo di
-   * {@link Arena}: un campo si presterebbe a restare sporco fra una chiamata a {@link #run()} e la
-   * successiva sulla stessa istanza, un valore che passa di rapporto in rapporto no.
+   * <p>{@link #trials()} è l'accumulatore della cronaca: {@link #wonTrial}, {@link #crossedTrial} e
+   * {@link #lostTrial} costruiscono il rapporto successivo aggiungendovi una voce, senza mai
+   * mutare la lista che portavano. Ogni {@code RoundReport} resta così un valore immutabile — non
+   * un contenitore che cresce nel tempo — ed è per questo che la cronaca vive qui invece che in un
+   * campo di {@link Arena}: un campo si presterebbe a restare sporco fra una chiamata a
+   * {@link #run()} e la successiva sulla stessa istanza, un valore che passa di rapporto in
+   * rapporto no.
    */
-  private record RoundReport(boolean passed, Hero grownHero, List<TrialChronicle> trials) {
+  private record RoundReport(boolean continues, Hero grownHero, List<TrialChronicle> trials) {
 
     private RoundReport {
       trials = List.copyOf(trials);
@@ -372,7 +412,7 @@ public class Arena {
 
     /**
      * Il rapporto con cui il protagonista entra nell'arena: nessuna prova ancora giocata, {@code
-     * passed} vero solo per dare il via libera alla prima chiamata di {@link #andThen} — non per
+     * continues} vero solo per dare il via libera alla prima chiamata di {@link #andThen} — non per
      * dichiarare una vittoria che non c'è ancora stata.
      */
     static RoundReport entering(Hero protagonist) {
@@ -383,12 +423,20 @@ public class Arena {
       return new RoundReport(true, grownHero, appending(trial));
     }
 
+    /**
+     * Il rapporto di una prova attraversata senza vincere: si prosegue, ma la scheda resta quella
+     * di prima, perché un pareggio non vale né loot né punti caratteristica.
+     */
+    RoundReport crossedTrial(Hero hero, TrialChronicle trial) {
+      return new RoundReport(true, hero, appending(trial));
+    }
+
     RoundReport lostTrial(TrialChronicle trial) {
       return new RoundReport(false, null, appending(trial));
     }
 
     RoundReport andThen(Function<RoundReport, RoundReport> nextRound) {
-      return passed ? nextRound.apply(this) : this;
+      return continues ? nextRound.apply(this) : this;
     }
 
     private List<TrialChronicle> appending(TrialChronicle trial) {

@@ -16,6 +16,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import it.fantasyarena.combat.RoundOutcome;
 import it.fantasyarena.combat.chronicle.ArenaChronicle;
+import it.fantasyarena.combat.chronicle.ChallengerBudgetChronicle;
+import it.fantasyarena.combat.chronicle.CharacteristicBonus;
 import it.fantasyarena.combat.chronicle.CombatantSnapshot;
 import it.fantasyarena.combat.chronicle.HeroSnapshot;
 import it.fantasyarena.combat.chronicle.ItemKind;
@@ -82,6 +84,20 @@ class ChronicleJsonTest {
   }
 
   /**
+   * Il gioiello non vale più punti caratteristica di suo: il campo {@code jewelBonusPoints} è
+   * sparito da {@link ProgressChronicle}, e i suoi eventuali buff si leggono ora dai
+   * {@code bonuses} di {@code found}/{@code dropped}, come per arma e armatura.
+   */
+  @Test
+  void jewelBonusPointsNonCompareNelJsonEssendoStatoSostituitoDaiBonusDellOggetto() throws JsonProcessingException {
+    ArenaChronicle chronicle = completeChronicle();
+
+    JsonNode progress = parser.readTree(chronicleJson.toJson(chronicle)).get("trials").get(0).get("progress");
+
+    assertFalse(progress.has("jewelBonusPoints"));
+  }
+
+  /**
    * Nessun {@code Fighter}, nessun {@code Team}, nessun {@code Optional} e nessuno stato mutabile
    * del motore deve comparire nel JSON. Invece di una lista di stringhe letterali da cercare nel
    * testo — che nessuno aggiornerebbe se il motore cambiasse forma altrove — si raccolgono tutti i
@@ -116,6 +132,8 @@ class ChronicleJsonTest {
     assertTrue(protagonist.has("characterClass"));
     assertTrue(protagonist.get("characteristics").get(0).has("characteristic"));
     assertTrue(protagonist.get("characteristics").get(0).has("value"));
+    assertTrue(protagonist.get("effectiveCharacteristics").get(0).has("characteristic"));
+    assertTrue(protagonist.get("effectiveCharacteristics").get(0).has("value"));
     assertItemSnapshotKeys(protagonist.get("weapon"));
     assertItemSnapshotKeys(protagonist.get("armourPieces").get(0));
     assertItemSnapshotKeys(protagonist.get("jewels").get(0));
@@ -126,6 +144,7 @@ class ChronicleJsonTest {
     assertTrue(item.has("name"));
     assertTrue(item.has("rarity"));
     assertTrue(item.has("power"));
+    assertTrue(item.has("bonuses"));
   }
 
   private void assertBattleTrialKeys(JsonNode battleTrial) {
@@ -133,6 +152,7 @@ class ChronicleJsonTest {
     assertTrue(battleTrial.has("number"));
     assertTrue(battleTrial.has("description"));
     assertEquals("WON", battleTrial.get("outcome").asText());
+    assertChallengerBudgetKeys(battleTrial.get("budget"));
 
     JsonNode rosterEntry = battleTrial.get("roster").get(0);
     assertTrue(rosterEntry.has("rosterIndex"));
@@ -155,6 +175,7 @@ class ChronicleJsonTest {
   private void assertDuelTrialKeys(JsonNode duelTrial) {
     assertEquals("DUEL", duelTrial.get("shape").asText());
     assertTrue(duelTrial.get("rounds").isEmpty(), "il duello lascia vuoti i round");
+    assertTrue(duelTrial.get("budget").isNull(), "lo sfidante speculare non dichiara un monte proprio");
 
     JsonNode turnLog = duelTrial.get("turns").get(0);
     assertTrue(turnLog.has("turnNumber"));
@@ -162,6 +183,12 @@ class ChronicleJsonTest {
     assertVitalsKeys(turnLog.get("vitals").get(0));
     assertTrue(turnLog.get("action").has("critical"));
     assertVitalsKeys(duelTrial.get("finalVitals").get(0));
+  }
+
+  private void assertChallengerBudgetKeys(JsonNode budget) {
+    assertTrue(budget.has("stationPoints"));
+    assertTrue(budget.has("luckDiscount"));
+    assertTrue(budget.has("squadPoints"));
   }
 
   private void assertVitalsKeys(JsonNode vitals) {
@@ -175,7 +202,6 @@ class ChronicleJsonTest {
     assertItemSnapshotKeys(progress.get("found"));
     assertEquals("ARMOUR_REPLACED", progress.get("fate").asText());
     assertItemSnapshotKeys(progress.get("dropped"));
-    assertTrue(progress.has("jewelBonusPoints"));
     assertTrue(progress.get("gains").get(0).has("characteristic"));
     assertTrue(progress.get("gains").get(0).has("points"));
     assertProtagonistKeys(progress.get("heroAfter"));
@@ -204,12 +230,15 @@ class ChronicleJsonTest {
 
   private HeroSnapshot heroSnapshot() {
     List<CharacterCharacteristic> characteristics = List.of(new CharacterCharacteristic(Characteristic.STRENGTH, 12));
-    ItemSnapshot weapon = new ItemSnapshot(ItemKind.WEAPON, "SWORD", Rarity.RARE, 9);
-    List<ItemSnapshot> armourPieces = List.of(new ItemSnapshot(ItemKind.ARMOUR, "CHESTPLATE", Rarity.RARE, 6));
-    List<ItemSnapshot> jewels = List.of(new ItemSnapshot(ItemKind.JEWEL, "RING", Rarity.EPIC, null));
+    List<CharacterCharacteristic> effectiveCharacteristics =
+        List.of(new CharacterCharacteristic(Characteristic.STRENGTH, 15));
+    ItemSnapshot weapon = new ItemSnapshot(ItemKind.WEAPON, "SWORD", Rarity.RARE, 9,
+        List.of(new CharacteristicBonus(Characteristic.STRENGTH, 3)));
+    List<ItemSnapshot> armourPieces = List.of(new ItemSnapshot(ItemKind.ARMOUR, "CHESTPLATE", Rarity.RARE, 6, List.of()));
+    List<ItemSnapshot> jewels = List.of(new ItemSnapshot(ItemKind.JEWEL, "RING", Rarity.EPIC, null, List.of()));
 
-    return new HeroSnapshot("Protagonista", Race.HUMAN, CharacterClass.WARRIOR, characteristics, weapon,
-        armourPieces, jewels);
+    return new HeroSnapshot("Protagonista", Race.HUMAN, CharacterClass.WARRIOR, characteristics,
+        effectiveCharacteristics, weapon, armourPieces, jewels);
   }
 
   private TrialChronicle battleTrial(HeroSnapshot protagonist) {
@@ -233,8 +262,10 @@ class ChronicleJsonTest {
     List<FighterVitals> finalVitals = List.of(new FighterVitals("Protagonista", 40, 40, 20, 20),
         new FighterVitals("Rivale", 0, 40, 20, 20));
 
+    ChallengerBudgetChronicle budget = new ChallengerBudgetChronicle(31, 4, 27);
+
     return new TrialChronicle(1, "il primo avversario", TrialShape.BATTLE, List.of(heroSnapshot, rivalSnapshot),
-        List.of(round), List.of(), finalVitals, RoundOutcome.WON, progress);
+        budget, List.of(round), List.of(), finalVitals, RoundOutcome.WON, progress);
   }
 
   private TrialChronicle duelTrial() {
@@ -255,15 +286,15 @@ class ChronicleJsonTest {
         .withHighlights(List.of(TurnHighlight.CRITICAL, TurnHighlight.KNOCKOUT))
         .withAction(action);
 
-    return new TrialChronicle(3, "lo sfidante speculare", TrialShape.DUEL, List.of(), List.of(), List.of(turnLog),
-        vitals, RoundOutcome.WON, null);
+    return new TrialChronicle(3, "lo sfidante speculare", TrialShape.DUEL, List.of(), null, List.of(),
+        List.of(turnLog), vitals, RoundOutcome.WON, null);
   }
 
   private ProgressChronicle progressChronicle(HeroSnapshot heroAfter) {
-    ItemSnapshot found = new ItemSnapshot(ItemKind.ARMOUR, "CHESTPLATE", Rarity.EPIC, 11);
-    ItemSnapshot dropped = new ItemSnapshot(ItemKind.ARMOUR, "CHESTPLATE", Rarity.RARE, 6);
+    ItemSnapshot found = new ItemSnapshot(ItemKind.ARMOUR, "CHESTPLATE", Rarity.EPIC, 11, List.of());
+    ItemSnapshot dropped = new ItemSnapshot(ItemKind.ARMOUR, "CHESTPLATE", Rarity.RARE, 6, List.of());
     List<CharacteristicGain> gains = List.of(new CharacteristicGain(Characteristic.STRENGTH, 3));
 
-    return new ProgressChronicle(found, LootFate.ARMOUR_REPLACED, dropped, null, gains, heroAfter);
+    return new ProgressChronicle(found, LootFate.ARMOUR_REPLACED, dropped, gains, heroAfter);
   }
 }

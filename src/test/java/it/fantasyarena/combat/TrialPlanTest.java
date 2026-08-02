@@ -61,13 +61,13 @@ class TrialPlanTest {
   }
 
   @Test
-  void ilMontePuntiCresceSecondoLaCurvaDichiarataESoloPerLeStazioniGenerate() {
+  void ilMonteDiSquadraCresceSecondoLaCurvaDichiarataESoloPerLeStazioniGenerate() {
     List<Integer> characteristicPoints = plan.stations().stream()
         .limit(9)
         .map(TrialStation::characteristicPoints)
         .toList();
 
-    assertEquals(List.of(15, 18, 21, 24, 27, 30, 33, 36, 39), characteristicPoints);
+    assertEquals(List.of(15, 18, 21, 31, 35, 39, 50, 54, 59), characteristicPoints);
     assertNull(plan.stations().getLast().characteristicPoints(), "lo specchio non dichiara un monte punti proprio");
   }
 

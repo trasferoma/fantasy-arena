@@ -76,7 +76,7 @@ class HeroProgressTest {
   void gioielloIndossatoSuUnTipoPrimaScoperto() {
     JewelResult found = jewel(Jewel.RING, Rarity.RARE);
     HeroProgress progress = new HeroProgress(heroWith(sword(5), chestplate(4)), Loot.ofJewel(found),
-        null, null, null, new NewJewel(found, 2), null, ANY_GAINS);
+        null, null, null, new NewJewel(found), null, ANY_GAINS);
 
     assertEquals(LootFate.JEWEL_WORN_ON_EMPTY_TYPE, progress.lootFate());
   }
@@ -86,7 +86,7 @@ class HeroProgressTest {
     JewelResult found = jewel(Jewel.RING, Rarity.EPIC);
     JewelResult dropped = jewel(Jewel.RING, Rarity.UNCOMMON);
     HeroProgress progress = new HeroProgress(heroWith(sword(5), chestplate(4)), Loot.ofJewel(found),
-        null, null, null, null, new JewelUpgrade(dropped, found, 3), ANY_GAINS);
+        null, null, null, null, new JewelUpgrade(dropped, found), ANY_GAINS);
 
     assertEquals(LootFate.JEWEL_REPLACED, progress.lootFate());
   }

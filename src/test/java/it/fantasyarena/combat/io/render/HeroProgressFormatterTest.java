@@ -17,6 +17,7 @@ import it.fantasyarena.combat.hero.HeroProgress.WeaponSwap;
 import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.testsupport.CombatFixtures;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
@@ -48,7 +49,24 @@ class HeroProgressFormatterTest {
     assertTrue(lines.get(1).contains("vita e stamina tornano piene"), lines.get(1));
     assertTrue(lines.contains("Arma: trovi SWORD (RARE, atk 9), lasci SWORD (COMMON, atk 4) e la impugni."),
         lines.toString());
+    assertTrue(lines.stream().noneMatch(line -> line.startsWith("Bonus")),
+        "un'arma senza buff non deve produrre nessuna riga di bonus: " + lines);
     assertEquals("Crescita: +2 STRENGTH, +1 LUCK.", lines.getLast());
+  }
+
+  @Test
+  void raccontaLArmaImpugnataConIBonusDiEntrambeLeArmi() {
+    WeaponResult found = swordWithBuff(9, Rarity.RARE, Characteristic.STRENGTH, 3);
+    WeaponResult dropped = swordWithBuff(4, Rarity.COMMON, Characteristic.LUCK, 1);
+    HeroProgress progress = new HeroProgress(heroWith(found, chestplate(4)),
+        Loot.ofWeapon(found), new WeaponSwap(dropped, found),
+        null, null, null, null,
+        List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
+
+    List<String> lines = formatter.lines(progress);
+
+    assertTrue(lines.contains("Bonus dell'oggetto trovato: +3 STRENGTH."), lines.toString());
+    assertTrue(lines.contains("Bonus dell'oggetto lasciato: +1 LUCK."), lines.toString());
   }
 
   @Test
@@ -103,33 +121,35 @@ class HeroProgressFormatterTest {
   }
 
   @Test
-  void raccontaIlGioielloIndossatoSuUnTipoScoperto() {
-    JewelResult jewel = jewel(Jewel.RING, Rarity.RARE);
+  void raccontaIlGioielloIndossatoSuUnTipoScopertoConIlSuoBonus() {
+    JewelResult jewel = jewelWithBuff(Jewel.RING, Rarity.RARE, Characteristic.STRENGTH, 2);
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(4)),
         Loot.ofJewel(jewel),
-        null, null, null, new NewJewel(jewel, 2), null,
+        null, null, null, new NewJewel(jewel), null,
         List.of(new CharacteristicGain(Characteristic.AGILITY, 5)));
 
     List<String> lines = formatter.lines(progress);
 
-    assertTrue(lines.contains("Gioiello: trovi RING (RARE), è un tipo che non portavi ancora: lo indossi, vale +2"
-        + " punti caratteristica."), lines.toString());
+    assertTrue(lines.contains("Gioiello: trovi RING (RARE), è un tipo che non portavi ancora: lo indossi."),
+        lines.toString());
+    assertTrue(lines.contains("Bonus dell'oggetto trovato: +2 STRENGTH."), lines.toString());
     assertEquals("Crescita: +5 AGILITY.", lines.getLast());
   }
 
   @Test
-  void raccontaLaSostituzioneDelGioiello() {
-    JewelResult found = jewel(Jewel.RING, Rarity.EPIC);
-    JewelResult dropped = jewel(Jewel.RING, Rarity.UNCOMMON);
+  void raccontaLaSostituzioneDelGioielloConIBonusDiEntrambi() {
+    JewelResult found = jewelWithBuff(Jewel.RING, Rarity.EPIC, Characteristic.STRENGTH, 3);
+    JewelResult dropped = jewelWithBuff(Jewel.RING, Rarity.UNCOMMON, Characteristic.RESISTANCE, 1);
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(4)),
         Loot.ofJewel(found),
-        null, null, null, null, new JewelUpgrade(dropped, found, 3),
+        null, null, null, null, new JewelUpgrade(dropped, found),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);
 
-    assertTrue(lines.contains("Gioiello: trovi RING (EPIC), sostituisce RING (UNCOMMON) e vale +3 punti caratteristica."),
-        lines.toString());
+    assertTrue(lines.contains("Gioiello: trovi RING (EPIC), sostituisce RING (UNCOMMON)."), lines.toString());
+    assertTrue(lines.contains("Bonus dell'oggetto trovato: +3 STRENGTH."), lines.toString());
+    assertTrue(lines.contains("Bonus dell'oggetto lasciato: +1 RESISTANCE."), lines.toString());
   }
 
   @Test
@@ -154,6 +174,11 @@ class HeroProgressFormatterTest {
     return new WeaponResult(Weapon.SWORD, rarity, List.of(), List.of(), attack);
   }
 
+  private WeaponResult swordWithBuff(int attack, Rarity rarity, Characteristic characteristic, int buffValue) {
+    return new WeaponResult(Weapon.SWORD, rarity, List.of(new BuffElement(characteristic, buffValue)), List.of(),
+        attack);
+  }
+
   private ArmourResult chestplate(int defense) {
     return piece(Armour.CHESTPLATE, defense);
   }
@@ -164,5 +189,9 @@ class HeroProgressFormatterTest {
 
   private JewelResult jewel(Jewel type, Rarity rarity) {
     return new JewelResult(type, rarity, List.of(), List.of());
+  }
+
+  private JewelResult jewelWithBuff(Jewel type, Rarity rarity, Characteristic characteristic, int buffValue) {
+    return new JewelResult(type, rarity, List.of(new BuffElement(characteristic, buffValue)), List.of());
   }
 }

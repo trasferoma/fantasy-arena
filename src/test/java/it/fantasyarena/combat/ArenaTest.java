@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -19,11 +20,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import it.fantasyarena.combat.chronicle.ArenaChronicle;
+import it.fantasyarena.combat.chronicle.ChallengerBudgetChronicle;
 import it.fantasyarena.combat.chronicle.CombatantSnapshot;
 import it.fantasyarena.combat.chronicle.ProgressChronicle;
 import it.fantasyarena.combat.chronicle.TrialChronicle;
 import it.fantasyarena.combat.chronicle.TrialShape;
 import it.fantasyarena.combat.factory.FighterFactory;
+import it.fantasyarena.combat.hero.EquipmentBonus;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroBrain;
 import it.fantasyarena.combat.io.log.ConsoleArenaLogger;
@@ -38,6 +41,7 @@ import it.fantasycombatsystem.result.CombatOutcome;
 import it.fantasycombatsystem.result.CombatResult;
 import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.TurnLogEntry;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 
 /**
@@ -108,13 +112,71 @@ class ArenaTest {
   }
 
   @Test
-  void restareInPiediSenzaAbbattereTuttiNonApreIlRoundSuccessivo() {
-    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE);
+  void restareInPiediSenzaAbbattereTuttiApreComunqueIlRoundSuccessivo() {
+    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE, FightOutcome.HERO_FALLS);
 
     arenaWith(fights).run();
 
-    assertEquals(List.of(1, 1), fights.challengerCounts());
-    assertTrue(output().contains("non ha vinto lo scontro"), output());
+    assertEquals(List.of(1, 1, 1), fights.challengerCounts(),
+        "il pareggio non ferma la scansione: la prova dopo il pareggio viene comunque giocata");
+    assertTrue(output().contains("senza abbattere tutti gli avversari"), output());
+  }
+
+  @Test
+  void unPareggioFaProseguireSenzaLootNePunti() {
+    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE, FightOutcome.HERO_FALLS);
+
+    arenaWith(fights).run();
+
+    assertSame(factory.heroOfRound(2), factory.heroOfRound(3),
+        "senza premio la scheda con cui si gioca la prova dopo il pareggio è la stessa di prima, non una copia cresciuta");
+  }
+
+  @Test
+  void pareggiConsecutiviFannoProseguireSenzaCrescita() {
+    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE, FightOutcome.STALEMATE,
+        FightOutcome.HERO_FALLS);
+
+    arenaWith(fights).run();
+
+    assertEquals(List.of(1, 1, 1, 2), fights.challengerCounts(),
+        "due pareggi in fila non fermano la scansione: la quarta stazione ha già due sfidanti");
+    assertSame(factory.heroOfRound(2), factory.heroOfRound(3), "il primo pareggio non fa crescere la scheda");
+    assertSame(factory.heroOfRound(3), factory.heroOfRound(4), "il secondo pareggio non fa crescere la scheda");
+  }
+
+  @Test
+  void unPareggioAllaDecimaProvaChiudeLaCorsaSenzaTrionfo() {
+    FightOutcome[] outcomes = new FightOutcome[TrialPlan.standard().length()];
+    Arrays.fill(outcomes, FightOutcome.HERO_WINS);
+    outcomes[outcomes.length - 1] = FightOutcome.STALEMATE;
+    ScriptedFights fights = scripted(outcomes);
+
+    ArenaChronicle chronicle = arenaWith(fights).run();
+
+    assertEquals(10, chronicle.trials().size(), "il pareggio alla decima prova resta l'ultima voce, non ne apre altre");
+    assertEquals(RoundOutcome.STOOD_WITHOUT_WINNING, chronicle.conclusion().outcome());
+    assertEquals(10, chronicle.conclusion().lastTrial());
+    assertFalse(chronicle.conclusion().triumph(), "un pareggio non è un trionfo, nemmeno alla decima prova");
+    assertFalse(output().contains("ha superato tutte le 10 prove"), output());
+  }
+
+  @Test
+  void laVoceDiCronacaDiUnaProvaPareggiataNonInterrompeLeVociSuccessive() {
+    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE, FightOutcome.HERO_WINS,
+        FightOutcome.HERO_FALLS);
+
+    ArenaChronicle chronicle = arenaWith(fights).run();
+
+    assertEquals(4, chronicle.trials().size(), "le quattro prove giocate hanno tutte una voce di cronaca");
+
+    TrialChronicle stalemateTrial = chronicle.trials().get(1);
+    assertEquals(RoundOutcome.STOOD_WITHOUT_WINNING, stalemateTrial.outcome());
+    assertNull(stalemateTrial.progress(), "una prova pareggiata non ha procedura di fine scontro");
+
+    TrialChronicle nextTrial = chronicle.trials().get(2);
+    assertEquals(3, nextTrial.number(), "la voce della prova dopo il pareggio esiste ed è quella attesa");
+    assertEquals(RoundOutcome.WON, nextTrial.outcome());
   }
 
   @Test
@@ -142,21 +204,34 @@ class ArenaTest {
         .maxHealth(), "il copione deve davvero ferire il protagonista, altrimenti non c'è cura da verificare");
   }
 
+  /**
+   * Lo specchio rispecchia i punti caratteristica <em>base</em> del protagonista cresciuto, non
+   * quelli effettivi: i propri buff d'equipaggiamento restano, ma non quelli del protagonista.
+   * Conseguenza dichiarata della SPEC, non un difetto di questo test.
+   */
   @Test
-  void loSfidanteSpeculareRispecchiaIlProtagonistaCresciuto() {
+  void loSfidanteSpeculareRispecchiaIPuntiBaseDelProtagonistaCresciuto() {
     ScriptedFights fights = scriptedAllWins();
 
     arenaWith(fights).run();
 
     Fighter mirrorRival = fights.challengersOfRound(10).getFirst();
     Hero heroBeforeFinalRound = factory.heroOfRound(10);
-    int rivalPoints = mirrorRival.character().characteristics().stream()
+    int rivalEffectivePoints = mirrorRival.character().characteristics().stream()
         .mapToInt(CharacterCharacteristic::value)
         .sum();
+    int rivalBonusPoints = EquipmentBonus.totalValueOf(equipmentBuffsOf(mirrorRival));
+    int rivalBasePoints = rivalEffectivePoints - rivalBonusPoints;
 
-    assertEquals(heroBeforeFinalRound.totalCharacteristicPoints(), rivalPoints,
-        "lo specchio deve rispecchiare il protagonista com'è cresciuto, non com'era all'inizio");
+    assertEquals(heroBeforeFinalRound.totalCharacteristicPoints(), rivalBasePoints,
+        "lo specchio deve rispecchiare i punti base del protagonista com'è cresciuto, non gli effettivi");
     assertEquals(heroBeforeFinalRound.armourPieceCount(), mirrorRival.armourPieces().size());
+  }
+
+  private List<BuffElement> equipmentBuffsOf(Fighter fighter) {
+    List<BuffElement> buffs = new ArrayList<>(fighter.weapon().buffs());
+    fighter.armourPieces().forEach(piece -> buffs.addAll(piece.buffs()));
+    return buffs;
   }
 
   @Test
@@ -255,19 +330,60 @@ class ArenaTest {
     assertFalse(chronicle.conclusion().triumph());
   }
 
+  /**
+   * Lo sconto della fortuna si calcola solo per le nove stazioni generate: lo specchio non
+   * dichiara un monte proprio e {@code createMirrorRival} non passa mai da {@link ChallengerBudget}.
+   */
   @Test
-  void dopoUnPareggioLaCronacaSiChiudeAllaProvaInCuiNonHaVintoLoScontro() {
-    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE);
+  void loSpecchioNonPassaDalCalcoloDelMonteScontatoDallaFortuna() {
+    ScriptedFights fights = scriptedAllWins();
+
+    arenaWith(fights).run();
+
+    assertEquals(9, factory.squadPointsByGeneratedStation().size(),
+        "il monte scontato si calcola una volta per ciascuna delle nove stazioni generate, mai per lo specchio");
+    assertEquals(1, factory.mirrorInvocations(), "lo specchio si genera una volta sola, senza passare dal budget");
+  }
+
+  /**
+   * Lo sconto entra nella cronaca come dato, non come frase: ogni prova a sfidanti generati porta
+   * monte dichiarato, sconto e monte effettivo, e la stazione dello specchio non ne porta nessuno.
+   */
+  @Test
+  void laCronacaDiOgniProvaGenerataPortaIlBudgetELoSpecchioNoNe() {
+    ScriptedFights fights = scriptedAllWins();
 
     ArenaChronicle chronicle = arenaWith(fights).run();
 
-    assertEquals(2, chronicle.trials().size(), "nessuna voce per la prova non giocata dopo il pareggio");
+    List<TrialStation> stations = TrialPlan.standard().stations();
+    for (int trialIndex = 0; trialIndex < 9; trialIndex++) {
+      TrialChronicle trial = chronicle.trials().get(trialIndex);
+      ChallengerBudgetChronicle budget = trial.budget();
+      assertNotNull(budget, "prova numero " + trial.number() + " generata senza budget in cronaca");
+      assertEquals(stations.get(trialIndex).characteristicPoints(), budget.stationPoints());
+      assertTrue(budget.luckDiscount() >= 0);
+      assertEquals(budget.stationPoints() - budget.luckDiscount(), budget.squadPoints());
+    }
+
+    TrialChronicle mirrorTrial = chronicle.trials().get(9);
+    assertNull(mirrorTrial.budget(), "lo specchio non dichiara un monte proprio in cronaca");
+  }
+
+  @Test
+  void dopoUnPareggioLaCorsaProseguePresentandoLaProvaSuccessiva() {
+    ScriptedFights fights = scripted(FightOutcome.HERO_WINS, FightOutcome.STALEMATE, FightOutcome.HERO_FALLS);
+
+    ArenaChronicle chronicle = arenaWith(fights).run();
+
+    assertEquals(3, chronicle.trials().size(), "il pareggio non chiude la corsa: la prova dopo si gioca e si registra");
+
     TrialChronicle stalemateTrial = chronicle.trials().get(1);
     assertEquals(RoundOutcome.STOOD_WITHOUT_WINNING, stalemateTrial.outcome());
-    assertNull(stalemateTrial.progress(), "una prova non vinta non ha procedura di fine scontro");
+    assertNull(stalemateTrial.progress(), "una prova pareggiata non ha procedura di fine scontro");
 
-    assertEquals(RoundOutcome.STOOD_WITHOUT_WINNING, chronicle.conclusion().outcome());
-    assertEquals(2, chronicle.conclusion().lastTrial());
+    assertEquals(RoundOutcome.FELL, chronicle.conclusion().outcome(),
+        "la conclusione racconta l'esito dell'ultima prova giocata, non quello della prova pareggiata");
+    assertEquals(3, chronicle.conclusion().lastTrial());
     assertFalse(chronicle.conclusion().triumph());
   }
 
@@ -438,6 +554,8 @@ class ArenaTest {
     private final List<Hero> heroesByRound = new ArrayList<>();
     private final List<Fighter> summonedChampions = new ArrayList<>();
     private final List<SummonedChampion> championsAtSummon = new ArrayList<>();
+    private final List<Integer> squadPointsByGeneratedStation = new ArrayList<>();
+    private int mirrorInvocations;
 
     private RecordingFighterFactory(CombatSettings settings) {
       super(FighterAssembler.withDefaultRatings(settings));
@@ -452,6 +570,18 @@ class ArenaTest {
       return champion;
     }
 
+    @Override
+    public List<Fighter> createChallengers(int count, int squadCharacteristicPoints) {
+      squadPointsByGeneratedStation.add(squadCharacteristicPoints);
+      return super.createChallengers(count, squadCharacteristicPoints);
+    }
+
+    @Override
+    public Fighter createMirrorRival(Hero hero) {
+      mirrorInvocations++;
+      return super.createMirrorRival(hero);
+    }
+
     private Hero heroOfRound(int round) {
       return heroesByRound.get(round - 1);
     }
@@ -462,6 +592,14 @@ class ArenaTest {
 
     private Fighter lastSummonedChampion() {
       return summonedChampions.getLast();
+    }
+
+    private List<Integer> squadPointsByGeneratedStation() {
+      return squadPointsByGeneratedStation;
+    }
+
+    private int mirrorInvocations() {
+      return mirrorInvocations;
     }
   }
 

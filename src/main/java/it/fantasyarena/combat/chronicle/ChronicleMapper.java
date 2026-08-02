@@ -2,12 +2,14 @@ package it.fantasyarena.combat.chronicle;
 
 import java.util.List;
 
+import it.fantasyarena.combat.ChallengerBudget;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroProgress;
 import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.model.IntrinsicRatings;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
@@ -15,7 +17,8 @@ import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 /**
  * Il solo punto che traduce i dati vivi del gioco nei record della cronaca: {@link Fighter} in
  * {@link CombatantSnapshot}, {@link Hero} in {@link HeroSnapshot}, {@link HeroProgress} in
- * {@link ProgressChronicle}. Nessuna di queste conversioni si ripete altrove.
+ * {@link ProgressChronicle}, {@link ChallengerBudget} in {@link ChallengerBudgetChronicle}. Nessuna
+ * di queste conversioni si ripete altrove.
  *
  * <p>Fotografa invece di referenziare, lo stesso rimedio già applicato da
  * {@code combat.io.render.FighterProfile} per liberare {@code BattleSceneRenderer} dalla dipendenza
@@ -40,17 +43,23 @@ public class ChronicleMapper {
 
   public HeroSnapshot snapshotHero(Hero hero) {
     CharacterResult character = hero.character();
+    CharacterResult effectiveCharacter = hero.effectiveCharacter();
+
     return new HeroSnapshot(hero.name(), character.race(), character.characterClass(), character.characteristics(),
-        snapshotWeapon(hero.weapon()), snapshotArmourPieces(hero.armourPieces()), snapshotJewels(hero.jewels()));
+        effectiveCharacter.characteristics(), snapshotWeapon(hero.weapon()), snapshotArmourPieces(hero.armourPieces()),
+        snapshotJewels(hero.jewels()));
   }
 
   public ProgressChronicle snapshotProgress(HeroProgress progress) {
     ItemSnapshot found = snapshotFound(progress);
     ItemSnapshot dropped = snapshotDropped(progress);
-    Integer jewelBonusPoints = snapshotJewelBonusPoints(progress);
 
-    return new ProgressChronicle(found, progress.lootFate(), dropped, jewelBonusPoints, progress.characteristicGains(),
+    return new ProgressChronicle(found, progress.lootFate(), dropped, progress.characteristicGains(),
         snapshotHero(progress.grownHero()));
+  }
+
+  public ChallengerBudgetChronicle snapshotChallengerBudget(ChallengerBudget budget) {
+    return new ChallengerBudgetChronicle(budget.stationPoints(), budget.luckDiscount(), budget.squadPoints());
   }
 
   /**
@@ -86,22 +95,6 @@ public class ChronicleMapper {
     };
   }
 
-  /**
-   * I punti caratteristica che il gioiello indossato vale, presenti solo quando il destino già
-   * risolto è {@code JEWEL_WORN_ON_EMPTY_TYPE} o {@code JEWEL_REPLACED}: i due soli casi in cui
-   * {@code HeroBrain} assegna un bonus per il gioiello. Lo switch elenca tutti gli otto casi invece
-   * di ricorrere a un {@code default}, per lo stesso motivo di {@link #snapshotDropped}: un nono
-   * destino futuro con un bonus deve fermare la compilazione, non sparire in un {@code null}.
-   */
-  private Integer snapshotJewelBonusPoints(HeroProgress progress) {
-    return switch (progress.lootFate()) {
-      case JEWEL_WORN_ON_EMPTY_TYPE -> progress.newJewel().orElseThrow().points();
-      case JEWEL_REPLACED -> progress.jewelUpgrade().orElseThrow().points();
-      case WEAPON_TAKEN, WEAPON_DISCARDED, ARMOUR_WORN_ON_EMPTY_SLOT, ARMOUR_REPLACED, ARMOUR_DISCARDED,
-          JEWEL_DISCARDED -> null;
-    };
-  }
-
   private List<ItemSnapshot> snapshotArmourPieces(List<ArmourResult> pieces) {
     return pieces.stream().map(this::snapshotArmourPiece).toList();
   }
@@ -111,14 +104,24 @@ public class ChronicleMapper {
   }
 
   private ItemSnapshot snapshotWeapon(WeaponResult weapon) {
-    return new ItemSnapshot(ItemKind.WEAPON, weapon.weapon().name(), weapon.rarity(), weapon.attack());
+    return new ItemSnapshot(ItemKind.WEAPON, weapon.weapon().name(), weapon.rarity(), weapon.attack(),
+        snapshotBonuses(weapon.buffs()));
   }
 
   private ItemSnapshot snapshotArmourPiece(ArmourResult piece) {
-    return new ItemSnapshot(ItemKind.ARMOUR, piece.armour().name(), piece.rarity(), piece.defense());
+    return new ItemSnapshot(ItemKind.ARMOUR, piece.armour().name(), piece.rarity(), piece.defense(),
+        snapshotBonuses(piece.buffs()));
   }
 
   private ItemSnapshot snapshotJewel(JewelResult jewel) {
-    return new ItemSnapshot(ItemKind.JEWEL, jewel.jewel().name(), jewel.rarity(), null);
+    return new ItemSnapshot(ItemKind.JEWEL, jewel.jewel().name(), jewel.rarity(), null, snapshotBonuses(jewel.buffs()));
+  }
+
+  /**
+   * I buff dell'oggetto tradotti nella forma di cronaca, senza fonderli fra loro: se un oggetto
+   * porta più buff sulla stessa caratteristica, la lista li elenca entrambi così com'è generato.
+   */
+  private List<CharacteristicBonus> snapshotBonuses(List<BuffElement> buffs) {
+    return buffs.stream().map(buff -> new CharacteristicBonus(buff.characteristic(), buff.value())).toList();
   }
 }

@@ -123,15 +123,14 @@ public final class HeroProgress {
   }
 
   /**
-   * Il gioiello indossato su un tipo prima scoperto, con i punti caratteristica che vale.
+   * Il gioiello indossato su un tipo prima scoperto.
    */
   public Optional<NewJewel> newJewel() {
     return Optional.ofNullable(newJewel);
   }
 
   /**
-   * Il gioiello che ha rimpiazzato uno già indossato dello stesso tipo perché più raro, con i
-   * punti caratteristica che vale.
+   * Il gioiello che ha rimpiazzato uno già indossato dello stesso tipo perché batteva i suoi buff.
    */
   public Optional<JewelUpgrade> jewelUpgrade() {
     return Optional.ofNullable(jewelUpgrade);
@@ -154,17 +153,17 @@ public final class HeroProgress {
   }
 
   /**
-   * Il gioiello preso su un tipo prima scoperto, e i punti caratteristica che vale secondo la sua
-   * rarità.
+   * Il gioiello preso su un tipo prima scoperto. Non vale più punti caratteristica di suo: i suoi
+   * eventuali buff contano già attraverso {@link Hero#effectiveCharacter()}.
    */
-  public record NewJewel(JewelResult jewel, int points) {
+  public record NewJewel(JewelResult jewel) {
   }
 
   /**
-   * Il gioiello scartato e quello che ora occupa lo stesso tipo, con i punti caratteristica che il
-   * gioiello preso vale.
+   * Il gioiello scartato e quello che ora occupa lo stesso tipo. Non vale più punti caratteristica
+   * di suo: i suoi eventuali buff contano già attraverso {@link Hero#effectiveCharacter()}.
    */
-  public record JewelUpgrade(JewelResult dropped, JewelResult taken, int points) {
+  public record JewelUpgrade(JewelResult dropped, JewelResult taken) {
   }
 
   /**

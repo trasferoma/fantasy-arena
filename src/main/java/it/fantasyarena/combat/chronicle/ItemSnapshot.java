@@ -1,5 +1,7 @@
 package it.fantasyarena.combat.chronicle;
 
+import java.util.List;
+
 import it.fantasytoolkitcore.core.model.Rarity;
 
 /**
@@ -17,7 +19,15 @@ import it.fantasytoolkitcore.core.model.Rarity;
  * e {@code Jewel} sono enum di sole costanti senza {@code toString()} ridefinito (vedi
  * {@code core.md} del toolkit), quindi {@link #name()} è già il testo che la console stampa oggi
  * concatenando l'enum. {@link #power()} è l'attacco per un'arma e la difesa per un'armatura; è
- * {@code null} per un gioiello, l'unico dei tre a non avere un numero — solo la rarità.
+ * {@code null} per un gioiello, che non ha né attacco né difesa. {@link #bonuses()} sono i buff
+ * che l'oggetto porta finché resta equipaggiato, vuota per un oggetto senza buff: a differenza di
+ * {@link #power()}, non è un campo escluso per il gioiello, che pur senza un numero di potenza
+ * può portare le sue caratteristiche.
  */
-public record ItemSnapshot(ItemKind kind, String name, Rarity rarity, Integer power) {
+public record ItemSnapshot(ItemKind kind, String name, Rarity rarity, Integer power,
+    List<CharacteristicBonus> bonuses) {
+
+  public ItemSnapshot {
+    bonuses = List.copyOf(bonuses);
+  }
 }

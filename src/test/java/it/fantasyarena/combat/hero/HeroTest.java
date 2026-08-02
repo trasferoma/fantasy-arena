@@ -10,10 +10,13 @@ import org.junit.jupiter.api.Test;
 
 import it.fantasycombatsystem.testsupport.CombatFixtures;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
+import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
+import it.fantasytoolkitcore.core.model.Characteristic;
 import it.fantasytoolkitcore.core.model.Jewel;
 import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.Weapon;
@@ -129,11 +132,72 @@ class HeroTest {
     assertTrue(hero.jewelOfType(Jewel.NECKLACE).isEmpty());
   }
 
+  @Test
+  void leCaratteristicheEffettiveSommanoIBuffDiArmaArmaturaEGioiello() {
+    WeaponResult buffedSword = weapon(Characteristic.STRENGTH, 2);
+    ArmourResult buffedChestplate = piece(Armour.CHESTPLATE, 4, Characteristic.RESISTANCE, 1);
+    JewelResult buffedRing = jewel(Jewel.RING, Rarity.COMMON, Characteristic.STRENGTH, 3);
+    Hero hero = new Hero(character, buffedSword, List.of(buffedChestplate)).wearing(buffedRing);
+
+    CharacterResult effective = hero.effectiveCharacter();
+
+    assertEquals(valueOf(character, Characteristic.STRENGTH) + 5, valueOf(effective, Characteristic.STRENGTH),
+        "spada e anello contribuiscono entrambi alla forza");
+    assertEquals(valueOf(character, Characteristic.RESISTANCE) + 1, valueOf(effective, Characteristic.RESISTANCE));
+  }
+
+  @Test
+  void laSchedaBaseNonRisenteDeiBuffDellEquipaggiamento() {
+    WeaponResult buffedSword = weapon(Characteristic.STRENGTH, 2);
+    Hero hero = new Hero(character, buffedSword, List.of(piece(Armour.CHESTPLATE, 4)));
+
+    hero.effectiveCharacter();
+
+    assertEquals(character, hero.character(), "la lettura delle caratteristiche effettive non deve alterare la base");
+    assertEquals(character.characteristics(), hero.character().characteristics());
+  }
+
+  @Test
+  void sostituireUnPezzoSostituisceIBonusNelleCaratteristicheEffettive() {
+    ArmourResult weakChestplate = piece(Armour.CHESTPLATE, 4, Characteristic.RESISTANCE, 1);
+    ArmourResult strongerChestplate = piece(Armour.CHESTPLATE, 7, Characteristic.RESISTANCE, 5);
+    Hero hero = new Hero(character, sword, List.of(weakChestplate));
+
+    Hero reequipped = hero.wearing(strongerChestplate);
+
+    assertEquals(valueOf(character, Characteristic.RESISTANCE) + 5,
+        valueOf(reequipped.effectiveCharacter(), Characteristic.RESISTANCE),
+        "il combattente materializzato dopo il cambio riflette i buff del pezzo preso");
+    assertEquals(valueOf(character, Characteristic.RESISTANCE) + 1,
+        valueOf(hero.effectiveCharacter(), Characteristic.RESISTANCE),
+        "la scheda di partenza continua a riflettere il pezzo lasciato");
+  }
+
+  private int valueOf(CharacterResult character, Characteristic characteristic) {
+    return character.characteristics().stream()
+        .filter(entry -> entry.characteristic() == characteristic)
+        .mapToInt(CharacterCharacteristic::value)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private WeaponResult weapon(Characteristic characteristic, int value) {
+    return new WeaponResult(Weapon.SWORD, Rarity.COMMON, List.of(new BuffElement(characteristic, value)), List.of(), 5);
+  }
+
   private ArmourResult piece(Armour slot, int defense) {
     return new ArmourResult(slot, Rarity.COMMON, List.of(), List.of(), defense);
   }
 
+  private ArmourResult piece(Armour slot, int defense, Characteristic characteristic, int buffValue) {
+    return new ArmourResult(slot, Rarity.COMMON, List.of(new BuffElement(characteristic, buffValue)), List.of(), defense);
+  }
+
   private JewelResult jewel(Jewel type, Rarity rarity) {
     return new JewelResult(type, rarity, List.of(), List.of());
+  }
+
+  private JewelResult jewel(Jewel type, Rarity rarity, Characteristic characteristic, int buffValue) {
+    return new JewelResult(type, rarity, List.of(new BuffElement(characteristic, buffValue)), List.of());
   }
 }

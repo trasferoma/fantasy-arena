@@ -95,7 +95,9 @@ const TEAM_RIGHT = 1;
 
 // Le otto frasi del destino del loot, nel registro di HeroProgressFormatter ma scritte per la
 // pagina: ognuna legge esattamente i campi che quel destino garantisce (il backend risolve il
-// destino una volta sola in HeroProgress, la pagina non lo deduce da sé).
+// destino una volta sola in HeroProgress, la pagina non lo deduce da sé). Il gioiello non vale più
+// punti caratteristica di suo: i suoi eventuali buff si leggono già dai bonus di "describeItem",
+// accanto a rarità e potenza, come per arma e armatura.
 const LOOT_FATE_MESSAGES = {
   WEAPON_TAKEN: progress =>
       `Arma: trova ${describeItem(progress.found)}, lascia ${describeItem(progress.dropped)} e la impugna.`,
@@ -108,14 +110,21 @@ const LOOT_FATE_MESSAGES = {
   ARMOUR_DISCARDED: progress =>
       `Armatura: trova ${describeItem(progress.found)}, difende meno o quanto la sua: la scarta.`,
   JEWEL_WORN_ON_EMPTY_TYPE: progress =>
-      `Gioiello: trova ${describeItem(progress.found)}, è un tipo che non portava ancora: lo indossa, `
-      + `vale +${progress.jewelBonusPoints} punti caratteristica.`,
+      `Gioiello: trova ${describeItem(progress.found)}, è un tipo che non portava ancora: lo indossa.`,
   JEWEL_REPLACED: progress =>
-      `Gioiello: trova ${describeItem(progress.found)}, sostituisce ${describeItem(progress.dropped)} `
-      + `e vale +${progress.jewelBonusPoints} punti caratteristica.`,
+      `Gioiello: trova ${describeItem(progress.found)}, sostituisce ${describeItem(progress.dropped)}.`,
   JEWEL_DISCARDED: progress =>
       `Gioiello: trova ${describeItem(progress.found)}, non batte quello che porta: lo scarta.`,
 };
+
+// L'intestazione del riquadro del protagonista segue la corsa: nessuna prova ancora conclusa dice
+// che il protagonista entra in arena, da lì in poi dice dopo quale prova si trova. Il numero non
+// anticipa niente: è sempre il conteggio di prove già concluse, mai una previsione.
+const PROTAGONIST_ENTRY_HEADING = 'Il protagonista entra nell’arena';
+
+function protagonistHeadingFor(completedTrials) {
+  return completedTrials === 0 ? PROTAGONIST_ENTRY_HEADING : `Il protagonista dopo la prova ${completedTrials}`;
+}
 
 // ============================================================================
 // 2. Costruzione dei momenti — dati puri, nessun accesso al DOM
@@ -126,24 +135,42 @@ const LOOT_FATE_MESSAGES = {
 // costruiti tutti all'apertura in una lista piatta, così avanti, indietro e salto sono solo
 // indicizzazione di un array, non ricalcolo.
 
+// Ogni momento porta con sé la scheda corrente del protagonista e il numero di prove concluse
+// fino a quel momento: "progression" si accumula scorrendo le prove giocate, senza mai guardare
+// quelle future di "chronicle.trials" (il vincolo di non-spoiler). La scheda cresce esattamente al
+// momento della procedura che quella crescita racconta, che quindi la porta già nuova.
 function buildMoments(chronicle) {
   const totalTrials = chronicle.plannedTrials;
   const moments = [];
+  let progression = { hero: chronicle.protagonist, completedTrials: 0 };
   chronicle.trials.forEach((trial, trialIndex) => {
-    moments.push(buildSetupMoment(trial, trialIndex, totalTrials));
-    buildTrialStepMoments(trial, trialIndex, totalTrials).forEach(moment => moments.push(moment));
+    moments.push(buildSetupMoment(trial, trialIndex, totalTrials, progression));
+    buildTrialStepMoments(trial, trialIndex, totalTrials, progression).forEach(moment => moments.push(moment));
     if (trial.progress) {
-      moments.push(buildProgressMoment(trial, trialIndex, totalTrials));
+      progression = { hero: trial.progress.heroAfter, completedTrials: progression.completedTrials + 1 };
+      moments.push(buildProgressMoment(trial, trialIndex, totalTrials, progression));
     }
   });
-  moments.push(buildConclusionMoment(chronicle.conclusion));
+  moments.push(buildConclusionMoment(chronicle.conclusion, progression, totalTrials));
   return moments;
+}
+
+// Associa a ogni numero di prova il suo esito, per il percorso disegnato della sezione 4: distingue
+// una stazione già attraversata senza vittoria da una superata. Non rompe il vincolo di non-spoiler
+// perché nasce da "chronicle.trials", che contiene solo le prove davvero giocate: una stazione
+// futura semplicemente non compare in questa mappa.
+function buildTrialOutcomesByNumber(trials) {
+  const outcomesByNumber = {};
+  trials.forEach(trial => {
+    outcomesByNumber[trial.number] = trial.outcome;
+  });
+  return outcomesByNumber;
 }
 
 // I campi comuni a ogni momento di una prova (passo, procedura, o il passo zero di apertura):
 // fattorizzati qui perché i quattro costruttori che seguono li ripeterebbero altrimenti tutti e
 // sei identici, con l'unica differenza del tipo di momento e se l'esito va già rivelato.
-function buildTrialMomentBase(kind, trial, trialIndex, totalTrials, showOutcome) {
+function buildTrialMomentBase(kind, trial, trialIndex, totalTrials, showOutcome, progression) {
   return {
     kind,
     trialIndex,
@@ -152,7 +179,10 @@ function buildTrialMomentBase(kind, trial, trialIndex, totalTrials, showOutcome)
     description: trial.description,
     shape: trial.shape,
     outcome: trial.outcome,
+    budget: trial.budget,
     showOutcome,
+    hero: progression.hero,
+    completedTrials: progression.completedTrials,
   };
 }
 
@@ -161,11 +191,12 @@ function buildTrialMomentBase(kind, trial, trialIndex, totalTrials, showOutcome)
 // che precede lo scontro: a ogni prova il protagonista viene materializzato di nuovo dalla sua
 // scheda (è da lì che arriva la cura completa) e gli sfidanti nascono in quello stesso istante, mai
 // feriti prima del primo passo.
-function buildSetupMoment(trial, trialIndex, totalTrials) {
+function buildSetupMoment(trial, trialIndex, totalTrials, progression) {
   return {
-    ...buildTrialMomentBase('setup', trial, trialIndex, totalTrials, false),
+    ...buildTrialMomentBase('setup', trial, trialIndex, totalTrials, false, progression),
     roster: trial.roster,
     vitals: fullVitalsOf(trial.roster),
+    opponentCount: opponentCountOf(trial.roster),
   };
 }
 
@@ -182,15 +213,21 @@ function fullVitalsOf(roster) {
   }));
 }
 
-function buildTrialStepMoments(trial, trialIndex, totalTrials) {
+// Il numero di avversari della prova, usato dalla scena per riproporzionare la colonna di destra
+// (sezione 4): calcolato una sola volta qui, mai contando nodi nel DOM.
+function opponentCountOf(roster) {
+  return roster.filter(fighter => fighter.teamIndex === TEAM_RIGHT).length;
+}
+
+function buildTrialStepMoments(trial, trialIndex, totalTrials, progression) {
   const isBattle = trial.shape === 'BATTLE';
   const steps = isBattle ? trial.rounds : trial.turns;
   return steps.map((step, stepIndex) => {
     const isFinalStep = stepIndex === steps.length - 1;
     const vitalsAfter = vitalsAfterStep(trial, steps, stepIndex, isBattle);
     return isBattle
-        ? buildBattleStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter)
-        : buildDuelStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter);
+        ? buildBattleStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter, progression)
+        : buildDuelStepMoment(trial, trialIndex, totalTrials, step, isFinalStep, vitalsAfter, progression);
   });
 }
 
@@ -213,19 +250,48 @@ function duelVitalsAfterTurn(trial, turns, stepIndex) {
   return hasUsableNextVitals ? nextTurn.vitals : trial.finalVitals;
 }
 
-function buildBattleStepMoment(trial, trialIndex, totalTrials, round, isFinalStep, vitalsAfter) {
+function buildBattleStepMoment(trial, trialIndex, totalTrials, round, isFinalStep, vitalsAfter, progression) {
   const vitals = alignVitalsToRoster(trial.roster, vitalsAfter);
   const engagements = round.turns.map(engagementTurn => buildEngagement(trial.roster, engagementTurn));
   // Nella battaglia l'attore di uno scambio è, per costruzione del motore, chi ha vinto
   // l'iniziativa: l'indice non richiede nessuna inferenza per nome (decisione 6 della SPEC).
   const initiativeRosterIndexes = round.turns.map(engagementTurn => engagementTurn.attackerIndex);
+  const engagedOpponentRosterIndexes = engagedOpponentIndexesOf(trial.roster, round.turns);
   return {
-    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep),
+    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep, progression),
     roster: trial.roster,
     vitals,
     initiativeRosterIndexes,
+    engagedOpponentRosterIndexes,
+    opponentCount: opponentCountOf(trial.roster),
     battle: { roundNumber: round.roundNumber, engagements, events: round.events },
   };
+}
+
+// Gli avversari che partecipano ad almeno uno scambio del round si spostano verso il protagonista
+// nella scena (sezione 4): l'insieme si limita alla squadra di destra, perché il protagonista è
+// sempre solo e sempre coinvolto in ogni scambio (è l'unico membro della sua squadra), e uno
+// scostamento costante non comunicherebbe nessun cambiamento. Il riposo non è uno scambio: chi
+// riposa non ingaggia nessuno, come già per la colonna centrale (vedi "buildCenterExchange").
+function engagedOpponentIndexesOf(roster, turns) {
+  const engagedIndexes = new Set();
+  turns.forEach(engagementTurn => {
+    const action = engagementTurn.turn.action;
+    const isExchange = action != null && action.kind !== 'REST';
+    if (!isExchange) {
+      return;
+    }
+    addOpponentRosterIndex(engagedIndexes, roster, engagementTurn.attackerIndex);
+    addOpponentRosterIndex(engagedIndexes, roster, engagementTurn.targetIndex);
+  });
+  return Array.from(engagedIndexes);
+}
+
+function addOpponentRosterIndex(rosterIndexes, roster, rosterIndex) {
+  const fighter = findFighterByRosterIndex(roster, rosterIndex);
+  if (fighter && fighter.teamIndex === TEAM_RIGHT) {
+    rosterIndexes.add(rosterIndex);
+  }
 }
 
 function buildEngagement(roster, engagementTurn) {
@@ -299,17 +365,22 @@ function resolveRosterIndexByName(roster, name) {
   return matches.length === 1 ? matches[0].rosterIndex : null;
 }
 
-function buildDuelStepMoment(trial, trialIndex, totalTrials, turn, isFinalStep, vitalsAfter) {
+function buildDuelStepMoment(trial, trialIndex, totalTrials, turn, isFinalStep, vitalsAfter, progression) {
   const vitals = alignVitalsToRoster(trial.roster, vitalsAfter);
   // Un turno di duello può non portare il report d'iniziativa: senza guardia, "chosenName" spegne
   // la pagina con un TypeError (il difetto latente segnalato dalla SPEC).
   const chosenName = turn.initiative ? turn.initiative.chosenName : null;
   const actorIndex = resolveRosterIndexByName(trial.roster, chosenName);
   return {
-    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep),
+    ...buildTrialMomentBase('step', trial, trialIndex, totalTrials, isFinalStep, progression),
     roster: trial.roster,
     vitals,
     initiativeRosterIndexes: actorIndex === null ? [] : [actorIndex],
+    // Il duello ha un solo avversario, sempre coinvolto in ogni turno: uno scostamento costante
+    // non comunicherebbe nulla, e la scheda deve restare esattamente come oggi. Lo scostamento
+    // verso il protagonista resta quindi una caratteristica solo della battaglia NvN.
+    engagedOpponentRosterIndexes: [],
+    opponentCount: opponentCountOf(trial.roster),
     duel: {
       turnNumber: turn.turnNumber,
       actingName: chosenName,
@@ -332,15 +403,21 @@ function buildDuelCenterExchange(roster, actorIndex, action) {
   return buildCenterExchange(attacker, target, action);
 }
 
-function buildProgressMoment(trial, trialIndex, totalTrials) {
+function buildProgressMoment(trial, trialIndex, totalTrials, progression) {
   return {
-    ...buildTrialMomentBase('progress', trial, trialIndex, totalTrials, true),
+    ...buildTrialMomentBase('progress', trial, trialIndex, totalTrials, true, progression),
     progress: trial.progress,
   };
 }
 
-function buildConclusionMoment(conclusion) {
-  return { kind: 'conclusion', conclusion };
+function buildConclusionMoment(conclusion, progression, totalTrials) {
+  return {
+    kind: 'conclusion',
+    conclusion,
+    totalTrials,
+    hero: progression.hero,
+    completedTrials: progression.completedTrials,
+  };
 }
 
 function findFighterByRosterIndex(roster, rosterIndex) {
@@ -506,14 +583,18 @@ function hideSection(id) {
   document.getElementById(id).hidden = true;
 }
 
+// I bonus dell'oggetto compaiono accanto a rarità e potenza, nello stesso gruppo fra parentesi:
+// non serve una riga propria come in console, dove il troncamento a 36 caratteri li avrebbe
+// mangiati (vedi FighterCardFormatter). Un gioiello senza potenza li porta comunque.
 function describeItem(item) {
+  const details = [item.rarity];
   if (item.kind === 'WEAPON') {
-    return `${item.name} (${item.rarity}, attacco ${item.power})`;
+    details.push(`attacco ${item.power}`);
+  } else if (item.kind === 'ARMOUR') {
+    details.push(`difesa ${item.power}`);
   }
-  if (item.kind === 'ARMOUR') {
-    return `${item.name} (${item.rarity}, difesa ${item.power})`;
-  }
-  return `${item.name} (${item.rarity})`;
+  item.bonuses.forEach(bonus => details.push(`+${bonus.value} ${bonus.characteristic}`));
+  return `${item.name} (${details.join(', ')})`;
 }
 
 function describeGrowth(gains) {
@@ -564,6 +645,28 @@ function buildCharacteristicsList(characteristics) {
   return list;
 }
 
+// La lista del protagonista mostra il valore base col contributo dell'equipaggiamento accanto
+// (es. "STRENGTH: 12 (+3)"), ricavato per sottrazione fra effettive e base: un'aritmetica, non una
+// regola di gioco, che qui si può calcolare al momento del rendering senza violare la divisione fra
+// dati puri (sezione 2) e DOM (questa sezione).
+function buildHeroCharacteristicsList(characteristics, effectiveCharacteristics) {
+  const list = el('ul', 'characteristics-list');
+  characteristics.forEach(entry => {
+    const bonus = equipmentBonusOf(entry, effectiveCharacteristics);
+    const text = bonus > 0
+        ? `${entry.characteristic}: ${entry.value} (+${bonus})`
+        : `${entry.characteristic}: ${entry.value}`;
+    list.appendChild(textEl('li', text));
+  });
+  return list;
+}
+
+function equipmentBonusOf(baseCharacteristic, effectiveCharacteristics) {
+  const effectiveEntry = effectiveCharacteristics.find(
+      entry => entry.characteristic === baseCharacteristic.characteristic);
+  return effectiveEntry ? effectiveEntry.value - baseCharacteristic.value : 0;
+}
+
 function buildArmourList(armourPieces) {
   const list = el('ul', 'armour-list');
   if (armourPieces.length === 0) {
@@ -594,20 +697,23 @@ function buildHeroCard(hero, heading) {
   card.appendChild(textEl('p', `Arma: ${describeItem(hero.weapon)}`));
   card.appendChild(buildArmourList(hero.armourPieces));
   card.appendChild(buildJewelsList(hero.jewels));
-  card.appendChild(buildCharacteristicsList(hero.characteristics));
+  card.appendChild(buildHeroCharacteristicsList(hero.characteristics, hero.effectiveCharacteristics));
   return card;
 }
 
 // Scheda di un combattente nello scontro: niente gioielli (il roster non li porta), rating
 // offensivo e difensivo al posto della crescita, barre di vita e stamina aggiornate a ogni passo,
-// e vicino al nome il segno di chi ha l'iniziativa in questo passo.
-function buildCombatantCard(fighter, vital, hasInitiative) {
-  const card = el('article', 'fighter-card');
-  card.appendChild(buildCombatantNameLine(fighter, hasInitiative));
+// e vicino al nome il segno di chi ha l'iniziativa in questo passo. Le caratteristiche sono già
+// quelle in campo, equipaggiamento compreso: il "Fighter" del motore le porta effettive, non c'è
+// una base da confrontare come nella scheda del protagonista fuori dallo scontro.
+function buildCombatantCard(fighter, vital, hasInitiative, isEngaged) {
+  const card = el('article', isEngaged ? 'fighter-card engaged' : 'fighter-card');
+  card.appendChild(buildCombatantNameLine(fighter, hasInitiative, isEngaged));
   card.appendChild(textEl('p', `${fighter.race} · ${fighter.characterClass}`, 'fighter-subtitle'));
   card.appendChild(textEl('p', `Arma: ${describeItem(fighter.weapon)}`));
   card.appendChild(buildArmourList(fighter.armourPieces));
   card.appendChild(textEl('p', `Rating offensivo ${fighter.offensiveRating} · difensivo ${fighter.defensiveRating}`));
+  card.appendChild(textEl('p', 'Caratteristiche in campo, equipaggiamento compreso:', 'fighter-subtitle'));
   card.appendChild(buildCharacteristicsList(fighter.characteristics));
   appendVitalsBars(card, vital);
   return card;
@@ -615,11 +721,14 @@ function buildCombatantCard(fighter, vital, hasInitiative) {
 
 // Il nome del combattente, con vicino la stellina di chi ha l'iniziativa: non un carattere muto,
 // un elemento con un'etichetta esplicita per chi legge con tecnologie assistive.
-function buildCombatantNameLine(fighter, hasInitiative) {
+function buildCombatantNameLine(fighter, hasInitiative, isEngaged) {
   const heading = el('h3');
   heading.appendChild(document.createTextNode(fighter.name));
   if (hasInitiative) {
     heading.appendChild(buildInitiativeMarker());
+  }
+  if (isEngaged) {
+    heading.appendChild(buildEngagedMarker());
   }
   return heading;
 }
@@ -628,6 +737,16 @@ function buildInitiativeMarker() {
   const marker = textEl('span', '★', 'initiative-marker');
   marker.setAttribute('role', 'img');
   marker.setAttribute('aria-label', 'ha l’iniziativa in questo passo');
+  return marker;
+}
+
+// Sullo stesso modello della stellina dell'iniziativa: lo scostamento della scheda verso il
+// protagonista (vedi ".fighter-card.engaged" in app.css) non è l'unico segnale, perché non si può
+// affidare l'informazione al solo spostamento visivo.
+function buildEngagedMarker() {
+  const marker = textEl('span', '⚔', 'engaged-marker');
+  marker.setAttribute('role', 'img');
+  marker.setAttribute('aria-label', 'ingaggiato in questo scambio');
   return marker;
 }
 
@@ -643,10 +762,12 @@ function appendVitalsBars(card, vital) {
   card.appendChild(createBar('Stamina', vital.currentStamina, vital.maxStamina, 'bar-stamina'));
 }
 
-function renderProtagonistEntry(protagonist) {
+// Segue la corsa invece di fotografare solo l'ingresso: ogni momento porta già la scheda corrente
+// del protagonista (sezione 2), quindi qui non c'è altro da fare che leggerla e intitolarla.
+function renderProtagonistEntry(moment) {
   const container = document.getElementById('protagonist-entry');
   clearChildren(container);
-  container.appendChild(buildHeroCard(protagonist, 'Il protagonista entra nell’arena'));
+  container.appendChild(buildHeroCard(moment.hero, protagonistHeadingFor(moment.completedTrials)));
 }
 
 function renderHeader(moment) {
@@ -665,20 +786,25 @@ function renderHeader(moment) {
   }
 }
 
-function renderTeam(containerId, roster, vitals, teamIndex, initiativeRosterIndexes) {
+function renderTeam(containerId, roster, vitals, teamIndex, initiativeRosterIndexes, engagedRosterIndexes) {
   const container = document.getElementById(containerId);
   clearChildren(container);
   roster.forEach((fighter, position) => {
     if (fighter.teamIndex === teamIndex) {
       const hasInitiative = initiativeRosterIndexes.includes(fighter.rosterIndex);
-      container.appendChild(buildCombatantCard(fighter, vitals[position], hasInitiative));
+      const isEngaged = engagedRosterIndexes.includes(fighter.rosterIndex);
+      container.appendChild(buildCombatantCard(fighter, vitals[position], hasInitiative, isEngaged));
     }
   });
 }
 
-function renderBattlefield(roster, vitals, initiativeRosterIndexes) {
-  renderTeam('team-0', roster, vitals, TEAM_LEFT, initiativeRosterIndexes);
-  renderTeam('team-1', roster, vitals, TEAM_RIGHT, initiativeRosterIndexes);
+// Il numero di avversari guida la larghezza della colonna di destra in app.css: un attributo dato
+// sul contenitore, letto dal foglio di stile, mai un conteggio di nodi del DOM. Solo gli avversari
+// (squadra di destra) possono ingaggiare: il protagonista resta uno solo e non si sposta mai.
+function renderBattlefield(roster, vitals, initiativeRosterIndexes, engagedOpponentRosterIndexes, opponentCount) {
+  document.getElementById('battlefield').dataset.opponentCount = String(opponentCount);
+  renderTeam('team-0', roster, vitals, TEAM_LEFT, initiativeRosterIndexes, []);
+  renderTeam('team-1', roster, vitals, TEAM_RIGHT, initiativeRosterIndexes, engagedOpponentRosterIndexes);
 }
 
 // Le voci della colonna centrale del passo corrente: una per scambio nella battaglia, l'unica del
@@ -767,14 +893,36 @@ function renderStepPanel(moment) {
 
 // Il pannello del passo zero: nessuno scambio da raccontare, solo la dichiarazione che lo scontro
 // non è ancora cominciato. Nel registro delle altre fasi (vedi "vita e stamina tornano piene" della
-// procedura di fine scontro).
-function renderSetupStepPanel() {
+// procedura di fine scontro). Il monte di squadra e lo sconto della fortuna si dichiarano qui,
+// una volta sola per prova, come fa ConsoleArenaLogger.announceRound in console.
+function renderSetupStepPanel(budget) {
   const panel = document.getElementById('step-panel');
   clearChildren(panel);
   panel.appendChild(textEl('h3', 'Prima dello scontro'));
   panel.appendChild(textEl('p', 'Vita e stamina sono piene: lo scontro non è ancora cominciato.'));
+  const budgetLine = describeChallengerBudget(budget);
+  if (budgetLine) {
+    panel.appendChild(textEl('p', budgetLine));
+  }
 }
 
+// Racconta il monte di squadra dichiarato dalla stazione e lo sconto che la fortuna del
+// protagonista vi applica davvero, nel registro proprio della pagina (frase gemella, non riusata,
+// di ConsoleArenaLogger.announceLuckDiscount). Tace quando non c'è nulla da dire: la stazione dello
+// specchio non passa da nessuno sconto ("budget" nullo), e uno sconto applicato pari a zero —
+// fortuna nulla o monte già al pavimento — non merita una frase che affermerebbe un taglio
+// inesistente.
+function describeChallengerBudget(budget) {
+  if (!budget || budget.luckDiscount === 0) {
+    return null;
+  }
+  return `Il monte di squadra dichiarato per questa prova è ${budget.stationPoints} punti: `
+      + `la fortuna del protagonista ne sconta ${budget.luckDiscount} e scendono in campo `
+      + `con ${budget.squadPoints} punti.`;
+}
+
+// Non ripete la scheda del protagonista: al momento della crescita è esattamente quella che il
+// riquadro in alto mostra già (vedi "renderProtagonistEntry", chiamata a ogni momento).
 function renderProgressPanel(moment) {
   const panel = document.getElementById('progress-panel');
   clearChildren(panel);
@@ -783,40 +931,48 @@ function renderProgressPanel(moment) {
   panel.appendChild(textEl('p', `${progress.heroAfter.name} è ancora in piedi: vita e stamina tornano piene.`));
   panel.appendChild(textEl('p', LOOT_FATE_MESSAGES[progress.fate](progress)));
   panel.appendChild(textEl('p', describeGrowth(progress.gains)));
-  panel.appendChild(buildHeroCard(progress.heroAfter, 'Scheda aggiornata'));
 }
 
-function describeConclusion(conclusion) {
+// Un pareggio non chiude più la corsa come una caduta (SPEC bilanciamento-progressione): la prova
+// pareggiata fa proseguire, e solo la caduta o la fine del percorso fermano la corsa davvero. Un
+// pareggio alla decima prova, quindi, non è una corsa interrotta a metà: il protagonista è arrivato
+// in fondo al percorso, senza trionfo. Merita una frase distinta da quella di un pareggio che ha
+// invece troncato il cammino prima della fine.
+function describeConclusion(conclusion, totalTrials) {
   if (conclusion.outcome === 'WON') {
     return 'Il protagonista ha superato tutte le prove.';
   }
   if (conclusion.outcome === 'FELL') {
     return `Il protagonista è caduto alla prova ${conclusion.lastTrial}.`;
   }
+  if (conclusion.lastTrial === totalTrials) {
+    return 'Il protagonista è arrivato in fondo al percorso, ma senza trionfare.';
+  }
   return `Il protagonista si è fermato senza vincere alla prova ${conclusion.lastTrial}.`;
 }
 
-function renderConclusionPanel(conclusion) {
+function renderConclusionPanel(conclusion, totalTrials) {
   const panel = document.getElementById('conclusion-panel');
   clearChildren(panel);
   const triumph = conclusion.outcome === 'WON';
   panel.appendChild(textEl('h3', triumph ? 'Trionfo!' : 'La corsa finisce qui'));
-  panel.appendChild(textEl('p', describeConclusion(conclusion)));
+  panel.appendChild(textEl('p', describeConclusion(conclusion, totalTrials)));
 }
 
-function renderMoment(moment) {
+function renderMoment(moment, trialOutcomesByNumber) {
+  renderProtagonistEntry(moment);
   renderHeader(moment);
-  updateTrialPath(moment);
+  updateTrialPath(moment, trialOutcomesByNumber);
   if (moment.kind === 'setup') {
     showSection('battlefield');
     showSection('step-panel');
     hideSection('progress-panel');
     hideSection('conclusion-panel');
     // Nessuna iniziativa e nessuno scambio prima del primo passo: schieramenti pieni, colonna
-    // centrale vuota.
-    renderBattlefield(moment.roster, moment.vitals, []);
+    // centrale vuota, nessuno ingaggiato.
+    renderBattlefield(moment.roster, moment.vitals, [], [], moment.opponentCount);
     renderBattleCenter([]);
-    renderSetupStepPanel();
+    renderSetupStepPanel(moment.budget);
     return;
   }
   if (moment.kind === 'step') {
@@ -824,7 +980,9 @@ function renderMoment(moment) {
     showSection('step-panel');
     hideSection('progress-panel');
     hideSection('conclusion-panel');
-    renderBattlefield(moment.roster, moment.vitals, moment.initiativeRosterIndexes);
+    renderBattlefield(
+        moment.roster, moment.vitals, moment.initiativeRosterIndexes,
+        moment.engagedOpponentRosterIndexes, moment.opponentCount);
     renderBattleCenter(centerExchangesOf(moment));
     renderStepPanel(moment);
     return;
@@ -841,7 +999,7 @@ function renderMoment(moment) {
   hideSection('step-panel');
   hideSection('progress-panel');
   showSection('conclusion-panel');
-  renderConclusionPanel(moment.conclusion);
+  renderConclusionPanel(moment.conclusion, moment.totalTrials);
 }
 
 function updateControls(status) {
@@ -927,17 +1085,26 @@ function revealedOutcomeLabelOf(moment) {
 
 // La stazione oltre la corrente è disegnata e trattata sempre allo stesso modo, che quella prova
 // sia stata giocata o no: è tutto il vincolo di non-spoiler, in una funzione che non guarda mai
-// "chronicle.trials" per le stazioni future.
-function trialStationStateOf(stationNumber, currentTrialNumber) {
-  if (stationNumber < currentTrialNumber) {
-    return 'passed';
+// "chronicle.trials" per le stazioni future. Per una stazione già superata dal segnaposto corrente,
+// invece, la prova è per forza già stata giocata: qui si distingue chi l'ha vinta ("passed") da chi
+// l'ha solo attraversata senza vittoria ("crossed"), leggendo "trialOutcomesByNumber" — la mappa
+// costruita una sola volta dalle sole prove davvero giocate.
+function trialStationStateOf(stationNumber, currentTrialNumber, trialOutcomesByNumber) {
+  if (stationNumber > currentTrialNumber) {
+    return 'future';
   }
-  return stationNumber === currentTrialNumber ? 'current' : 'future';
+  if (stationNumber === currentTrialNumber) {
+    return 'current';
+  }
+  return trialOutcomesByNumber[stationNumber] === 'STOOD_WITHOUT_WINNING' ? 'crossed' : 'passed';
 }
 
 function trialStationLabel(stationNumber, state, outcomeLabel) {
   if (state === 'passed') {
     return `Prova ${stationNumber}, superata`;
+  }
+  if (state === 'crossed') {
+    return `Prova ${stationNumber}, attraversata senza vittoria`;
   }
   if (state === 'future') {
     return `Prova ${stationNumber}, da raggiungere`;
@@ -945,12 +1112,12 @@ function trialStationLabel(stationNumber, state, outcomeLabel) {
   return outcomeLabel ? `Prova ${stationNumber}, corrente, ${outcomeLabel}` : `Prova ${stationNumber}, corrente`;
 }
 
-function updateTrialPath(moment) {
+function updateTrialPath(moment, trialOutcomesByNumber) {
   const currentTrialNumber = currentTrialNumberOf(moment);
   const outcomeLabel = revealedOutcomeLabelOf(moment);
   document.querySelectorAll('#trial-path .trial-station').forEach(station => {
     const stationNumber = Number(station.dataset.trialNumber);
-    const state = trialStationStateOf(stationNumber, currentTrialNumber);
+    const state = trialStationStateOf(stationNumber, currentTrialNumber, trialOutcomesByNumber);
     station.className = `trial-station ${state}`;
     station.disabled = state === 'future';
     station.setAttribute('aria-label', trialStationLabel(stationNumber, state, outcomeLabel));
@@ -982,13 +1149,13 @@ function bootstrap() {
           showError('La cronaca non contiene alcun momento da riprodurre.');
           return;
         }
-        renderProtagonistEntry(chronicle.protagonist);
+        const trialOutcomesByNumber = buildTrialOutcomesByNumber(chronicle.trials);
         populateSpeedOptions();
         // "player" nasce dopo il percorso ma il gestore di clic lo cattura per riferimento: al
         // clic, che può avvenire solo a bootstrap concluso, la variabile è già assegnata.
         let player;
         buildTrialPath(chronicle.plannedTrials, stationNumber => player.jumpToTrial(stationNumber));
-        player = createPlayer(moments, renderMoment, updateControls);
+        player = createPlayer(moments, moment => renderMoment(moment, trialOutcomesByNumber), updateControls);
         wireControls(player);
         document.getElementById('app').hidden = false;
       })

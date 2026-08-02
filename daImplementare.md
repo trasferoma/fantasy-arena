@@ -6,17 +6,31 @@
   scelta dall'utente o da riga di comando — è quindi diventato un lavoro piccolo: la tabella si costruisce
   già da una regola, e il campo `plannedTrials` della cronaca arriva dalla sua dimensione, non da una
   costante scritta due volte
-- **ribilanciare la profondità del percorso.** Misurato su quindici corse, undici cadono alla prima prova,
-  una alla seconda, due alla terza, nessuna oltre: sei stazioni su dieci oggi non si vedono quasi mai, e
-  fra queste la prova dello specchio. Non è una regressione — la prima prova è un uno-contro-uno alla pari
-  come è sempre stata — ma su dieci stazioni il fatto pesa di più. Le leve stanno in due punti soli:
-  `CHARACTERISTIC_POINTS_PER_VICTORY` in `HeroBrain` per la crescita del protagonista, e la curva del
-  monte punti degli sfidanti in `TrialPlan` per la pressione (oggi `15 + 3 * (prova - 1)`). Da decidere
-  guardando il gioco, non il codice
+- **ribilanciare la profondità del percorso** — *fatto, ma con due code aperte*. Prima: quindici corse,
+  undici cadute alla prima prova, due alla terza, **nessuna oltre**. Dopo il ribilanciamento
+  (`spec-bilanciamento-progressione.md`), misurato su cinquecento corse: **232 su 500 vanno oltre la
+  terza prova** e 184 arrivano in fondo, con 171 trionfi. Le leve mosse sono state quattro — monte
+  punti di squadra invece che per singolo sfidante, sconto legato alla fortuna, rarità del loot più
+  conservativa presto, pareggio che non chiude più la corsa. Restano due cose da decidere guardando il
+  gioco, non il codice:
+  - **la distribuzione è bimodale**: 184 corse muoiono alla prima prova e 184 arrivano alla decima,
+    con poco in mezzo. Delle corse che superano la prima prova, il 58% arriva in fondo. La corsa è di
+    fatto decisa al primo scontro: è una forma difendibile — un filtro netto in apertura — ma è una
+    scelta, e va fatta apposta
+  - **lo sconto della fortuna è forte**: dodici punti medi tolti a monti che vanno da 15 a 59, col
+    pavimento raggiunto in una prova su sette. È il rischio dichiarato quando si è scelto di leggere
+    la fortuna **effettiva** (coi buff dell'equipaggiamento) invece di quella base, ora quantificato.
+    Le vie sono tornare alla base, dimezzare lo sconto, metterci un tetto, o tenerlo così
+- **ribilanciare lo sfidante speculare della prova 10.** Nasce dai punti **base** del protagonista, coi
+  bonus di razza e classe disattivati e un'arma solo `RARE`, mentre a quel punto il protagonista ha
+  equipaggiamento `EPIC` o `LEGENDARY` coi relativi buff: la prova finale è verosimilmente più facile
+  delle prove 7-9, cioè il percorso si sgonfia proprio alla fine. Correggerlo vuol dire decidere se lo
+  specchio debba pareggiare le caratteristiche **effettive**, che è una scelta di bilanciamento a sé
 - uso degli slot ancora scoperti: scudo e pozioni del toolkit non entrano mai in gioco. I gioielli
-  ci entrano come loot e si indossano uno per tipo, ma restano fuori dal combattimento: il motore
-  non li sa montare sul `Fighter` e non conosce i loro buff/debuff, quindi il loro unico effetto
-  sono i punti caratteristica extra della procedura di fine scontro
+  ci entrano come loot e si indossano uno per tipo; il motore continua a non saperli montare sul
+  `Fighter`, ma i loro buff contano lo stesso, perché le caratteristiche passate all'assemblatore
+  sono già quelle effettive — arma, armatura e gioielli compresi. Resta scoperto il **debuff**, che
+  il toolkit dichiara di non generare ancora
 - scelte del protagonista guidate dall'utente invece che da `HeroBrain`. Da qui in avanti costa più di
   prima: le scelte andrebbero chieste in *entrambe* le modalità di presentazione, e in quella web
   romperebbero il fatto su cui poggia tutto il disegno — che una partita è determinata nell'istante in
@@ -32,8 +46,9 @@
   come la pagina. Il requisito che rende possibile questo lavoro è già stato rispettato: la cronaca è
   **autosufficiente**, cioè porta in forma di dati tutto quello che la console ricava da sé — numero e
   descrizione della prova, composizione degli schieramenti, esito, procedura di fine scontro fino ai
-  punti che vale il gioiello indossato. Il criterio da non tradire: un lettore nuovo deve poter comporre
-  frasi, non aggiungere campi
+  bonus che ogni oggetto porta e alle caratteristiche del protagonista in doppia lettura, base ed
+  effettive. Il criterio da non tradire: un lettore nuovo deve poter comporre frasi, non aggiungere
+  campi
 - **quello che la cronaca contiene e la pagina web non mostra**, e che quindi è lavoro di solo frontend,
   senza toccare una riga di Java: il dettaglio d'iniziativa (`InitiativeReport` coi suoi breakdown), le
   `Scorecard` della decisione ai punti, i `TurnHighlight` come marcatori dei momenti da ricordare, i

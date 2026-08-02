@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.hero;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
@@ -30,8 +32,10 @@ import it.fantasytoolkitcore.core.model.Jewel;
  * tipo, non possono convivere: l'ultimo passato vince. A differenza dell'armatura, nessun
  * protagonista nasce con un gioiello: la mappa parte vuota e si popola solo per conquista.
  *
- * <p>I gioielli sono custoditi ma non entrano nello scontro: {@code FighterFactory.summon} non li
- * passa al {@code FighterAssembler} del motore, che non sa montarli.
+ * <p>Il motore non sa montare i gioielli: {@code FighterFactory.summon} non li passa mai al
+ * {@code FighterAssembler}. I loro buff contano comunque, insieme a quelli di arma e armatura,
+ * attraverso {@link #effectiveCharacter()} — un dato derivato, risolto alla lettura e mai custodito
+ * accanto alle caratteristiche base, che {@link #character()} continua a restituire invariate.
  */
 public final class Hero {
 
@@ -114,6 +118,35 @@ public final class Hero {
     return character.characteristics().stream()
         .mapToInt(CharacterCharacteristic::value)
         .sum();
+  }
+
+  /**
+   * Le caratteristiche del personaggio con addosso la somma dei buff di arma, armatura e gioielli
+   * indossati: è un dato derivato, ricalcolato a ogni lettura e mai custodito accanto a
+   * {@link #character()}, che resta la scheda base su cui {@link HeroBrain} distribuisce i punti.
+   */
+  public CharacterResult effectiveCharacter() {
+    return EquipmentBonus.applyTo(character, equippedBuffs());
+  }
+
+  /**
+   * I buff di tutto ciò che il protagonista indossa in questo momento: l'arma, ogni pezzo
+   * d'armatura, ogni gioiello. Sostituire un oggetto sostituisce anche i buff che porta con sé, dal
+   * round successivo.
+   */
+  private List<BuffElement> equippedBuffs() {
+    List<BuffElement> weaponBuffs = weapon.buffs();
+    List<BuffElement> armourBuffs = armourBySlot.values().stream()
+        .flatMap(piece -> piece.buffs().stream())
+        .toList();
+    List<BuffElement> jewelBuffs = jewelsByType.values().stream()
+        .flatMap(jewel -> jewel.buffs().stream())
+        .toList();
+
+    List<BuffElement> allBuffs = new ArrayList<>(weaponBuffs);
+    allBuffs.addAll(armourBuffs);
+    allBuffs.addAll(jewelBuffs);
+    return List.copyOf(allBuffs);
   }
 
   public Hero withWeapon(WeaponResult newWeapon) {

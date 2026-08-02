@@ -29,17 +29,37 @@ server. `Arena` genera un protagonista e gli fa affrontare **dieci prove in fila
 caratteristica. Il percorso non è più cablato nella scansione: vive come **dato** in `TrialPlan`, una
 tabella di dieci stazioni che dice per ognuna quanti sfidanti la popolano, con quale monte punti
 nascono e come si generano. Un avversario solo alle prove 1-3, due alle 4-6, tre alle 7-9, e alla
-decima lo sfidante speculare con arma rara; il monte punti degli sfidanti generati cresce di tre a
-ogni prova, da 15 a 39. Il loot non si
+decima lo sfidante speculare con arma rara. Il monte punti che una stazione dichiara è quello
+dell'**intero schieramento**, non del singolo sfidante, e `FighterFactory` lo ripartisce fra loro a
+parti uguali col resto ai primi: `15, 18, 21, 31, 35, 39, 50, 54, 59`. La curva è
+`monteEroe(N) × moltiplicatore`, con `monteEroe(N) = 15 + 3 * (N - 1)` — la stessa crescita del
+protagonista — e moltiplicatore `1.0` con un sfidante, `1.3` con due, `1.5` con tre. È **inferiore al
+numero puro di sfidanti** perché sconta l'economia di azioni: `N` avversari attaccano `N` volte per
+turno mentre il protagonista attacca una volta sola, quindi a parità di monte complessivo lo
+schieramento numeroso vincerebbe comunque. Prima il monte era **per singolo sfidante** e seguiva la
+stessa curva della crescita del protagonista: i tre punti della vittoria erano così neutralizzati per
+costruzione, e moltiplicati per il numero di avversari. Su quel monte si applica poi lo sconto della
+**fortuna** (`ChallengerBudget`, `fortuna × numeroSfidanti`, col pavimento di sette punti per
+sfidante che il toolkit impone): è la sola cosa che dà peso a una caratteristica che nel motore vale
+un punto percentuale di critico e nient'altro. Il loot non si
 saccheggia dai caduti: a ogni livello vinto se ne genera **uno solo**, di tipo estratto a caso fra
 arma, armatura e gioiello, con una rarità estratta da una tabella pesata che si fa più generosa col
-livello (quattro scaglioni: prove 1-2, 3-5, 6-8, 9-10, col pavimento che sale da `UNCOMMON` a
-`EPIC`). La distribuzione è pesata e non uniforme di proposito: una semplice rarità minima renderebbe
+livello (quattro scaglioni: prove 1-2, 3-5, 6-8, 9-10). Il pavimento **non sale a ogni scaglione**:
+`UNCOMMON` resta estraibile fino alla prova 5 e sale a `RARE` solo dalla 6, perché un'arma
+`LEGENDARY` ha attacco 15-25 contro 3-6 di una `UNCOMMON` e porta buff per una decina di punti,
+mentre una vittoria ne vale tre — un solo drop leggendario valeva più di tre vittorie di
+progressione. La distribuzione è pesata e non uniforme di proposito: una semplice rarità minima renderebbe
 il `LEGENDARY` tanto probabile quanto il grado del pavimento, e il loot sopra il raro diventerebbe la
 norma invece dell'eccezione. Arma, armatura e gioiello si tengono solo se battono quel che il protagonista ha già — il
-gioiello uno per tipo, come l'armatura uno per slot, e il criterio è la rarità perché è l'unico
-numero che un gioiello ha — e quello preso vale anche punti caratteristica extra. Indossato o no,
-il gioiello resta fuori dallo scontro: il motore non sa montarlo. La forma dello scontro **si deriva**
+gioiello uno per tipo, come l'armatura uno per slot, e per lui il criterio è il **valore totale dei
+suoi buff**, con la rarità come spareggio: la stessa forma dei comparatori di arma e armatura, che
+restano su attacco e difesa. Ogni oggetto generato porta i **buff del toolkit**, e i buff di ciò che è
+equipaggiato si sommano alle caratteristiche **nell'istante in cui il combattente viene assemblato**:
+al `FighterAssembler` vanno le caratteristiche effettive, così i bonus contano davvero nello scontro
+senza che il motore sappia che esistano. Ne segue che valgono **finché l'oggetto è addosso** —
+sostituirlo ne sostituisce i bonus — e che il gioiello conta pur restando non montabile dal motore. Il
+gioiello non vale più punti caratteristica di suo: la vittoria vale i suoi tre punti e basta. Vale per
+tutti, sfidanti e specchio compresi. La forma dello scontro **si deriva**
 dal numero di sfidanti e non è un campo della stazione: uno-contro-uno → duello a schermate, più di
 uno → battaglia NvN. Quindi in console le prove 1-3 e la decima passano dal duello, le prove 4-9 dalla
 battaglia. Se un giorno servisse una battaglia contro un avversario solo — come avveniva quando le
@@ -160,9 +180,9 @@ Modelli ed enum condivise in `it.fantasytoolkitcore.core.model` (`Race`, `Charac
 | Package | Ruolo |
 | --- | --- |
 | `it.fantasyarena` | `Main`: thin. Chiede la modalità a `UiMode` e la lascia avviarsi. `UiMode`: **unico punto di parsing** degli argomenti, con due record annidati (`ConsoleMode` senza dati, `WebMode` con la porta) e `launch` implementato da entrambi — `Main` non discrimina il tipo a runtime, chiede alla modalità di avviarsi. |
-| `combat` | `TrialPlan`: **il percorso come dato**, dieci `TrialStation` in fila. Ogni stazione porta numero, descrizione, quanti sfidanti e la loro `ChallengerOrigin` (`GENERATED`/`MIRROR`, enum e non booleano: una terza origine deve fermare la compilazione); la **forma** dello scontro non è un campo ma si deriva dal numero di sfidanti, e il monte punti c'è solo per gli sfidanti generati — lo specchio ricalca il protagonista, quindi la sua stazione non lo dichiara. È il punto unico da toccare per allungare o ribilanciare la pressione del percorso. `Arena`: la progressione. Scandisce le stazioni del percorso e la procedura di fine scontro; non decide niente e non calcola niente, e in più **registra**: `run()` restituisce l'`ArenaChronicle`. La scansione è un ciclo che concatena `RoundReport.andThen` stazione per stazione: resta **pigra**, così gli sfidanti di una prova si generano solo se la precedente è stata vinta e `createMirrorRival` si invoca una volta sola, quando la decima prova viene davvero raggiunta. Ogni prova le restituisce un rapporto (`RoundReport`, record privato: se procedere, la scheda cresciuta e le voci di cronaca accumulate) invece di un `Optional`, e i rapporti si concatenano cortocircuitando alla prima prova non superata — l'accumulo vive nel rapporto e non in un campo, che resterebbe sporco fra due `run()` sulla stessa istanza. `RoundOutcome`: com'è finita una prova (`WON`/`FELL`/`STOOD_WITHOUT_WINNING`), calcolato una volta sola e passato a chi lo deve raccontare. `MatchRunner`: fa giocare **un singolo scontro**, lo consegna a chi lo deve mostrare e ne **restituisce l'esito** (`CombatResult`/`BattleResult`); il *come* e il *quando* mostrarlo sono di un `MatchPresentation` sostituibile. `SilentArenaRun`: un `Supplier<ArenaChronicle>` che gioca l'intera arena senza stampare e senza attendere, assemblando da zero i collaboratori a ogni `get()` — è l'unico posto che può conoscere sia il mondo della cronaca sia quello di `combat.io`. |
-| `combat.hero` | Il protagonista: `Hero` (scheda immutabile che sopravvive ai round: arma, armatura per slot, gioielli per tipo), `HeroBrain` (**tutte** le sue scelte, compresi i tre comparatori di cernita e le tabelle di bilanciamento del loot — quattro scaglioni di rarità lungo i dieci livelli e punti extra del gioiello), `Loot` (l'unico oggetto trovato a fine livello: arma, armatura o gioiello, mai più di uno), `HeroProgress` (resoconto della crescita, dati e non stringhe). |
-| `combat.chronicle` | **La partita in forma di dati**, e niente altro: `ArenaChronicle` (ingresso del protagonista, **quante prove prevedeva il percorso** (`plannedTrials`), una voce per ogni prova giocata, conclusione — la lunghezza prevista esiste perché il lettore ha solo il JSON e non può contare le stazioni di una tabella Java: senza di essa dovrebbe dedurla dal numero di voci giocate, che è precisamente lo spoiler da evitare), `TrialChronicle` con `TrialShape` (`BATTLE`/`DUEL`) e i passi nella forma che il motore ha prodotto — `rounds` per la battaglia, `turns` per il duello — `HeroSnapshot`/`CombatantSnapshot`/`ItemSnapshot`, `ProgressChronicle`, `RunConclusion`, più `ChronicleMapper`, unico punto che traduce `Fighter` e `Hero` nelle loro fotografie. **Nessuna stringa di presentazione**, nessuna annotazione Jackson, nessun import da `combat.io` in nessuna direzione. |
+| `combat` | `TrialPlan`: **il percorso come dato**, dieci `TrialStation` in fila. Ogni stazione porta numero, descrizione, quanti sfidanti e la loro `ChallengerOrigin` (`GENERATED`/`MIRROR`, enum e non booleano: una terza origine deve fermare la compilazione); la **forma** dello scontro non è un campo ma si deriva dal numero di sfidanti, e il monte punti c'è solo per gli sfidanti generati — lo specchio ricalca il protagonista, quindi la sua stazione non lo dichiara. Quel monte è quello dell'**intero schieramento**, non del singolo: `FighterFactory` lo ripartisce. Insieme a `ChallengerBudget` è il punto da toccare per allungare o ribilanciare la pressione del percorso. `ChallengerBudget`: il monte di squadra **calato su questo protagonista** — monte dichiarato, sconto della sua fortuna (`fortuna × numeroSfidanti`, letta dalle caratteristiche **effettive**), monte effettivo, col pavimento di sette punti per sfidante che il toolkit impone. Vive qui e non in `HeroBrain` perché uno sconto sugli avversari non è una **scelta** del protagonista: è la pressione del percorso calata su di lui. `Arena`: la progressione. Scandisce le stazioni del percorso e la procedura di fine scontro; non decide niente e non calcola niente, e in più **registra**: `run()` restituisce l'`ArenaChronicle`. La scansione è un ciclo che concatena `RoundReport.andThen` stazione per stazione: resta **pigra**, così gli sfidanti di una prova si generano solo se la precedente è stata vinta e `createMirrorRival` si invoca una volta sola, quando la decima prova viene davvero raggiunta. Ogni prova le restituisce un rapporto (`RoundReport`, record privato: se procedere, la scheda cresciuta e le voci di cronaca accumulate) invece di un `Optional`, e i rapporti si concatenano cortocircuitando alla **caduta** — l'accumulo vive nel rapporto e non in un campo, che resterebbe sporco fra due `run()` sulla stessa istanza. Il segnale di via libera si chiama `continues` e non `passed` di proposito: significa «si gioca la prova successiva», che è vero anche dopo un pareggio, non «si è vinto». `RoundOutcome`: com'è finita una prova (`WON`/`FELL`/`STOOD_WITHOUT_WINNING`), calcolato una volta sola e passato a chi lo deve raccontare. Solo `FELL` chiude la corsa: **il pareggio fa proseguire senza premio**, cioè senza loot e senza i tre punti, e la scheda passa alla prova dopo esattamente com'era. Ne segue che il trionfo si dichiara leggendo l'esito dell'ultima prova giocata, non dal fatto che la catena non si sia interrotta — che ora è vero anche di una corsa arrivata in fondo pareggiando. `MatchRunner`: fa giocare **un singolo scontro**, lo consegna a chi lo deve mostrare e ne **restituisce l'esito** (`CombatResult`/`BattleResult`); il *come* e il *quando* mostrarlo sono di un `MatchPresentation` sostituibile. `SilentArenaRun`: un `Supplier<ArenaChronicle>` che gioca l'intera arena senza stampare e senza attendere, assemblando da zero i collaboratori a ogni `get()` — è l'unico posto che può conoscere sia il mondo della cronaca sia quello di `combat.io`. |
+| `combat.hero` | Il protagonista: `Hero` (scheda immutabile che sopravvive ai round: arma, armatura per slot, gioielli per tipo; `character()` resta la scheda **base**, `effectiveCharacter()` è la stessa coi buff dell'equipaggiamento addosso — **dato derivato risolto alla lettura**, mai custodito accanto alle fonti), `EquipmentBonus` (il **punto unico** che somma i buff alle caratteristiche base: lo usano sia `combat.factory`, per assemblare il combattente, sia `combat.chronicle`, per fotografare il protagonista, e nessuno dei due deve dipendere dall'altro), `HeroBrain` (**tutte** le sue scelte, compresi i tre comparatori di cernita e i quattro scaglioni di rarità del loot lungo i dieci livelli), `Loot` (l'unico oggetto trovato a fine livello: arma, armatura o gioiello, mai più di uno), `HeroProgress` (resoconto della crescita, dati e non stringhe). |
+| `combat.chronicle` | **La partita in forma di dati**, e niente altro: `ArenaChronicle` (ingresso del protagonista, **quante prove prevedeva il percorso** (`plannedTrials`), una voce per ogni prova giocata, conclusione — la lunghezza prevista esiste perché il lettore ha solo il JSON e non può contare le stazioni di una tabella Java: senza di essa dovrebbe dedurla dal numero di voci giocate, che è precisamente lo spoiler da evitare), `TrialChronicle` con `TrialShape` (`BATTLE`/`DUEL`) e i passi nella forma che il motore ha prodotto — `rounds` per la battaglia, `turns` per il duello — `HeroSnapshot` (caratteristiche **base ed effettive**, così nessun lettore ricalcola una regola di gioco per mostrare il contributo dell'equipaggiamento)/`CombatantSnapshot` (le sue caratteristiche sono già quelle in campo: il `Fighter` nasce con le effettive, e l'asimmetria è voluta)/`ItemSnapshot` (con i `CharacteristicBonus` che l'oggetto porta, lista vuota se non ne ha), `ProgressChronicle`, `RunConclusion`, più `ChronicleMapper`, unico punto che traduce `Fighter` e `Hero` nelle loro fotografie. **Nessuna stringa di presentazione**, nessuna annotazione Jackson, nessun import da `combat.io` in nessuna direzione. |
 | `combat.io.web` | Il secondo lettore della cronaca: `ArenaWebServer` (`HttpServer` del JDK, **solo loopback**, porta parametrica), `ChronicleHandler` (il fornitore della cronaca arriva **iniettato** come `Supplier` e viene invocato una volta per richiesta: ogni apertura della pagina è una partita nuova, e nessuno stato viaggia fra due richieste), `StaticResourceHandler` (lista **chiusa** di tre nomi letterali), `ChronicleJson` (l'unico `ObjectMapper`). Le risorse della pagina stanno in `src/main/resources/web/`. |
 | `combat.factory` | `FighterFactory`: unico punto di contatto coi generatori del toolkit. Decide chi combatte e con che equipaggiamento, poi delega l'assemblaggio al `FighterAssembler` del motore. Genera anche il protagonista, gli sfidanti di ogni round col monte punti che la stazione dichiara (`createChallengers(count, totalCharacteristicPoints)`) e lo specchio finale, materializza il `Fighter` di ogni round da una `Hero` (`summon`) ed estrae il loot di fine livello (`rollLoot`: tipo a caso, rarità estratta dalla tabella pesata ricevuta dal cervello). |
 | `combat.io` | Solo contenitore: la presentazione vive nei quattro sotto-package che seguono, disposti a strati con dipendenze a senso unico (`replay` → `log` → `render`, e sia `replay` sia `log` → `terminal`). Nessuna classe sta direttamente qui. |
@@ -194,8 +214,10 @@ Vincoli architetturali da rispettare quando modifichi:
   `combat.chronicle`, quella stringa appartiene a un renderer: ogni lettore compone le proprie frasi. E
   la cronaca deve restare **autosufficiente** — ogni dato che una presentazione ricava oggi per conto
   proprio dai suoi collaboratori (numero e descrizione della prova, composizione degli schieramenti,
-  esito, procedura di fine scontro fino ai punti che il gioiello vale) va portato in forma di dati. Il
-  criterio di lettura: un lettore nuovo deve poter **comporre frasi, non aggiungere campi**.
+  esito, procedura di fine scontro fino ai bonus che ogni oggetto porta) va portato in forma di dati. Il
+  criterio di lettura: un lettore nuovo deve poter **comporre frasi, non aggiungere campi**. Un calcolo
+  che è **aritmetica** e non regola di gioco può restare al lettore: la pagina ricava il contributo
+  dell'equipaggiamento per sottrazione fra caratteristiche effettive e base, ma non le somma da sé.
 - **Le risorse statiche si servono da una lista chiusa di nomi letterali**, e il percorso della richiesta
   si confronta per uguaglianza. Non concatenare mai un pezzo di richiesta in un nome di risorsa, nemmeno
   «sanificato»: il traversal qui non è bloccato, è impossibile, e va tenuto impossibile.
@@ -219,11 +241,16 @@ Vincoli architetturali da rispettare quando modifichi:
   booleano «silenzioso»: sarebbero un modo di dire «presenta» a chi non deve presentare niente. La
   passata muta è un `MatchPresentation` muto più i logger muti, cioè un caso ordinario e non un ramo
   speciale dentro il codice di stampa.
-- **`Arena` non decide, scandisce.** Le scelte del protagonista stanno tutte in `HeroBrain`, che è
-  il punto unico da toccare per ribilanciare la progressione: se tenere l'oggetto trovato, quanto
-  vale un gioiello, quanto pregiato può essere il loot di quel livello, dove spendere i punti. Se ti
+- **`Arena` non decide, scandisce.** Le scelte del protagonista stanno tutte in `HeroBrain`: se
+  tenere l'oggetto trovato, con quale criterio confrontarlo con quello che porta già, quanto pregiato
+  può essere il loot di quel livello, dove spendere i punti. Se ti
   trovi a scrivere un `if` di gioco dentro `Arena`, appartiene al cervello. `Arena` gli passa il
   numero della prova, non un criterio.
+- **Le leve di bilanciamento sono due, e dichiarate.** `HeroBrain` governa la **crescita** del
+  protagonista e la qualità del loot; `TrialPlan` più `ChallengerBudget` governano la **pressione**
+  del percorso — quanti punti ha lo schieramento e quanto la fortuna gliene toglie. Lo sconto vive
+  accanto al percorso e non nel cervello proprio perché non è una *scelta* del protagonista: è la
+  pressione del percorso calata su di lui. Cercare una leva sola porta a metterle nel posto sbagliato.
 - **Com'è finita una prova si stabilisce una volta sola.** `Arena` guarda il campo alla fine dello
   scontro e ne ricava un `RoundOutcome`; da lì in poi quel dato viaggia. I logger non devono
   ridedurre l'esito interrogando il `Fighter`: due letture dello stesso campo possono divergere, e
@@ -234,6 +261,11 @@ Vincoli architetturali da rispettare quando modifichi:
   cura di fine scontro non è un metodo: è la conseguenza del fatto che ogni round il protagonista
   viene materializzato di nuovo (`FighterFactory.summon`). Non aggiungere API di guarigione, né qui
   né nel motore.
+- **I buff entrano nello scontro in un punto solo, e non sono una regola di combattimento.** La somma
+  vive in `EquipmentBonus` e arriva al motore come caratteristiche già maggiorate: nessun renderer, e
+  nessun altro punto del gioco, deve rifarla per conto proprio. Le caratteristiche effettive non si
+  custodiscono mai accanto alle base — si risolvono alla lettura — altrimenti si aprirebbe la classe
+  di bug in cui la scheda e i suoi bonus raccontano cose diverse.
 - **La casualità della generazione sta in `FighterFactory`.** Nel resto del gioco niente
   `Math.random()` o `new Random()`; la casualità del combattimento è del motore (`DiceRoller`).
   Unica deroga dichiarata: `HeroBrain`, che estrae dove cadono i punti caratteristica — è casualità
@@ -283,13 +315,17 @@ test propri come sopra.
   di presentazione. Il secondo porta il registro delle decisioni: perché la cronaca esiste, perché i suoi
   campi facoltativi sono nullabili e non `Optional`, perché i due percorsi duello/battaglia restano due.
   Da leggere prima di rimettere in discussione una di quelle scelte.
-- `spec-arena-dieci-prove.md` e `implementation-arena-dieci-prove.md` — il passaggio da tre a dieci prove
-  col percorso come dato, e le tre aggiunte alla pagina (percorso disegnato senza spoiler, freccia «chi
-  attacca chi», stellina dell'iniziativa). Il registro porta le decisioni di bilanciamento prese
-  dall'utente (quattro scaglioni di rarità, monte punti degli sfidanti come dato della stazione) e un
-  **problema aperto che vale la pena leggere prima di ritoccare la progressione**: misurato su quindici
-  corse, nessuna è andata oltre la terza prova, quindi oggi sei stazioni su dieci sono praticamente
-  invisibili.
+- `spec-arena-dieci-prove.md` — il passaggio da tre a dieci prove col percorso come dato, e le tre
+  aggiunte alla pagina (percorso disegnato senza spoiler, freccia «chi attacca chi», stellina
+  dell'iniziativa). Il piano che l'accompagnava è stato rimosso a lavoro concluso.
+- `spec-bilanciamento-progressione.md` e `implementation-bilanciamento-progressione.md` — il
+  ribilanciamento che ha reso la progressione percepibile: monte punti di squadra invece che per
+  singolo sfidante, sconto legato alla fortuna, rarità del loot più conservativa nella prima metà,
+  pareggio che fa proseguire senza premio. **Da leggere prima di ritoccare i numeri della
+  progressione**: il registro porta la misura su 500 corse prima e dopo, e due problemi aperti che
+  sono decisioni dell'utente — la distribuzione bimodale (metà delle corse muore alla prima prova,
+  metà arriva in fondo) e l'entità dello sconto della fortuna (12 punti medi, pavimento raggiunto in
+  una prova su sette).
 - La guida al bilanciamento (`combatSettings.md`) e la spiegazione delle regole di combattimento
   vivono nel repository `fantasy-combat-system`: non duplicarle qui, divergerebbero.
 
@@ -298,9 +334,10 @@ test propri come sopra.
 - Java 21 (`maven.compiler.source/target=21`). In uso: record per i tipi valore, switch expression, `List.getFirst()`. Non in uso: sealed types, text block, pattern matching (né `instanceof` né `switch`). Non introdurre preview feature.
 - Gli **switch sulle enum di dominio sono esaustivi, senza `default`** (`LootFate` in `ChronicleMapper` e in `HeroProgressFormatter`, `ChallengerOrigin` e `TrialShape` in `Arena`): una costante nuova deve diventare un errore di compilazione, non un `null` silenzioso che arriva alla pagina. Non aggiungere un `default` per «sicurezza»: toglie proprio la sicurezza.
 - La pagina web è **HTML, CSS e JavaScript vanilla** in `src/main/resources/web/`: nessuna libreria, nessuna CDN, nessun build step, nessun npm. UTF-8 dichiarato nella pagina, commenti in italiano, identificatori in inglese, 2 spazi come nel Java. Il testo che arriva dalla cronaca entra nel DOM con `textContent`, mai con `innerHTML`.
-- `app.js` è diviso in quattro responsabilità dichiarate nel commento di testa — costanti e frasi, costruzione dei momenti (**dati puri, nessun accesso al DOM**), stato della riproduzione, rendering — e la divisione va rispettata: un dato che serve al disegno si calcola nel momento, il DOM lo legge. Vale anche per i dati nuovi: gli indici di chi ha l'iniziativa nel passo e la voce della colonna centrale (formula breve, i due nomi *ordinati per squadra*, verso della freccia) nascono nella sezione 2.
+- `app.js` è diviso in quattro responsabilità dichiarate nel commento di testa — costanti e frasi, costruzione dei momenti (**dati puri, nessun accesso al DOM**), stato della riproduzione, rendering — e la divisione va rispettata: un dato che serve al disegno si calcola nel momento, il DOM lo legge. Vale anche per i dati nuovi: gli indici di chi ha l'iniziativa nel passo, quelli degli avversari **ingaggiati** nello scambio, il numero di avversari che decide la forma del campo, e la voce della colonna centrale (formula breve, i due nomi *ordinati per squadra*, verso della freccia) nascono tutti nella sezione 2.
 - Fra Java e JavaScript **le formule brevi dell'azione sono duplicate di proposito**: `BattleSceneRenderer.formulaLabel` per la console, `ACTION_FORMULAS` per la pagina. `combat.io.render` è fuori portata della pagina e la cronaca non porta stringhe di presentazione, perché ogni lettore compone le proprie frasi — è la stessa decisione delle otto frasi del destino del loot. Se cambi il registro in un posto, cambialo anche nell'altro.
-- Nella pagina, l'informazione **non si affida al solo colore**: le stazioni del percorso si distinguono anche per forma (cerchio pieno le passate, cerchio marcato la corrente, quadrato spento quelle da raggiungere) e la stellina dell'iniziativa porta un'etichetta esplicita, non è un carattere muto.
+- Nella pagina, l'informazione **non si affida al solo colore**: le stazioni del percorso si distinguono anche per forma (cerchio pieno le passate, rombo quelle attraversate senza vittoria, cerchio marcato la corrente, quadrato spento quelle da raggiungere) e la stellina dell'iniziativa, come la spada di chi è ingaggiato nello scambio, porta un'etichetta esplicita e non è un carattere muto.
+- **Il campo di battaglia cambia forma col numero di avversari.** `#battlefield` porta un `data-opponent-count` (1, 2 o 3) calcolato nella sezione 2 di `app.js`, e da lì dipendono tre cose: la squadra di destra si dispone **in riga** invece che impilata quando gli avversari sono più di uno; il campo si allarga oltre i 960px degli altri pannelli (1080px con due avversari, 1320px con tre); la scheda di chi è ingaggiato nello scambio corrente si sposta di `1rem` **verso il protagonista**. Due vincoli da non tradire se ci rimetti mano: il **duello resta esattamente com'era** (960px, `1fr minmax(150px, 220px) 1fr`, nessuna scheda mai marcata come ingaggiata), e il limite di larghezza vive sui **singoli pannelli**, non su `#app` — allargare il contenitore allargherebbe anche i pannelli di prosa, che devono restare stretti per essere leggibili. Lo scostamento resta minore del distacco fra le schede, così una scheda in avanti non si sovrappone alla vicina: se stringi l'uno, l'altro diventa impercettibile — misurato a schermo, 8px su 12px non si vedono.
 - Attenzione a una trappola del CSS: l'attributo `hidden` vale `display: none` solo nel foglio di stile del browser, e una regola d'autore che dichiara un `display` lo batte. Per questo `.battlefield[hidden]` esiste: senza quella riga le schede dei combattenti resterebbero a schermo nei momenti in cui la pagina le nasconde. Se dai un `display` a un elemento che `renderMoment` nasconde, aggiungi la regola gemella.
 - Indentazione a **2 spazi**. `FighterFactory` è l'unica eccezione storica a 4 spazi: se la modifichi, mantieni lo stile del file.
 - Commenti e Javadoc in **italiano**. Il Javadoc di classe è denso e spiega le decisioni di design e i confini di responsabilità, non ripete la firma: mantieni questo registro quando aggiungi classi.

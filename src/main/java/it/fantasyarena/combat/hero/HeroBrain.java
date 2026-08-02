@@ -24,25 +24,23 @@ import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
  * Tutte le scelte del protagonista, in un posto solo: se l'unico oggetto trovato a fine livello
- * vale la pena impugnarlo o indossarlo, quanto vale in punti caratteristica un gioiello, dove
- * finiscono i punti guadagnati con la vittoria — vittoria più eventuale bonus. È deliberatamente
- * l'unico punto da toccare per ribilanciare la progressione: l'{@code Arena} scandisce i round e
- * non decide niente, il {@code FighterFactory} genera l'oggetto ma non giudica se vale la pena
- * tenerlo, il motore non sa nemmeno che esista una progressione.
+ * vale la pena impugnarlo o indossarlo, dove finiscono i tre punti guadagnati con la vittoria. È
+ * deliberatamente l'unico punto da toccare per ribilanciare la progressione: l'{@code Arena}
+ * scandisce i round e non decide niente, il {@code FighterFactory} genera l'oggetto ma non giudica
+ * se vale la pena tenerlo, il motore non sa nemmeno che esista una progressione.
  *
  * <p>I criteri di scelta per arma, armatura e gioiello sono tre comparatori, ed è lì che si
- * interviene. Per arma e armatura vale di più il pezzo che colpisce o para di più, e a parità di
- * valore quello più raro: la rarità è lo spareggio e non il criterio, perché è il valore numerico
- * — non il colore del nome — a entrare davvero nei Rating calcolati dal motore. Il gioiello non ha
- * né attacco né difesa, quindi per lui la rarità è il criterio e non lo spareggio: a parità tiene
- * il suo, come le altre due categorie non si cambiano per niente. Il gioiello preso frutta anche
- * punti caratteristica extra secondo {@link #JEWEL_BONUS_POINTS}, la tabella di bilanciamento
- * gemella di {@link #CHARACTERISTIC_POINTS_PER_VICTORY} per la rarità del loot.
+ * interviene. Per arma e armatura vale di più il pezzo che colpisce o para di più, e per il
+ * gioiello vale di più quello coi buff complessivamente maggiori: in tutti e tre i casi la rarità
+ * è solo lo spareggio a parità di valore, mai il criterio. A parità piena si tiene il proprio, in
+ * tutte e tre le categorie. Il gioiello non vale più punti caratteristica di suo: i suoi buff, come
+ * quelli di arma e armatura, contano attraverso {@link Hero#effectiveCharacter()}, non attraverso
+ * la progressione.
  *
- * <p>La casualità di questa classe (dove cadono i punti caratteristica) è una deroga consapevole
- * alla regola per cui nel gioco il caso vive solo in {@code FighterFactory}: è casualità di
- * progressione, non di generazione. Il {@link Random} è iniettabile proprio perché i test possano
- * pilotarla.
+ * <p>La casualità di questa classe (dove cadono i punti caratteristica della vittoria) è una
+ * deroga consapevole alla regola per cui nel gioco il caso vive solo in {@code FighterFactory}: è
+ * casualità di progressione, non di generazione. Il {@link Random} è iniettabile proprio perché i
+ * test possano pilotarla.
  */
 public class HeroBrain {
 
@@ -52,56 +50,46 @@ public class HeroBrain {
   private static final int CHARACTERISTIC_POINTS_PER_VICTORY = 3;
 
   /**
-   * Quanti punti caratteristica extra vale un gioiello effettivamente preso, secondo la sua
-   * rarità: uno scartato non frutta nulla, la vittoria vale i suoi punti e basta.
-   */
-  private static final Map<Rarity, Integer> JEWEL_BONUS_POINTS = Map.of(
-      Rarity.COMMON, 1,
-      Rarity.UNCOMMON, 1,
-      Rarity.RARE, 2,
-      Rarity.EPIC, 3,
-      Rarity.LEGENDARY, 4);
-
-  /**
-   * La distribuzione della rarità del loot alle prove 1-2: è la più generosa dei quattro scaglioni,
-   * con un margine di fortuna che arriva fino a {@code LEGENDARY} ma resta improbabile.
+   * La distribuzione della rarità del loot alle prove 1-2: {@code LEGENDARY} resta accessibile ma
+   * marginale, e il pavimento è {@code UNCOMMON}.
    */
   private static final RarityTable OPENING_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.UNCOMMON, 50)
-      .entry(Rarity.RARE, 24)
-      .entry(Rarity.EPIC, 16)
-      .entry(Rarity.LEGENDARY, 10)
+      .entry(Rarity.UNCOMMON, 65)
+      .entry(Rarity.RARE, 25)
+      .entry(Rarity.EPIC, 8)
+      .entry(Rarity.LEGENDARY, 2)
       .build();
 
   /**
-   * La distribuzione della rarità del loot alle prove 3-5: alza il grado minimo estraibile a
-   * {@code RARE} rispetto a {@link #OPENING_TRIALS_LOOT_RARITY_TABLE}.
+   * La distribuzione della rarità del loot alle prove 3-5: il pavimento resta {@code UNCOMMON}
+   * come in {@link #OPENING_TRIALS_LOOT_RARITY_TABLE}, ma il peso si sposta verso {@code RARE}.
    */
   private static final RarityTable EARLY_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.RARE, 48)
-      .entry(Rarity.EPIC, 32)
-      .entry(Rarity.LEGENDARY, 20)
+      .entry(Rarity.UNCOMMON, 35)
+      .entry(Rarity.RARE, 40)
+      .entry(Rarity.EPIC, 20)
+      .entry(Rarity.LEGENDARY, 5)
       .build();
 
   /**
-   * La distribuzione della rarità del loot alle prove 6-8: resta con lo stesso pavimento
-   * {@code RARE} di {@link #EARLY_TRIALS_LOOT_RARITY_TABLE}, ma sposta il peso principale su
-   * {@code EPIC}.
+   * La distribuzione della rarità del loot alle prove 6-8: qui, e non prima, il pavimento sale a
+   * {@code RARE}, e il peso principale passa a {@code EPIC}.
    */
   private static final RarityTable MID_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.RARE, 25)
-      .entry(Rarity.EPIC, 50)
-      .entry(Rarity.LEGENDARY, 25)
+      .entry(Rarity.RARE, 45)
+      .entry(Rarity.EPIC, 40)
+      .entry(Rarity.LEGENDARY, 15)
       .build();
 
   /**
-   * La distribuzione della rarità del loot alle prove 9-10, l'ultimo tratto del percorso: alza il
-   * pavimento a {@code EPIC} e resta l'unico scaglione in cui {@code LEGENDARY} supera un terzo
-   * delle estrazioni, pur restando minoritario.
+   * La distribuzione della rarità del loot alle prove 9-10, l'ultimo tratto del percorso: il
+   * pavimento resta {@code RARE} come nello scaglione precedente — non sale a {@code EPIC} — e
+   * {@code LEGENDARY} raggiunge qui il suo peso massimo, pur restando minoritario.
    */
   private static final RarityTable LATE_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.EPIC, 65)
-      .entry(Rarity.LEGENDARY, 35)
+      .entry(Rarity.RARE, 20)
+      .entry(Rarity.EPIC, 55)
+      .entry(Rarity.LEGENDARY, 25)
       .build();
 
   private static final Comparator<WeaponResult> BY_OFFENSIVE_VALUE = Comparator
@@ -113,12 +101,13 @@ public class HeroBrain {
       .thenComparingInt(piece -> piece.rarity().ordinal());
 
   /**
-   * Il gioiello non ha attacco né difesa da confrontare: l'unico criterio disponibile è la sua
-   * rarità, a differenza di {@link #BY_OFFENSIVE_VALUE} e {@link #BY_DEFENSIVE_VALUE} dove la
-   * rarità è solo lo spareggio.
+   * Il gioiello non ha attacco né difesa da confrontare: il criterio è il valore totale dei suoi
+   * buff, con la rarità come spareggio — la stessa forma di {@link #BY_OFFENSIVE_VALUE} e
+   * {@link #BY_DEFENSIVE_VALUE}.
    */
   private static final Comparator<JewelResult> BY_JEWEL_VALUE = Comparator
-      .comparingInt(jewel -> jewel.rarity().ordinal());
+      .<JewelResult>comparingInt(jewel -> EquipmentBonus.totalValueOf(jewel.buffs()))
+      .thenComparingInt(jewel -> jewel.rarity().ordinal());
 
   private final Random random;
 
@@ -142,13 +131,18 @@ public class HeroBrain {
    * ({@code minRarity}) renderebbe equiprobabili tutti i gradi dalla soglia in su, e un
    * {@code LEGENDARY} finirebbe per uscire tanto spesso quanto il grado del pavimento stesso — col
    * risultato che il loot sopra il raro diventa la norma invece dell'eccezione. È il difetto che
-   * ogni scaglione di questa tabella corregge, mantenendo {@code LEGENDARY} minoritario anche
-   * nell'ultimo tratto del percorso. I pesi del primo scaglione derivano dalla distribuzione
-   * standard del toolkit (COMMON 50, UNCOMMON 25, RARE 12, EPIC 8, LEGENDARY 5), troncata del
-   * grado {@code COMMON} e rinormalizzata a 100: nell'arena il loot di una vittoria non può mai
-   * essere comune. I tre scaglioni successivi alzano progressivamente il pavimento e spostano il
-   * peso principale verso l'alto, così che un pavimento più alto a metà percorso non produca loot
-   * inerte contro slot ormai occupati da pezzi migliori.
+   * ogni scaglione di questa tabella corregge, mantenendo {@code LEGENDARY} minoritario per tutto
+   * il percorso.
+   *
+   * <p>Il pavimento non sale a ogni scaglione: {@code UNCOMMON} resta estraibile fino alla prova
+   * 5, e sale a {@code RARE} solo dalla prova 6 in poi — l'ultimo scaglione (9-10) non alza
+   * ulteriormente il pavimento, condivide {@code RARE} col precedente e sposta solo il peso verso
+   * {@code LEGENDARY}. La ragione della ritaratura: un'arma {@code LEGENDARY} ha attacco 15-25
+   * contro 3-6 di una {@code UNCOMMON} e porta buff per una decina di punti, mentre una vittoria di
+   * progressione ne vale solo tre di caratteristica — un solo drop leggendario valeva quindi più di
+   * tre vittorie, e con la distribuzione precedente arrivava troppo presto (35% di probabilità di
+   * averne già visto uno entro la prova 3). Con i pesi di questa tabella la stessa probabilità
+   * scende all'8,8% entro la prova 3, e al 72% sull'intera corsa (era il 93%).
    */
   public RarityTable lootRarityTable(int level) {
     return switch (level) {
@@ -161,8 +155,8 @@ public class HeroBrain {
 
   /**
    * La procedura di fine scontro, dal punto di vista di chi l'ha vinto: valuta l'unico oggetto
-   * trovato e spende i punti guadagnati, vittoria più eventuale bonus del gioiello. Restituisce la
-   * scheda cresciuta insieme al racconto di come ci si è arrivati.
+   * trovato e spende i tre punti che la vittoria vale. Restituisce la scheda cresciuta insieme al
+   * racconto di come ci si è arrivati.
    *
    * <p>La cura completa non compare qui perché non è una scelta: è una conseguenza del fatto che
    * il combattente del round successivo nasce nuovo dalla scheda.
@@ -178,8 +172,8 @@ public class HeroBrain {
         .map(candidate -> chooseJewel(hero, candidate))
         .orElse(JewelDecision.none());
 
-    int pointsToDistribute = CHARACTERISTIC_POINTS_PER_VICTORY + jewelDecision.bonusPoints();
-    List<CharacteristicGain> characteristicGains = distributeCharacteristicPoints(hero.character(), pointsToDistribute);
+    List<CharacteristicGain> characteristicGains =
+        distributeCharacteristicPoints(hero.character(), CHARACTERISTIC_POINTS_PER_VICTORY);
     Hero grownHero = applyGrowth(hero, weaponSwap, armourDecision, jewelDecision, characteristicGains);
 
     return new HeroProgress(grownHero, loot, weaponSwap, armourDecision.newPiece(), armourDecision.upgrade(),
@@ -213,22 +207,18 @@ public class HeroBrain {
 
   /**
    * Il gioiello trovato: se quel tipo è scoperto lo si indossa comunque, se è già occupato lo si
-   * indossa solo se più raro di quello che lo occupa. A parità di rarità tiene il suo, come per
-   * arma e armatura.
+   * indossa solo se i suoi buff valgono di più di quello che lo occupa. A parità di valore tiene il
+   * suo, come per arma e armatura.
    */
   private JewelDecision chooseJewel(Hero hero, JewelResult found) {
     Optional<JewelResult> wornJewel = hero.jewelOfType(found.jewel());
     if (wornJewel.isEmpty()) {
-      return JewelDecision.wearing(found, jewelBonusPointsOf(found));
+      return JewelDecision.wearing(found);
     }
     if (BY_JEWEL_VALUE.compare(found, wornJewel.get()) > 0) {
-      return JewelDecision.replacing(wornJewel.get(), found, jewelBonusPointsOf(found));
+      return JewelDecision.replacing(wornJewel.get(), found);
     }
     return JewelDecision.none();
-  }
-
-  private int jewelBonusPointsOf(JewelResult jewel) {
-    return JEWEL_BONUS_POINTS.get(jewel.rarity());
   }
 
   /**
@@ -331,12 +321,12 @@ public class HeroBrain {
       return new JewelDecision(null, null);
     }
 
-    private static JewelDecision wearing(JewelResult jewel, int points) {
-      return new JewelDecision(new NewJewel(jewel, points), null);
+    private static JewelDecision wearing(JewelResult jewel) {
+      return new JewelDecision(new NewJewel(jewel), null);
     }
 
-    private static JewelDecision replacing(JewelResult dropped, JewelResult taken, int points) {
-      return new JewelDecision(null, new JewelUpgrade(dropped, taken, points));
+    private static JewelDecision replacing(JewelResult dropped, JewelResult taken) {
+      return new JewelDecision(null, new JewelUpgrade(dropped, taken));
     }
 
     private JewelResult takenJewel() {
@@ -344,13 +334,6 @@ public class HeroBrain {
         return newJewel.jewel();
       }
       return upgrade != null ? upgrade.taken() : null;
-    }
-
-    private int bonusPoints() {
-      if (newJewel != null) {
-        return newJewel.points();
-      }
-      return upgrade != null ? upgrade.points() : 0;
     }
   }
 }

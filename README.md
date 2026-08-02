@@ -62,9 +62,24 @@ stringe man mano:
 E non stringe solo di numero: gli avversari generati nascono ogni volta con qualche punto
 caratteristica in più del gruppo precedente, così la decima prova non è la prima ripetuta dieci volte.
 
-Ogni prova va vinta per intero — restare in piedi non basta, gli avversari devono essere tutti a
-terra — altrimenti l'arena si chiude lì. Arrivare in fondo è raro: la maggior parte delle corse finisce
-nelle prime prove, e questo è un fatto del bilanciamento, non un incidente.
+Ma quei punti sono il monte di **tutto lo schieramento**, non di ciascun avversario: due nemici se li
+dividono, tre pure. È la cosa che rende la progressione percepibile. Quando il monte era del singolo,
+cresceva con la stessa curva del protagonista e veniva moltiplicato per il numero di avversari: i tre
+punti che ogni vittoria vale erano annullati prima ancora di essere spesi, e alla quarta prova si
+combatteva contro il doppio dei propri punti. E il monte dello schieramento non è nemmeno il numero
+puro di avversari moltiplicato per la crescita del protagonista, ma qualcosa di meno: due avversari
+attaccano due volte per turno mentre il protagonista attacca una volta sola, e quel vantaggio va
+pagato in punti.
+
+C'è poi una cosa che la **fortuna** fa, e che nel motore non farebbe: toglie punti allo schieramento
+avversario, tanti quanti la fortuna del protagonista, per ogni avversario in campo. Nel combattimento
+la fortuna vale solo un punto percentuale di critico in più, cioè quasi niente; qui diventa la
+statistica che rende gli avversari più deboli. C'è un limite sotto il quale il taglio non scende —
+sette punti a testa, il minimo con cui un personaggio può esistere — e capita che lo si raggiunga.
+
+Vincere una prova per intero — tutti gli avversari a terra — è l'unico modo di guadagnare l'oggetto e
+i tre punti. Ma **restare in piedi senza vincere non chiude più la corsa**: si passa alla prova
+successiva senza premio, con la scheda esattamente com'era. Cadere, quello sì, chiude tutto.
 
 Fra una prova e l'altra c'è la **procedura di fine scontro**, raccontata riga per riga: il
 protagonista torna a vita e stamina piene, trova **un oggetto** — un'arma, un pezzo d'armatura o un
@@ -74,10 +89,24 @@ L'oggetto non si saccheggia dai caduti: si genera, e la sua qualità cresce col 
 se batte quello che il protagonista ha già, altrimenti si scarta — e anche lo scarto viene detto, perché
 «non ti serve» è un'informazione, mentre il silenzio è un dubbio.
 
+La qualità cresce, ma con misura: nella prima metà del percorso l'oggetto ordinario resta il caso più
+frequente, e il leggendario è un'eccezione vera. Non è prudenza fine a sé stessa. Un'arma leggendaria
+colpisce quattro o cinque volte più forte di quella con cui si comincia, e porta bonus per una decina
+di punti caratteristica: trovarne una alla seconda prova valeva più di tre vittorie messe insieme, e
+la corsa smetteva di essere una progressione per diventare un'estrazione.
+
+Ogni oggetto porta con sé dei **bonus alle caratteristiche**, tanto più generosi quanto più è raro, e
+valgono **finché lo si tiene addosso**: cambiare arma significa cambiare anche i suoi bonus, e il
+gioiello — che il motore non sa montare sul combattente — conta comunque, perché i bonus entrano nelle
+caratteristiche con cui il protagonista scende in campo. Vale per tutti, non solo per lui: anche gli
+sfidanti nascono con l'equipaggiamento che portano.
+
 ```
 --- PROCEDURA DI FINE SCONTRO ---
 Morthas è ancora in piedi: vita e stamina tornano piene.
 Arma: trovi HAMMER (EPIC, atk 13), lasci BATTLEAXE (UNCOMMON, atk 3) e la impugni.
+Bonus dell'oggetto trovato: +5 STRENGTH, +3 RESISTANCE.
+Bonus dell'oggetto lasciato: +2 AGILITY.
 Crescita: +2 STRENGTH, +1 LUCK.
 ```
 

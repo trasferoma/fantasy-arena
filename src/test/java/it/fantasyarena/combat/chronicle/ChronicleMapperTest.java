@@ -1,6 +1,7 @@
 package it.fantasyarena.combat.chronicle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -8,6 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import it.fantasyarena.combat.ChallengerBudget;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroProgress;
 import it.fantasyarena.combat.hero.HeroProgress.ArmourUpgrade;
@@ -19,6 +21,7 @@ import it.fantasyarena.combat.hero.LootFate;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.testsupport.CombatFixtures;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Armour;
@@ -52,8 +55,8 @@ class ChronicleMapperTest {
     assertEquals(Race.HUMAN, snapshot.race());
     assertEquals(fighter.character().characterClass(), snapshot.characterClass());
     assertEquals(fighter.character().characteristics(), snapshot.characteristics());
-    assertEquals(new ItemSnapshot(ItemKind.WEAPON, Weapon.SWORD.name(), Rarity.COMMON, 9), snapshot.weapon());
-    assertEquals(List.of(new ItemSnapshot(ItemKind.ARMOUR, Armour.CHESTPLATE.name(), Rarity.COMMON, 4)),
+    assertEquals(new ItemSnapshot(ItemKind.WEAPON, Weapon.SWORD.name(), Rarity.COMMON, 9, List.of()), snapshot.weapon());
+    assertEquals(List.of(new ItemSnapshot(ItemKind.ARMOUR, Armour.CHESTPLATE.name(), Rarity.COMMON, 4, List.of())),
         snapshot.armourPieces());
     assertEquals(fighter.ratings().maxHealth(), snapshot.maxHealth(),
         "la vita massima non cambia con la ferita appena inflitta");
@@ -69,10 +72,27 @@ class ChronicleMapperTest {
 
     HeroSnapshot snapshot = mapper.snapshotHero(hero);
 
-    assertEquals(List.of(new ItemSnapshot(ItemKind.JEWEL, Jewel.RING.name(), Rarity.RARE, null)),
+    assertEquals(List.of(new ItemSnapshot(ItemKind.JEWEL, Jewel.RING.name(), Rarity.RARE, null, List.of())),
         snapshot.jewels(), "la fotografia del protagonista porta i gioielli, quella del combattente non li ha");
     assertTrue(hero.jewels().stream().anyMatch(jewel -> jewel.jewel() == Jewel.RING),
         "il gioiello indossato deve comparire nella scheda sorgente");
+  }
+
+  @Test
+  void fotografaLeCaratteristicheBaseEDEffettiveDelProtagonista() {
+    WeaponResult buffedSword = new WeaponResult(Weapon.SWORD, Rarity.COMMON,
+        List.of(new BuffElement(Characteristic.STRENGTH, 5)), List.of(), 5);
+    Hero hero = new Hero(CombatFixtures.createWarrior("Protagonista", 10, 11, 12, 13, 14), buffedSword,
+        List.of(new ArmourResult(Armour.CHESTPLATE, Rarity.COMMON, List.of(), List.of(), 4)));
+
+    HeroSnapshot snapshot = mapper.snapshotHero(hero);
+
+    assertEquals(hero.character().characteristics(), snapshot.characteristics(),
+        "le caratteristiche base non devono risentire dei buff dell'equipaggiamento");
+    assertEquals(hero.effectiveCharacter().characteristics(), snapshot.effectiveCharacteristics(),
+        "le caratteristiche effettive devono venire da Hero.effectiveCharacter()");
+    assertNotEquals(snapshot.characteristics(), snapshot.effectiveCharacteristics(),
+        "l'arma buffata deve far divergere base ed effettive");
   }
 
   @Test
@@ -89,36 +109,40 @@ class ChronicleMapperTest {
     assertEquals(LootFate.ARMOUR_REPLACED, progress.lootFate());
     assertEquals(progress.lootFate(), chronicle.fate(),
         "il destino nella cronaca deve essere quello già risolto da HeroProgress, non uno rideriviato");
-    assertEquals(new ItemSnapshot(ItemKind.ARMOUR, Armour.CHESTPLATE.name(), Rarity.RARE, 9), chronicle.found());
-    assertEquals(new ItemSnapshot(ItemKind.ARMOUR, Armour.CHESTPLATE.name(), Rarity.COMMON, 4), chronicle.dropped());
-    assertNull(chronicle.jewelBonusPoints(), "un'armatura sostituita non porta un bonus di gioiello");
+    assertEquals(new ItemSnapshot(ItemKind.ARMOUR, Armour.CHESTPLATE.name(), Rarity.RARE, 9, List.of()), chronicle.found());
+    assertEquals(new ItemSnapshot(ItemKind.ARMOUR, Armour.CHESTPLATE.name(), Rarity.COMMON, 4, List.of()),
+        chronicle.dropped());
   }
 
   @Test
-  void fotografaIlBonusDelGioielloIndossatoSuUnTipoPrimaScoperto() {
+  void fotografaIBonusDelGioielloIndossatoSuUnTipoPrimaScopertoNellOggettoTrovato() {
     Hero hero = heroWithBasicGear();
-    JewelResult found = new JewelResult(Jewel.RING, Rarity.RARE, List.of(), List.of());
+    JewelResult found = new JewelResult(Jewel.RING, Rarity.RARE, List.of(new BuffElement(Characteristic.STRENGTH, 5)),
+        List.of());
     HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, null, null,
-        new NewJewel(found, 5), null, List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
+        new NewJewel(found), null, List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
 
     ProgressChronicle chronicle = mapper.snapshotProgress(progress);
 
     assertEquals(LootFate.JEWEL_WORN_ON_EMPTY_TYPE, progress.lootFate());
-    assertEquals(5, chronicle.jewelBonusPoints(), "il bonus del gioiello indossato deve comparire nella cronaca");
+    assertEquals(List.of(new CharacteristicBonus(Characteristic.STRENGTH, 5)), chronicle.found().bonuses(),
+        "il bonus del gioiello indossato deve comparire sull'oggetto trovato nella cronaca");
   }
 
   @Test
-  void fotografaIlBonusDelGioielloCheSostituisceUnoMenoRaro() {
+  void fotografaIBonusDelGioielloCheSostituisceUnoMenoRaroNellOggettoTrovato() {
     Hero hero = heroWithBasicGear();
     JewelResult dropped = new JewelResult(Jewel.RING, Rarity.RARE, List.of(), List.of());
-    JewelResult found = new JewelResult(Jewel.RING, Rarity.EPIC, List.of(), List.of());
+    JewelResult found = new JewelResult(Jewel.RING, Rarity.EPIC, List.of(new BuffElement(Characteristic.STRENGTH, 8)),
+        List.of());
     HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, null, null, null,
-        new JewelUpgrade(dropped, found, 8), List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
+        new JewelUpgrade(dropped, found), List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
 
     ProgressChronicle chronicle = mapper.snapshotProgress(progress);
 
     assertEquals(LootFate.JEWEL_REPLACED, progress.lootFate());
-    assertEquals(8, chronicle.jewelBonusPoints(), "il bonus del gioiello che sostituisce deve comparire nella cronaca");
+    assertEquals(List.of(new CharacteristicBonus(Characteristic.STRENGTH, 8)), chronicle.found().bonuses(),
+        "il bonus del gioiello che sostituisce deve comparire sull'oggetto trovato nella cronaca");
   }
 
   @Test
@@ -135,23 +159,19 @@ class ChronicleMapperTest {
     assertEquals(LootFate.WEAPON_DISCARDED, progress.lootFate());
     assertEquals(progress.lootFate(), chronicle.fate(),
         "il destino nella cronaca deve essere quello già risolto da HeroProgress, non uno rideriviato");
-    assertEquals(new ItemSnapshot(ItemKind.WEAPON, Weapon.SWORD.name(), Rarity.COMMON, 3), chronicle.found());
+    assertEquals(new ItemSnapshot(ItemKind.WEAPON, Weapon.SWORD.name(), Rarity.COMMON, 3, List.of()), chronicle.found());
     assertNull(chronicle.dropped(), "un'arma scartata non lascia niente al suo posto");
   }
 
   @Test
-  void fotografaIlGioielloScartatoSenzaBonusPercheNonEStatoIndossato() {
-    JewelResult worn = new JewelResult(Jewel.RING, Rarity.RARE, List.of(), List.of());
-    Hero hero = heroWithBasicGear().wearing(worn);
-    JewelResult found = new JewelResult(Jewel.RING, Rarity.COMMON, List.of(), List.of());
-    HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, null, null, null, null,
-        List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
+  void fotografaIlBudgetDegliSfidantiSenzaAlterarneINumeri() {
+    ChallengerBudget budget = new ChallengerBudget(31, 4, 27);
 
-    ProgressChronicle chronicle = mapper.snapshotProgress(progress);
+    ChallengerBudgetChronicle chronicle = mapper.snapshotChallengerBudget(budget);
 
-    assertEquals(LootFate.JEWEL_DISCARDED, progress.lootFate());
-    assertNull(chronicle.jewelBonusPoints(),
-        "un gioiello trovato e scartato non è stato indossato, quindi non vale un bonus");
+    assertEquals(31, chronicle.stationPoints());
+    assertEquals(4, chronicle.luckDiscount());
+    assertEquals(27, chronicle.squadPoints());
   }
 
   /**

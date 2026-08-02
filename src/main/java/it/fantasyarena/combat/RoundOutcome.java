@@ -5,13 +5,15 @@ package it.fantasyarena.combat;
  * dal logger per raccontarlo. Sono tre casi e non due perché restare in piedi non equivale a vincere:
  * il protagonista può cadere, ma può anche resistere fino alla fine senza abbattere tutti gli
  * avversari, e sono due chiusure diverse — una è una disfatta, l'altra è un pareggio o una decisione
- * ai punti — che vanno raccontate con parole diverse.
+ * ai punti — che vanno raccontate con parole diverse. Solo la caduta chiude la corsa: sia la
+ * vittoria sia il pareggio aprono la prova successiva, ma soltanto la vittoria porta con sé loot e
+ * punti caratteristica.
  */
 public enum RoundOutcome {
 
   /**
-   * Vittoria piena: il protagonista è rimasto in piedi e ha abbattuto tutti gli sfidanti. È il solo
-   * caso che apre la prova successiva.
+   * Vittoria piena: il protagonista è rimasto in piedi e ha abbattuto tutti gli sfidanti. Apre la
+   * prova successiva con la scheda cresciuta dalla procedura di fine scontro.
    */
   WON,
 
@@ -22,7 +24,8 @@ public enum RoundOutcome {
 
   /**
    * Il protagonista è rimasto in piedi ma non ha abbattuto tutti gli sfidanti: un pareggio o una
-   * decisione ai punti. Non è una caduta, ma non basta ad aprire la prova successiva.
+   * decisione ai punti. Non è una caduta: apre comunque la prova successiva, ma senza loot né punti
+   * caratteristica, con la scheda invariata rispetto a prima.
    */
   STOOD_WITHOUT_WINNING
 }

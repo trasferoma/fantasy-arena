@@ -9,9 +9,10 @@ import it.fantasycombatsystem.result.TurnLogEntry;
 
 /**
  * La voce di cronaca di una prova giocata: numero, descrizione, forma dello scontro, il roster
- * fotografato prima dello scontro, i passi nell'ordine in cui sono accaduti, lo stato finale dei
- * combattenti, l'esito e — solo se la prova è stata vinta — i dati della procedura di fine scontro
- * ({@link #progress()}, {@code null} altrimenti).
+ * fotografato prima dello scontro, il monte punti scontato dalla fortuna con cui gli sfidanti sono
+ * nati ({@link #budget()}, {@code null} per la stazione dello specchio), i passi nell'ordine in cui
+ * sono accaduti, lo stato finale dei combattenti, l'esito e — solo se la prova è stata vinta — i
+ * dati della procedura di fine scontro ({@link #progress()}, {@code null} altrimenti).
  *
  * <p>I passi arrivano in due forme dichiarate, mai unificate: {@link #rounds()} per la battaglia
  * NvN, {@link #turns()} per il duello 1v1. {@link #shape()} dice quale delle due è popolata;
@@ -30,8 +31,8 @@ import it.fantasycombatsystem.result.TurnLogEntry;
  * o {@code BattleResult.finalVitals()}).
  */
 public record TrialChronicle(int number, String description, TrialShape shape, List<CombatantSnapshot> roster,
-    List<RoundLogEntry> rounds, List<TurnLogEntry> turns, List<FighterVitals> finalVitals, RoundOutcome outcome,
-    ProgressChronicle progress) {
+    ChallengerBudgetChronicle budget, List<RoundLogEntry> rounds, List<TurnLogEntry> turns,
+    List<FighterVitals> finalVitals, RoundOutcome outcome, ProgressChronicle progress) {
 
   public TrialChronicle {
     roster = List.copyOf(roster);

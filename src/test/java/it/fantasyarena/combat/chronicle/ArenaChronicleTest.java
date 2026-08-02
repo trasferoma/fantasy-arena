@@ -35,12 +35,12 @@ class ArenaChronicleTest {
   }
 
   private HeroSnapshot protagonist() {
-    return new HeroSnapshot("Protagonista", Race.HUMAN, CharacterClass.WARRIOR, List.of(), null, List.of(),
-        List.of());
+    return new HeroSnapshot("Protagonista", Race.HUMAN, CharacterClass.WARRIOR, List.of(), List.of(), null,
+        List.of(), List.of());
   }
 
   private TrialChronicle trial(int number) {
-    return new TrialChronicle(number, "prova " + number, TrialShape.DUEL, List.of(), List.of(), List.of(), List.of(),
-        RoundOutcome.WON, null);
+    return new TrialChronicle(number, "prova " + number, TrialShape.DUEL, List.of(), null, List.of(), List.of(),
+        List.of(), RoundOutcome.WON, null);
   }
 }

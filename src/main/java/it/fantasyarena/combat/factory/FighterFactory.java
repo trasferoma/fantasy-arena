@@ -1,5 +1,6 @@
 package it.fantasyarena.combat.factory;
 
+import it.fantasyarena.combat.hero.EquipmentBonus;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.config.CombatSettings;
@@ -7,6 +8,7 @@ import it.fantasycombatsystem.factory.FighterAssembler;
 import it.fantasycombatsystem.model.Fighter;
 import it.fantasytoolkit.armourgenerator.ArmourGeneratorTool;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
+import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.CharacterGeneratorTool;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.dicelauncher.DiceLauncherTool;
@@ -47,12 +49,23 @@ import java.util.stream.IntStream;
  * stessa {@link #STANDARD_EQUIPMENT_RARITY}: le differenze se le conquista il protagonista dal
  * loot di fine livello ({@link #rollLoot}), non gliele regala la generazione. Il monte punti
  * caratteristica degli sfidanti generati ({@link #createChallengers}) non è invece fisso: lo
- * dichiara chi chiama, stazione per stazione — è così che il percorso dell'arena fa crescere la
- * difficoltà senza toccare l'equipaggiamento.
+ * dichiara chi chiama, stazione per stazione — non più per singolo sfidante ma per l'intero
+ * schieramento, che questa factory ripartisce a parti uguali col resto ai primi. È così che il
+ * percorso dell'arena fa crescere la difficoltà senza toccare l'equipaggiamento.
  */
 public class FighterFactory {
 
     private static final int TOTAL_CHARACTERISTIC_POINTS = 15;
+
+    /**
+     * Il pavimento di punti caratteristica per singolo sfidante: sotto questa soglia
+     * {@code CharacterGeneratorTool.generate()} solleva una {@code IllegalStateException} opaca dal
+     * toolkit, perché le {@code Characteristic} sono sette e {@code minCharacteristicValue} vale
+     * {@code 1} per difetto, quindi il monte minimo distribuibile è {@code 7 * 1}. È pubblica perché
+     * la userà anche il calcolo dello sconto della fortuna: questa factory è l'unico punto del gioco
+     * che conosce i vincoli del toolkit.
+     */
+    public static final int MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER = 7;
 
     /**
      * Rarita' con cui nasce l'equipaggiamento di chiunque scenda nell'arena, protagonista compreso:
@@ -102,10 +115,12 @@ public class FighterFactory {
         }
     }
 
-    private void validateCharacteristicPoints(int totalCharacteristicPoints) {
-        if (totalCharacteristicPoints < 1) {
+    private void validateSquadPoints(int count, int squadCharacteristicPoints) {
+        int floor = MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER * count;
+        if (squadCharacteristicPoints < floor) {
             throw new IllegalArgumentException(
-                    "totalCharacteristicPoints must be >= 1, was: " + totalCharacteristicPoints);
+                    "squadCharacteristicPoints must be >= " + floor + " (" + MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER
+                            + " per challenger, " + count + " challengers), was: " + squadCharacteristicPoints);
         }
     }
 
@@ -113,11 +128,12 @@ public class FighterFactory {
      * Un avversario qualunque, col monte punti richiesto: arma e armatura alla rarita' standard,
      * un pezzo solo addosso, e un nome che non collide con quelli gia' assegnati da questa factory.
      */
-    private Fighter createChallenger(int totalCharacteristicPoints) {
-        CharacterResult character = generateUniquelyNamed(() -> generateWarrior(totalCharacteristicPoints));
+    private Fighter createChallenger(int characteristicPoints) {
+        CharacterResult character = generateUniquelyNamed(() -> generateWarrior(characteristicPoints));
         WeaponResult weapon = generateWeapon(STANDARD_EQUIPMENT_RARITY);
         ArmourResult armour = generateArmour();
-        return assembler.assemble(character, weapon, armour);
+        CharacterResult effectiveCharacter = withEquipmentBonus(character, weapon, List.of(armour));
+        return assembler.assemble(effectiveCharacter, weapon, armour);
     }
 
     /**
@@ -139,24 +155,29 @@ public class FighterFactory {
      * Il combattente di questo round, materializzato dalla scheda del protagonista. Nasce con vita
      * e stamina piene perche' e' un {@code Fighter} nuovo: e' cosi' che la cura di fine scontro si
      * realizza senza che nessuno debba "guarire" nessuno. I Rating tengono conto di tutti i pezzi
-     * indossati, ricalcolati qui a ogni discesa in campo. I gioielli indossati non entrano in
-     * questa chiamata: il {@link FighterAssembler} non ha un overload che li accetti, e restano
-     * fuori dallo scontro anche se la {@link Hero} li custodisce.
+     * indossati, ricalcolati qui a ogni discesa in campo. Il {@link FighterAssembler} non ha un
+     * overload che accetti i gioielli, quindi restano fuori dall'assemblaggio diretto: contano
+     * comunque, insieme ai buff di arma e armatura, perche' le caratteristiche passate sono gia'
+     * quelle {@linkplain Hero#effectiveCharacter() effettive}.
      */
     public Fighter summon(Hero hero) {
-        return assembler.assemble(hero.character(), hero.weapon(), hero.armourPieces(), null);
+        return assembler.assemble(hero.effectiveCharacter(), hero.weapon(), hero.armourPieces(), null);
     }
 
     /**
      * Gli sfidanti di una prova, equipaggiati come chiunque altro nell'arena ma col monte punti
-     * caratteristica che la stazione del percorso dichiara: la difficoltà cresce stazione dopo
-     * stazione spostando questo numero, non l'equipaggiamento.
+     * caratteristica che la stazione del percorso dichiara per l'<em>intero schieramento</em>: la
+     * difficoltà cresce stazione dopo stazione spostando questo numero, non l'equipaggiamento. Il
+     * monte si ripartisce fra gli sfidanti a parti uguali, col resto ai primi: con 31 punti su due
+     * sfidanti nascono con 16 e 15.
      */
-    public List<Fighter> createChallengers(int count, int totalCharacteristicPoints) {
+    public List<Fighter> createChallengers(int count, int squadCharacteristicPoints) {
         validateCount(count);
-        validateCharacteristicPoints(totalCharacteristicPoints);
+        validateSquadPoints(count, squadCharacteristicPoints);
+        int basePoints = squadCharacteristicPoints / count;
+        int remainder = squadCharacteristicPoints % count;
         return IntStream.range(0, count)
-                .mapToObj(challenger -> createChallenger(totalCharacteristicPoints))
+                .mapToObj(index -> createChallenger(basePoints + (index < remainder ? 1 : 0)))
                 .toList();
     }
 
@@ -172,7 +193,21 @@ public class FighterFactory {
         CharacterResult character = generateUniquelyNamed(() -> generateRival(hero.totalCharacteristicPoints()));
         WeaponResult weapon = generateWeapon(MIRROR_RIVAL_WEAPON_RARITY);
         List<ArmourResult> armourPieces = generateArmourSet(hero.armourPieceCount());
-        return assembler.assemble(character, weapon, armourPieces, null);
+        CharacterResult effectiveCharacter = withEquipmentBonus(character, weapon, armourPieces);
+        return assembler.assemble(effectiveCharacter, weapon, armourPieces, null);
+    }
+
+    /**
+     * Le caratteristiche di un personaggio con addosso i buff della sua stessa arma e armatura:
+     * la stessa somma di {@link Hero#effectiveCharacter()}, ma per un personaggio generato al volo
+     * che non e' ancora (e non sara' mai, nel caso di sfidanti e specchio) incapsulato in una
+     * {@link Hero}.
+     */
+    private CharacterResult withEquipmentBonus(CharacterResult character, WeaponResult weapon,
+            List<ArmourResult> armourPieces) {
+        List<BuffElement> buffs = new ArrayList<>(weapon.buffs());
+        armourPieces.forEach(piece -> buffs.addAll(piece.buffs()));
+        return EquipmentBonus.applyTo(character, buffs);
     }
 
     /**
@@ -233,7 +268,6 @@ public class FighterFactory {
         return WeaponGeneratorTool.building()
                 .weapon(pickMeleeWeapon())
                 .rarity(rarity)
-                .noStatusEffect()
                 .generate();
     }
 
@@ -246,7 +280,6 @@ public class FighterFactory {
         return WeaponGeneratorTool.building()
                 .weapon(pickMeleeWeapon())
                 .rarityTable(rarityTable)
-                .noStatusEffect()
                 .generate();
     }
 
@@ -272,7 +305,6 @@ public class FighterFactory {
                 //.armour(Armour.CHESTPLATE)
                 .randomArmour()
                 .rarity(STANDARD_EQUIPMENT_RARITY)
-                .noStatusEffect()
                 .generate();
     }
 
@@ -284,7 +316,6 @@ public class FighterFactory {
         return ArmourGeneratorTool.building()
                 .randomArmour()
                 .rarityTable(rarityTable)
-                .noStatusEffect()
                 .generate();
     }
 
@@ -296,7 +327,6 @@ public class FighterFactory {
         return JewelGeneratorTool.building()
                 .randomJewel()
                 .rarityTable(rarityTable)
-                .noStatusEffect()
                 .generate();
     }
 
@@ -337,7 +367,6 @@ public class FighterFactory {
         return ArmourGeneratorTool.building()
                 .armour(slot)
                 .rarity(STANDARD_EQUIPMENT_RARITY)
-                .noStatusEffect()
                 .generate();
     }
 

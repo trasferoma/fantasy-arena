@@ -54,10 +54,10 @@ public class HeroBrain {
    * marginale, e il pavimento è {@code UNCOMMON}.
    */
   private static final RarityTable OPENING_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.UNCOMMON, 65)
-      .entry(Rarity.RARE, 25)
-      .entry(Rarity.EPIC, 8)
-      .entry(Rarity.LEGENDARY, 2)
+      .entry(Rarity.UNCOMMON, 70)
+      .entry(Rarity.RARE, 20)
+      .entry(Rarity.EPIC, 5)
+      .entry(Rarity.LEGENDARY, 5)
       .build();
 
   /**
@@ -65,31 +65,32 @@ public class HeroBrain {
    * come in {@link #OPENING_TRIALS_LOOT_RARITY_TABLE}, ma il peso si sposta verso {@code RARE}.
    */
   private static final RarityTable EARLY_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.UNCOMMON, 35)
-      .entry(Rarity.RARE, 40)
-      .entry(Rarity.EPIC, 20)
+      .entry(Rarity.UNCOMMON, 65)
+      .entry(Rarity.RARE, 20)
+      .entry(Rarity.EPIC, 10)
       .entry(Rarity.LEGENDARY, 5)
       .build();
 
   /**
    * La distribuzione della rarità del loot alle prove 6-8: qui, e non prima, il pavimento sale a
-   * {@code RARE}, e il peso principale passa a {@code EPIC}.
+   * {@code RARE}, e il peso principale resta su {@code RARE} stesso, con {@code EPIC} minoritario.
    */
   private static final RarityTable MID_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.RARE, 45)
-      .entry(Rarity.EPIC, 40)
-      .entry(Rarity.LEGENDARY, 15)
+      .entry(Rarity.RARE, 85)
+      .entry(Rarity.EPIC, 10)
+      .entry(Rarity.LEGENDARY, 5)
       .build();
 
   /**
-   * La distribuzione della rarità del loot alle prove 9-10, l'ultimo tratto del percorso: il
-   * pavimento resta {@code RARE} come nello scaglione precedente — non sale a {@code EPIC} — e
-   * {@code LEGENDARY} raggiunge qui il suo peso massimo, pur restando minoritario.
+   * La distribuzione della rarità del loot alle prove 9-10, l'ultimo tratto del percorso: pesi
+   * identici a {@link #MID_TRIALS_LOOT_RARITY_TABLE}. Il pavimento resta {@code RARE} e
+   * {@code LEGENDARY} non cresce oltre il suo peso dello scaglione precedente: la taratura
+   * empirica non ha richiesto di inasprire ulteriormente il loot dell'eroe in questo tratto.
    */
   private static final RarityTable LATE_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.RARE, 20)
-      .entry(Rarity.EPIC, 55)
-      .entry(Rarity.LEGENDARY, 25)
+      .entry(Rarity.RARE, 85)
+      .entry(Rarity.EPIC, 10)
+      .entry(Rarity.LEGENDARY, 5)
       .build();
 
   private static final Comparator<WeaponResult> BY_OFFENSIVE_VALUE = Comparator
@@ -136,13 +137,11 @@ public class HeroBrain {
    *
    * <p>Il pavimento non sale a ogni scaglione: {@code UNCOMMON} resta estraibile fino alla prova
    * 5, e sale a {@code RARE} solo dalla prova 6 in poi — l'ultimo scaglione (9-10) non alza
-   * ulteriormente il pavimento, condivide {@code RARE} col precedente e sposta solo il peso verso
-   * {@code LEGENDARY}. La ragione della ritaratura: un'arma {@code LEGENDARY} ha attacco 15-25
-   * contro 3-6 di una {@code UNCOMMON} e porta buff per una decina di punti, mentre una vittoria di
-   * progressione ne vale solo tre di caratteristica — un solo drop leggendario valeva quindi più di
-   * tre vittorie, e con la distribuzione precedente arrivava troppo presto (35% di probabilità di
-   * averne già visto uno entro la prova 3). Con i pesi di questa tabella la stessa probabilità
-   * scende all'8,8% entro la prova 3, e al 72% sull'intera corsa (era il 93%).
+   * ulteriormente il pavimento e condivide con {@link #MID_TRIALS_LOOT_RARITY_TABLE} pesi identici.
+   * La ragione della ritaratura: un'arma {@code LEGENDARY} ha attacco 15-25 contro 3-6 di una
+   * {@code UNCOMMON} e porta buff per una decina di punti, mentre una vittoria di progressione ne
+   * vale solo tre di caratteristica — un solo drop leggendario valeva quindi più di tre vittorie, e
+   * con la distribuzione precedente a questa ritaratura arrivava troppo presto nella corsa.
    */
   public RarityTable lootRarityTable(int level) {
     return switch (level) {

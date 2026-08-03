@@ -32,6 +32,7 @@ import it.fantasycombatsystem.model.Fighter;
 import it.fantasycombatsystem.result.CombatResult;
 import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.TurnLogEntry;
+import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
@@ -183,20 +184,39 @@ public class Arena {
   /**
    * Chi affronta il protagonista in questa stazione: sfidanti generati col monte punti che la
    * stazione dichiara, scontato dalla fortuna effettiva del protagonista ({@link ChallengerBudget}),
-   * oppure lo specchio del protagonista com'è cresciuto fin qui — che non passa da nessuno sconto,
-   * perché ricalca il protagonista e non nasce da un monte punti proprio. Lo switch è esaustivo e
-   * senza {@code default}: una terza origine deve fermare la compilazione, non sparire in un ramo
-   * dimenticato. Il budget viaggia insieme agli sfidanti ({@link StationChallengers}) perché la
-   * cronaca ne ha bisogno quanto ne ha bisogno la generazione: {@code null} per lo specchio.
+   * ed equipaggiati con le due tabelle che la stessa stazione dichiara ({@link ChallengerEquipment}:
+   * una per l'arma, una per i pezzi d'armatura) — oppure lo specchio del protagonista com'è cresciuto
+   * fin qui, che non passa da nessuno sconto sul monte (ricalca il protagonista, non nasce da un
+   * monte punti proprio) ma veste comunque le due tabelle della fascia finale. Per lo specchio il
+   * numero di pezzi della fascia non si usa: vince quello del protagonista, che
+   * {@code createMirrorRival} ricalca — una deroga voluta, non una dimenticanza. Lo switch è
+   * esaustivo e senza {@code default}: una terza origine deve fermare la compilazione, non sparire in
+   * un ramo dimenticato. Il budget viaggia insieme agli sfidanti ({@link StationChallengers}) perché
+   * la cronaca ne ha bisogno quanto ne ha bisogno la generazione: {@code null} per lo specchio.
+   *
+   * <p>L'arma dello specchio è un gradino sopra il grado estratto dalla tabella dell'
+   * <strong>arma</strong> della fascia — non da quella dell'armatura — con
+   * {@link ChallengerEquipment#oneGradeAbove}: l'estrazione vera e propria resta dentro
+   * {@link FighterFactory#drawRarity}, perché la casualità di generazione vive lì e non qui — questa
+   * classe si limita a innalzare il grado ricevuto, un calcolo puro e non una scelta di gioco. I
+   * pezzi d'armatura dello specchio vestono invece la tabella dell'armatura della stessa fascia.
    */
   private StationChallengers challengersFor(TrialStation station, Hero hero) {
     return switch (station.challengerOrigin()) {
       case GENERATED -> {
         ChallengerBudget budget = ChallengerBudget.of(station.characteristicPoints(), hero, station.challengerCount());
-        List<Fighter> fighters = fighterFactory.createChallengers(station.challengerCount(), budget.squadPoints());
+        ChallengerEquipment equipment = ChallengerEquipment.forTrial(station.number());
+        List<Fighter> fighters = fighterFactory.createChallengers(station.challengerCount(), budget.squadPoints(),
+            equipment.weaponRarityTable(), equipment.armourRarityTable(), equipment.armourPieceCount());
         yield new StationChallengers(fighters, budget);
       }
-      case MIRROR -> new StationChallengers(List.of(fighterFactory.createMirrorRival(hero)), null);
+      case MIRROR -> {
+        ChallengerEquipment equipment = ChallengerEquipment.forTrial(station.number());
+        Rarity drawnGrade = fighterFactory.drawRarity(equipment.weaponRarityTable());
+        Rarity mirrorWeaponRarity = ChallengerEquipment.oneGradeAbove(drawnGrade);
+        Fighter rival = fighterFactory.createMirrorRival(hero, equipment.armourRarityTable(), mirrorWeaponRarity);
+        yield new StationChallengers(List.of(rival), null);
+      }
     };
   }
 

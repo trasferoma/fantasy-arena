@@ -32,33 +32,76 @@ class ChallengerBudgetTest {
   private static final int STATION_POINTS = 39;
 
   @Test
-  void laFortunaEffettivaScontaIlMonteInProporzioneAlNumeroDiSfidanti() {
-    Hero hero = heroWithLuck(5);
+  void laFortunaEffettivaScontaIlMonteInProporzioneAlNumeroDiSfidantiQuandoNessunLimiteMorde() {
+    Hero hero = heroWithLuck(2);
 
     ChallengerBudget budget = ChallengerBudget.of(STATION_POINTS, hero, CHALLENGER_COUNT);
 
     assertEquals(STATION_POINTS, budget.stationPoints());
-    assertEquals(5 * CHALLENGER_COUNT, budget.luckDiscount());
-    assertEquals(STATION_POINTS - 5 * CHALLENGER_COUNT, budget.squadPoints());
+    assertEquals(2 * CHALLENGER_COUNT, budget.luckDiscount());
+    assertEquals(STATION_POINTS - 2 * CHALLENGER_COUNT, budget.squadPoints());
   }
 
   /**
-   * Con la fortuna effettiva, un gioiello che porti molta {@code LUCK} può da solo schiacciare lo
-   * schieramento fino al pavimento: qui è comportamento ordinario, non un caso limite inventato,
-   * perché la fortuna arriva da un vero pezzo d'equipaggiamento indossato.
+   * Con la fortuna effettiva, un gioiello che porti molta {@code LUCK} richiederebbe uno sconto ben
+   * superiore al tetto del 30% del monte dichiarato: qui è comportamento ordinario, non un caso
+   * limite inventato, perché la fortuna arriva da un vero pezzo d'equipaggiamento indossato. Il
+   * pavimento resterebbe più permissivo del tetto su questo monte, quindi è il tetto a mordere.
    */
   @Test
-  void unGioielloGenerosoDiFortunaSchiacciaLoScontoFinoAlPavimentoEQuelloRegistratoEQuelloApplicato() {
+  void unGioielloGenerosoDiFortunaSchiacciaLoScontoFinoAlTettoPercentuale() {
     int count = 2;
     int stationPoints = 31;
-    int floor = FighterFactory.MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER * count;
+    int percentageCap = stationPoints * ChallengerBudget.MAX_LUCK_DISCOUNT_PERCENT / 100;
     Hero hero = heroWithLuckyJewel(10, 50);
 
     ChallengerBudget budget = ChallengerBudget.of(stationPoints, hero, count);
 
-    assertEquals(floor, budget.squadPoints(), "il pavimento tiene anche con una fortuna molto alta");
-    assertEquals(stationPoints - floor, budget.luckDiscount(),
+    assertEquals(percentageCap, budget.luckDiscount(),
         "lo sconto registrato è quello effettivamente applicato, non quello teorico richiesto dalla fortuna");
+    assertEquals(stationPoints - percentageCap, budget.squadPoints());
+  }
+
+  /**
+   * Una stazione col monte basso rispetto al numero di sfidanti fa mordere il pavimento anche col
+   * tetto attivo: qui il tetto (4) sarebbe più permissivo del pavimento (margine 2), quindi i due
+   * limiti convivono e vince quello più stringente.
+   */
+  @Test
+  void ilPavimentoVinceQuandoIlMonteEBassoRispettoAlNumeroDiSfidanti() {
+    int count = 2;
+    int stationPoints = 16;
+    int floor = FighterFactory.MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER * count;
+    int floorMargin = stationPoints - floor;
+    Hero hero = heroWithLuck(9);
+
+    ChallengerBudget budget = ChallengerBudget.of(stationPoints, hero, count);
+
+    assertEquals(floorMargin, budget.luckDiscount(), "il pavimento è più stringente del tetto su questo monte");
+    assertEquals(floor, budget.squadPoints());
+  }
+
+  /**
+   * Sui nove monti del percorso attuale, con una fortuna del protagonista arbitrariamente alta, è
+   * sempre il tetto percentuale a mordere: nessuna stazione generata scende al pavimento. La lettura
+   * dei monti da {@link TrialPlan#standard()} tiene il test vero anche se il percorso cambia.
+   */
+  @Test
+  void sulPercorsoStandardEIlTettoAMordereMaiIlPavimento() {
+    Hero hero = heroWithLuck(50);
+
+    for (TrialStation station : TrialPlan.standard().stations()) {
+      if (station.challengerOrigin() != ChallengerOrigin.GENERATED) {
+        continue;
+      }
+
+      int stationPoints = station.characteristicPoints();
+      int percentageCap = stationPoints * ChallengerBudget.MAX_LUCK_DISCOUNT_PERCENT / 100;
+
+      ChallengerBudget budget = ChallengerBudget.of(stationPoints, hero, station.challengerCount());
+
+      assertEquals(percentageCap, budget.luckDiscount(), "stazione " + station.number());
+    }
   }
 
   @Test

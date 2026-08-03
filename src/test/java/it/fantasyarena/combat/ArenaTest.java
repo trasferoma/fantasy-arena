@@ -43,6 +43,8 @@ import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.TurnLogEntry;
 import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
+import it.fantasytoolkitcore.core.model.Rarity;
+import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
  * Il percorso dell'arena, verificato senza affidarsi all'esito vero dei dadi: gli scontri sono
@@ -571,15 +573,17 @@ class ArenaTest {
     }
 
     @Override
-    public List<Fighter> createChallengers(int count, int squadCharacteristicPoints) {
+    public List<Fighter> createChallengers(int count, int squadCharacteristicPoints, RarityTable weaponRarityTable,
+        RarityTable armourRarityTable, int armourPieceCount) {
       squadPointsByGeneratedStation.add(squadCharacteristicPoints);
-      return super.createChallengers(count, squadCharacteristicPoints);
+      return super.createChallengers(count, squadCharacteristicPoints, weaponRarityTable, armourRarityTable,
+          armourPieceCount);
     }
 
     @Override
-    public Fighter createMirrorRival(Hero hero) {
+    public Fighter createMirrorRival(Hero hero, RarityTable armourRarityTable, Rarity weaponRarity) {
       mirrorInvocations++;
-      return super.createMirrorRival(hero);
+      return super.createMirrorRival(hero, armourRarityTable, weaponRarity);
     }
 
     private Hero heroOfRound(int round) {

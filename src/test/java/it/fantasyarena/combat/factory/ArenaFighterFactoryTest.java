@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
+import it.fantasyarena.combat.ChallengerEquipment;
 import it.fantasyarena.combat.hero.EquipmentBonus;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasycombatsystem.config.CombatSettings;
@@ -24,13 +25,17 @@ import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkitcore.core.model.Armour;
 import it.fantasytoolkitcore.core.model.Characteristic;
 import it.fantasytoolkitcore.core.model.Rarity;
+import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
  * La generazione al servizio dell'arena del protagonista: la scheda iniziale, la materializzazione
  * del combattente di ogni round e lo sfidante speculare dell'ultimo. Verifica le proprietà
- * dichiarate (pari punti, pari numero di pezzi, arma rara), non i valori estratti a caso.
+ * dichiarate (pari punti, pari numero di pezzi, arma un grado sopra la fascia), non i valori
+ * estratti a caso.
  */
 class ArenaFighterFactoryTest {
+
+  private static final RarityTable UNCOMMON_ONLY_TABLE = RarityTable.builder().entry(Rarity.UNCOMMON, 100).build();
 
   private final FighterFactory factory = FighterFactory.withDefaultRatings(CombatSettings.defaults());
 
@@ -120,12 +125,19 @@ class ArenaFighterFactoryTest {
    * protagonista non vengono ricalcati. È la conseguenza dichiarata della SPEC (lo specchio resta
    * indietro quando il protagonista ha accumulato equipaggiamento pregiato), non un difetto di
    * questo test.
+   *
+   * <p>L'arma vince un vantaggio in più rispetto ai pezzi d'armatura, che vestono la tabella
+   * ricevuta come un qualunque sfidante generato: qui la tabella è a rarità unica, quindi
+   * {@code weaponRarity} è deterministicamente il grado subito sopra, verificato con
+   * {@code ChallengerEquipment.oneGradeAbove} nel test dedicato.
    */
   @Test
-  void loSfidanteSpecularePareggiaPuntiBaseEPezziMaImpugnaUnArmaRara() {
+  void loSfidanteSpecularePareggiaPuntiBaseEPezziEImpugnaUnArmaDiUnGradoSopra() {
     Hero hero = wearingTwoMorePieces(factory.createProtagonist());
+    RarityTable armourRarityTable = RarityTable.builder().entry(Rarity.RARE, 100).build();
+    Rarity weaponRarity = ChallengerEquipment.oneGradeAbove(Rarity.RARE);
 
-    Fighter rival = factory.createMirrorRival(hero);
+    Fighter rival = factory.createMirrorRival(hero, armourRarityTable, weaponRarity);
 
     int rivalEffectivePoints = rival.character().characteristics().stream()
         .mapToInt(CharacterCharacteristic::value)
@@ -135,7 +147,7 @@ class ArenaFighterFactoryTest {
     assertEquals(hero.totalCharacteristicPoints(), rivalBasePoints,
         "lo specchio deve pareggiare i punti caratteristica base del protagonista, non gli effettivi");
     assertEquals(hero.armourPieceCount(), rival.armourPieces().size());
-    assertEquals(Rarity.RARE, rival.weapon().rarity(), "l'unico vantaggio dichiarato è l'arma");
+    assertEquals(Rarity.EPIC, rival.weapon().rarity(), "l'arma deve nascere un grado sopra la rarità ricevuta");
   }
 
   private List<BuffElement> rivalBuffs(Fighter rival) {
@@ -148,7 +160,7 @@ class ArenaFighterFactoryTest {
   void loSfidanteSpecularePortaPezziSuSlotTuttiDiversi() {
     Hero hero = wearingTwoMorePieces(factory.createProtagonist());
 
-    Fighter rival = factory.createMirrorRival(hero);
+    Fighter rival = factory.createMirrorRival(hero, UNCOMMON_ONLY_TABLE, Rarity.RARE);
 
     Set<Armour> slots = rival.armourPieces().stream()
         .map(ArmourResult::armour)
@@ -159,9 +171,9 @@ class ArenaFighterFactoryTest {
   @Test
   void gliSfidantiHannoNomiDistintiDaTuttiQuelliGiaScesiInCampo() {
     Hero hero = factory.createProtagonist();
-    List<Fighter> firstRound = factory.createChallengers(1, 15);
-    List<Fighter> secondRound = factory.createChallengers(2, 18);
-    Fighter rival = factory.createMirrorRival(hero);
+    List<Fighter> firstRound = factory.createChallengers(1, 15, UNCOMMON_ONLY_TABLE, UNCOMMON_ONLY_TABLE, 1);
+    List<Fighter> secondRound = factory.createChallengers(2, 18, UNCOMMON_ONLY_TABLE, UNCOMMON_ONLY_TABLE, 1);
+    Fighter rival = factory.createMirrorRival(hero, UNCOMMON_ONLY_TABLE, Rarity.RARE);
 
     Set<String> names = new HashSet<>();
     names.add(hero.name());

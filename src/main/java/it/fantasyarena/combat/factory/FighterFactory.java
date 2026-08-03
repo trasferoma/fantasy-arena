@@ -45,13 +45,16 @@ import java.util.stream.IntStream;
  *
  * <p>Produce la {@link Hero} che sopravvive ai round e che a ogni round torna in campo come
  * combattente nuovo ({@link #summon}), più gli sfidanti che le si parano davanti — fino allo
- * specchio dell'ultimo round ({@link #createMirrorRival}). Tutti nascono equi-equipaggiati alla
- * stessa {@link #STANDARD_EQUIPMENT_RARITY}: le differenze se le conquista il protagonista dal
- * loot di fine livello ({@link #rollLoot}), non gliele regala la generazione. Il monte punti
- * caratteristica degli sfidanti generati ({@link #createChallengers}) non è invece fisso: lo
- * dichiara chi chiama, stazione per stazione — non più per singolo sfidante ma per l'intero
- * schieramento, che questa factory ripartisce a parti uguali col resto ai primi. È così che il
- * percorso dell'arena fa crescere la difficoltà senza toccare l'equipaggiamento.
+ * specchio dell'ultimo round ({@link #createMirrorRival}). Solo il protagonista nasce alla rarità
+ * fissa {@link #STANDARD_EQUIPMENT_RARITY}: gli sfidanti generati ({@link #createChallengers}) e lo
+ * specchio pescano invece da due {@code RarityTable} distinte decise fuori da questa classe — una
+ * per l'arma, una per i pezzi d'armatura — fascia per fascia lungo il percorso (vedi
+ * {@code ChallengerEquipment} in {@code combat}): questa factory esegue l'estrazione, non decide le
+ * tabelle. Lo stesso vale per il numero di pezzi d'armatura indossati. Il monte punti caratteristica
+ * degli sfidanti generati non è fisso allo stesso modo: lo dichiara chi chiama, stazione per
+ * stazione — non più per singolo sfidante ma per l'intero schieramento, che questa factory
+ * ripartisce a parti uguali col resto ai primi. Equipaggiamento e monte punti sono così due leve
+ * distinte con cui il percorso dell'arena fa crescere la difficoltà.
  */
 public class FighterFactory {
 
@@ -68,16 +71,13 @@ public class FighterFactory {
     public static final int MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER = 7;
 
     /**
-     * Rarita' con cui nasce l'equipaggiamento di chiunque scenda nell'arena, protagonista compreso:
-     * si parte tutti alla pari, e le differenze arrivano dopo, dal loot di fine livello.
+     * Rarita' con cui nasce l'equipaggiamento del solo protagonista: la sua crescita passa dal loot
+     * di fine livello ({@link #rollLoot}), non da questa costante. Gli sfidanti generati e lo
+     * specchio non la usano piu': la loro rarita' arriva da due {@code RarityTable} distinte decise
+     * fuori da questa factory (una per l'arma, una per l'armatura), fascia per fascia lungo il
+     * percorso (vedi {@code ChallengerEquipment} in {@code combat}).
      */
     private static final Rarity STANDARD_EQUIPMENT_RARITY = Rarity.UNCOMMON;
-
-    /**
-     * L'unico vantaggio dichiarato dello sfidante speculare dell'ultimo round: l'arma. Le
-     * caratteristiche e il numero di pezzi indossati li ricalca dal protagonista.
-     */
-    private static final Rarity MIRROR_RIVAL_WEAPON_RARITY = Rarity.RARE;
 
     /**
      * Tetto di tentativi di rigenerazione onesta (nuovo personaggio, quindi nuova razza e nuovo
@@ -125,21 +125,28 @@ public class FighterFactory {
     }
 
     /**
-     * Un avversario qualunque, col monte punti richiesto: arma e armatura alla rarita' standard,
-     * un pezzo solo addosso, e un nome che non collide con quelli gia' assegnati da questa factory.
+     * Un avversario qualunque, col monte punti richiesto e l'equipaggiamento della fascia decisa da
+     * chi chiama: l'arma pesca da {@code weaponRarityTable} e i pezzi d'armatura da
+     * {@code armourRarityTable}, un'estrazione indipendente per oggetto — cosi' due sfidanti della
+     * stessa prova possono nascere a rarita' diverse, ed e' voluto (una sola estrazione per l'intero
+     * schieramento farebbe alternare le prove tarde fra banali e impossibili). Il nome non collide
+     * con quelli gia' assegnati da questa factory.
      */
-    private Fighter createChallenger(int characteristicPoints) {
+    private Fighter createChallenger(int characteristicPoints, RarityTable weaponRarityTable,
+            RarityTable armourRarityTable, int armourPieceCount) {
         CharacterResult character = generateUniquelyNamed(() -> generateWarrior(characteristicPoints));
-        WeaponResult weapon = generateWeapon(STANDARD_EQUIPMENT_RARITY);
-        ArmourResult armour = generateArmour();
-        CharacterResult effectiveCharacter = withEquipmentBonus(character, weapon, List.of(armour));
-        return assembler.assemble(effectiveCharacter, weapon, armour);
+        WeaponResult weapon = generateWeapon(weaponRarityTable);
+        List<ArmourResult> armourPieces = generateArmourSet(armourPieceCount, armourRarityTable);
+        CharacterResult effectiveCharacter = withEquipmentBonus(character, weapon, armourPieces);
+        return assembler.assemble(effectiveCharacter, weapon, armourPieces, null);
     }
 
     /**
-     * Il protagonista dell'arena, che parte come chiunque altro: stessi punti caratteristica,
-     * stessa rarita' d'equipaggiamento, un pezzo d'armatura solo. Quello che lo distinguera' se lo
-     * dovra' conquistare round dopo round.
+     * Il protagonista dell'arena: nasce alla rarita' standard {@link #STANDARD_EQUIPMENT_RARITY},
+     * con un solo pezzo d'armatura, e non cresce mai come equipaggiamento di partenza — sono gli
+     * avversari ({@link #createChallengers}, {@link #createMirrorRival}) a scalare intorno a lui
+     * lungo il percorso. Quello che lo distinguera' se lo dovra' conquistare round dopo round col
+     * loot di fine livello ({@link #rollLoot}).
      *
      * <p>Torna una {@link Hero} e non un {@code Fighter} perche' e' una scheda destinata a
      * sopravvivere agli scontri: il combattente di ogni round lo materializza {@link #summon}.
@@ -165,34 +172,56 @@ public class FighterFactory {
     }
 
     /**
-     * Gli sfidanti di una prova, equipaggiati come chiunque altro nell'arena ma col monte punti
-     * caratteristica che la stazione del percorso dichiara per l'<em>intero schieramento</em>: la
-     * difficoltà cresce stazione dopo stazione spostando questo numero, non l'equipaggiamento. Il
-     * monte si ripartisce fra gli sfidanti a parti uguali, col resto ai primi: con 31 punti su due
-     * sfidanti nascono con 16 e 15.
+     * Gli sfidanti di una prova, equipaggiati con le due tabelle che chi chiama ha scartato per
+     * quella stazione ({@code weaponRarityTable} per l'arma, {@code armourRarityTable} per i pezzi,
+     * {@code armourPieceCount} per quanti indossarne) e col monte punti caratteristica che la
+     * stazione del percorso dichiara per l'<em>intero schieramento</em>: la difficolta' cresce
+     * stazione dopo stazione spostando tutti questi numeri. Il monte si ripartisce fra gli sfidanti
+     * a parti uguali, col resto ai primi: con 31 punti su due sfidanti nascono con 16 e 15.
      */
-    public List<Fighter> createChallengers(int count, int squadCharacteristicPoints) {
+    public List<Fighter> createChallengers(int count, int squadCharacteristicPoints, RarityTable weaponRarityTable,
+            RarityTable armourRarityTable, int armourPieceCount) {
         validateCount(count);
         validateSquadPoints(count, squadCharacteristicPoints);
         int basePoints = squadCharacteristicPoints / count;
         int remainder = squadCharacteristicPoints % count;
         return IntStream.range(0, count)
-                .mapToObj(index -> createChallenger(basePoints + (index < remainder ? 1 : 0)))
+                .mapToObj(index -> createChallenger(basePoints + (index < remainder ? 1 : 0), weaponRarityTable,
+                        armourRarityTable, armourPieceCount))
                 .toList();
     }
 
     /**
+     * Estrae dalla tabella ricevuta un grado di rarita', usando il generatore casuale di questa
+     * factory. Esiste per un solo scopo dichiarato: l'arma dello sfidante speculare deve nascere un
+     * gradino sopra il grado che la tabella dell'arma della sua fascia estrae altrove
+     * ({@code ChallengerEquipment.oneGradeAbove}, in {@code combat}), ma questa factory non importa
+     * quel tipo per non chiudere un ciclo fra {@code combat.factory} e {@code combat} (quest'ultimo
+     * importa gia' {@code combat.factory} per il pavimento di
+     * {@link #MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER}). L'estrazione resta quindi qui, dove
+     * vive tutta la casualita' di generazione, e chi chiama (l'{@code Arena}) applica l'innalzamento
+     * del grado, che e' un calcolo puro e non una nuova estrazione.
+     */
+    public Rarity drawRarity(RarityTable rarityTable) {
+        return rarityTable.draw(random);
+    }
+
+    /**
      * Lo sfidante dell'ultimo round: il protagonista guardato allo specchio, con la stessa somma di
-     * caratteristiche e lo stesso numero di pezzi indossati, ma con un'arma {@code RARE} in pugno.
-     * L'unico divario dichiarato e' quello, ed e' il senso della prova finale.
+     * caratteristiche e lo stesso numero di pezzi indossati del protagonista cresciuto. I pezzi
+     * d'armatura vestono {@code armourRarityTable} — la tabella dell'armatura della fascia finale,
+     * non quella dell'arma — come un qualunque sfidante generato della sua stessa fascia; l'arma
+     * vince un vantaggio in piu': {@code weaponRarity} arriva gia' decisa da chi chiama, un gradino
+     * sopra il grado che la tabella dell'arma della stessa fascia ha estratto altrove (vedi
+     * {@link #drawRarity}), mai oltre {@code LEGENDARY}.
      *
      * <p>Gli slot d'armatura sono pescati distinti fra loro (non necessariamente gli stessi del
      * protagonista): conta il numero di parti del corpo coperte, non quali.
      */
-    public Fighter createMirrorRival(Hero hero) {
+    public Fighter createMirrorRival(Hero hero, RarityTable armourRarityTable, Rarity weaponRarity) {
         CharacterResult character = generateUniquelyNamed(() -> generateRival(hero.totalCharacteristicPoints()));
-        WeaponResult weapon = generateWeapon(MIRROR_RIVAL_WEAPON_RARITY);
-        List<ArmourResult> armourPieces = generateArmourSet(hero.armourPieceCount());
+        WeaponResult weapon = generateWeapon(weaponRarity);
+        List<ArmourResult> armourPieces = generateArmourSet(hero.armourPieceCount(), armourRarityTable);
         CharacterResult effectiveCharacter = withEquipmentBonus(character, weapon, armourPieces);
         return assembler.assemble(effectiveCharacter, weapon, armourPieces, null);
     }
@@ -268,6 +297,17 @@ public class FighterFactory {
         return WeaponGeneratorTool.building()
                 .weapon(pickMeleeWeapon())
                 .rarity(rarity)
+                .generate();
+    }
+
+    /**
+     * L'arma di un avversario generato: la rarita' si estrae dalla fascia della sua stazione, non e'
+     * fissata a priori. Stessa forma di {@link #generateLootWeapon}, pool di mischia compreso.
+     */
+    private WeaponResult generateWeapon(RarityTable rarityTable) {
+        return WeaponGeneratorTool.building()
+                .weapon(pickMeleeWeapon())
+                .rarityTable(rarityTable)
                 .generate();
     }
 
@@ -348,25 +388,25 @@ public class FighterFactory {
     }
 
     /**
-     * {@code pieceCount} pezzi d'armatura alla rarita' standard, su slot tutti diversi: due pezzi
-     * dello stesso slot non si indossano insieme, quindi gli slot si pescano da una lista mescolata
-     * invece che uno a uno a caso. Piu' pezzi di quanti slot esistano non si possono coprire, e il
-     * limite tronca.
+     * {@code pieceCount} pezzi d'armatura, ciascuno con una rarita' estratta indipendentemente da
+     * {@code rarityTable}, su slot tutti diversi: due pezzi dello stesso slot non si indossano
+     * insieme, quindi gli slot si pescano da una lista mescolata invece che uno a uno a caso. Piu'
+     * pezzi di quanti slot esistano non si possono coprire, e il limite tronca.
      */
-    private List<ArmourResult> generateArmourSet(int pieceCount) {
+    private List<ArmourResult> generateArmourSet(int pieceCount, RarityTable rarityTable) {
         List<Armour> slots = new ArrayList<>(List.of(Armour.values()));
         Collections.shuffle(slots, random);
 
         return slots.stream()
                 .limit(pieceCount)
-                .map(this::generateArmourPiece)
+                .map(slot -> generateArmourPiece(slot, rarityTable))
                 .toList();
     }
 
-    private ArmourResult generateArmourPiece(Armour slot) {
+    private ArmourResult generateArmourPiece(Armour slot, RarityTable rarityTable) {
         return ArmourGeneratorTool.building()
                 .armour(slot)
-                .rarity(STANDARD_EQUIPMENT_RARITY)
+                .rarityTable(rarityTable)
                 .generate();
     }
 

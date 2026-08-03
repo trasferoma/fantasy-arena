@@ -1,3 +1,7 @@
+## Imposrtanti e strutturali
+- HeroBrain ha dentro cose che non centrano con il cervello dell'eroe come ad esempio le rarity table
+
+## Nuove idee
 - morte definitiva e salvataggio della progressione fra una partita e l'altra. La cronaca
   (`ArenaChronicle`) è già un registro di soli dati che si serializza in JSON senza annotazioni: è il
   formato di persistenza naturale, e non va inventato un secondo

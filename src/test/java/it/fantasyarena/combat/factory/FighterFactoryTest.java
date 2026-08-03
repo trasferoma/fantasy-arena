@@ -15,6 +15,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 import it.fantasyarena.combat.hero.EquipmentBonus;
+import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.model.Fighter;
@@ -29,11 +30,13 @@ import it.fantasytoolkitcore.core.model.Rarity;
 import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
- * Verifica {@link FighterFactory#createChallengers(int, int)} (numerosità, ripartizione del monte
- * di squadra fra gli sfidanti a parti uguali col resto ai primi, pavimento sotto il quale il monte
- * è rifiutato, nomi tutti distinti, rarità di arma/armatura condivise da tutti, cosi' che nessuno
- * parta avvantaggiato) e {@link FighterFactory#rollLoot(RarityTable)} (rarità sempre contenuta in
- * quelle dichiarate nella tabella, tutti i tipi estraibili su più generazioni).
+ * Verifica {@link FighterFactory#createChallengers(int, int, RarityTable, RarityTable, int)}
+ * (numerosità, ripartizione del monte di squadra fra gli sfidanti a parti uguali col resto ai
+ * primi, pavimento sotto il quale il monte è rifiutato, nomi tutti distinti, rarità dell'arma
+ * sempre dentro la tabella dell'arma ricevuta e rarità dei pezzi sempre dentro la tabella
+ * dell'armatura ricevuta — non più identica per tutti, perché l'estrazione è per singolo oggetto) e
+ * {@link FighterFactory#rollLoot(RarityTable)} (rarità sempre contenuta in quelle dichiarate nella
+ * tabella, tutti i tipi estraibili su più generazioni).
  */
 class FighterFactoryTest {
 
@@ -41,10 +44,20 @@ class FighterFactoryTest {
 
   private static final int FIVE_CHALLENGERS_SQUAD_POINTS = 40;
 
+  private static final int FIVE_CHALLENGERS_ARMOUR_PIECE_COUNT = 2;
+
+  private static final int PROTAGONIST_TOTAL_CHARACTERISTIC_POINTS = 15;
+
+  private static final int SINGLE_ARMOUR_PIECE_COUNT = 1;
+
   private static final RarityTable RARE_TO_LEGENDARY_TABLE = RarityTable.builder()
       .entry(Rarity.RARE, 50)
       .entry(Rarity.EPIC, 30)
       .entry(Rarity.LEGENDARY, 20)
+      .build();
+
+  private static final RarityTable EPIC_ONLY_TABLE = RarityTable.builder()
+      .entry(Rarity.EPIC, 100)
       .build();
 
   private static final RarityTable COMMON_ONLY_TABLE = RarityTable.builder()
@@ -54,22 +67,45 @@ class FighterFactoryTest {
   private final FighterFactory factory = FighterFactory.withDefaultRatings(CombatSettings.defaults());
 
   @Test
-  void creaCinqueCombattentiConCinqueNomiDistintiEStessaRarita() {
-    List<Fighter> fighters = factory.createChallengers(5, FIVE_CHALLENGERS_SQUAD_POINTS);
+  void creaCinqueCombattentiConCinqueNomiDistintiERaritaDentroLeTabelleRicevute() {
+    List<Fighter> fighters = factory.createChallengers(5, FIVE_CHALLENGERS_SQUAD_POINTS, RARE_TO_LEGENDARY_TABLE,
+        EPIC_ONLY_TABLE, FIVE_CHALLENGERS_ARMOUR_PIECE_COUNT);
 
     assertEquals(5, fighters.size());
 
     Set<String> names = fighters.stream().map(Fighter::name).collect(Collectors.toCollection(HashSet::new));
     assertEquals(5, names.size(), "i 5 combattenti devono avere 5 nomi tutti distinti");
 
-    Set<String> weaponRarities = fighters.stream().map(fighter -> fighter.weapon().rarity().name())
-        .collect(Collectors.toCollection(HashSet::new));
-    Set<String> armourRarities = fighters.stream()
-        .flatMap(fighter -> fighter.armourPieces().stream())
-        .map(piece -> piece.rarity().name())
-        .collect(Collectors.toCollection(HashSet::new));
-    assertEquals(1, weaponRarities.size(), "l'arma deve avere la stessa rarità per tutti");
-    assertEquals(1, armourRarities.size(), "l'armatura deve avere la stessa rarità per tutti");
+    Set<Rarity> allowedWeaponRarities = EnumSet.of(Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY);
+    fighters.forEach(fighter -> {
+      assertTrue(allowedWeaponRarities.contains(fighter.weapon().rarity()),
+          "l'arma deve restare dentro la rarità dichiarata dalla tabella dell'arma");
+      assertEquals(FIVE_CHALLENGERS_ARMOUR_PIECE_COUNT, fighter.armourPieces().size(),
+          "ogni sfidante indossa il numero di pezzi che la fascia dichiara");
+      fighter.armourPieces().forEach(piece -> assertEquals(Rarity.EPIC, piece.rarity(),
+          "ogni pezzo d'armatura deve restare dentro la rarità dichiarata dalla tabella dell'armatura"));
+    });
+  }
+
+  /**
+   * Il monte richiesto al generatore è quindici punti, ma {@code totalCharacteristicPoints()} misura
+   * il personaggio con i bonus di razza e classe già sommati: si ricava il monte richiesto per
+   * sottrazione, come già fa {@link #requestedPointsOf}, per non far dipendere il test dalla razza
+   * estratta a caso.
+   */
+  @Test
+  void ilProtagonistaPartePerSempreConRaritaUncommonUnPezzoEQuindiciPunti() {
+    Hero hero = factory.createProtagonist();
+
+    int raceBonus = sumRaceBonus(RaceBonusTable.withDefaultBonuses().bonusesFor(hero.character().race()));
+    int classBonus = sumClassBonus(
+        ClassBonusTable.withDefaultBonuses().bonusesFor(hero.character().characterClass()));
+    int requestedPoints = hero.totalCharacteristicPoints() - raceBonus - classBonus;
+
+    assertEquals(Rarity.UNCOMMON, hero.weapon().rarity());
+    assertEquals(1, hero.armourPieceCount());
+    assertEquals(Rarity.UNCOMMON, hero.armourPieces().getFirst().rarity());
+    assertEquals(PROTAGONIST_TOTAL_CHARACTERISTIC_POINTS, requestedPoints);
   }
 
   /**
@@ -83,7 +119,8 @@ class FighterFactoryTest {
     int squadPoints = 50;
     int count = 3;
 
-    List<Fighter> fighters = factory.createChallengers(count, squadPoints);
+    List<Fighter> fighters = factory.createChallengers(count, squadPoints, RARE_TO_LEGENDARY_TABLE,
+        RARE_TO_LEGENDARY_TABLE, SINGLE_ARMOUR_PIECE_COUNT);
     List<Integer> requestedPointsPerChallenger = partitionSquadPoints(squadPoints, count);
 
     IntStream.range(0, fighters.size()).forEach(index -> {
@@ -107,7 +144,8 @@ class FighterFactoryTest {
     int squadPoints = 50;
     int count = 3;
 
-    List<Fighter> fighters = factory.createChallengers(count, squadPoints);
+    List<Fighter> fighters = factory.createChallengers(count, squadPoints, RARE_TO_LEGENDARY_TABLE,
+        RARE_TO_LEGENDARY_TABLE, SINGLE_ARMOUR_PIECE_COUNT);
     List<Integer> requestedPointsPerChallenger = partitionSquadPoints(squadPoints, count);
 
     IntStream.range(0, fighters.size()).forEach(index -> {
@@ -140,7 +178,8 @@ class FighterFactoryTest {
   }
 
   private void assertSquadPointsFullyDistributed(int squadPoints, int count) {
-    List<Fighter> fighters = factory.createChallengers(count, squadPoints);
+    List<Fighter> fighters = factory.createChallengers(count, squadPoints, RARE_TO_LEGENDARY_TABLE,
+        RARE_TO_LEGENDARY_TABLE, SINGLE_ARMOUR_PIECE_COUNT);
 
     int totalRequestedPoints = fighters.stream().mapToInt(this::requestedPointsOf).sum();
     assertEquals(squadPoints, totalRequestedPoints,
@@ -183,7 +222,8 @@ class FighterFactoryTest {
   @Test
   void rifiutaUnaNumerositaMinoreDiUno() {
     assertThrows(IllegalArgumentException.class,
-        () -> factory.createChallengers(0, FIVE_CHALLENGERS_SQUAD_POINTS));
+        () -> factory.createChallengers(0, FIVE_CHALLENGERS_SQUAD_POINTS, RARE_TO_LEGENDARY_TABLE,
+            RARE_TO_LEGENDARY_TABLE, SINGLE_ARMOUR_PIECE_COUNT));
   }
 
   @Test
@@ -191,7 +231,9 @@ class FighterFactoryTest {
     int count = 3;
     int belowFloor = FighterFactory.MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER * count - 1;
 
-    assertThrows(IllegalArgumentException.class, () -> factory.createChallengers(count, belowFloor));
+    assertThrows(IllegalArgumentException.class,
+        () -> factory.createChallengers(count, belowFloor, RARE_TO_LEGENDARY_TABLE, RARE_TO_LEGENDARY_TABLE,
+            SINGLE_ARMOUR_PIECE_COUNT));
   }
 
   @Test
@@ -199,7 +241,8 @@ class FighterFactoryTest {
     int count = 3;
     int exactFloor = FighterFactory.MINIMUM_CHARACTERISTIC_POINTS_PER_CHALLENGER * count;
 
-    List<Fighter> fighters = factory.createChallengers(count, exactFloor);
+    List<Fighter> fighters = factory.createChallengers(count, exactFloor, RARE_TO_LEGENDARY_TABLE,
+        RARE_TO_LEGENDARY_TABLE, SINGLE_ARMOUR_PIECE_COUNT);
 
     assertEquals(count, fighters.size());
   }

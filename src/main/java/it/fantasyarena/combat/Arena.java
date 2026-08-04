@@ -46,7 +46,8 @@ import it.fantasytoolkitcore.core.model.RarityTable;
  * quando sono più di uno, quest'ultima sempre attraverso {@link BattleSetup}. Gli scontri li
  * risolve per intero il {@code fantasy-combat-system} attraverso {@link MatchRunner}. Le scelte del
  * protagonista — quale arma tenere, quali pezzi raccogliere, dove spendere i punti — sono tutte di
- * {@link HeroBrain}, che è il punto unico da toccare per ribilanciare la progressione.
+ * {@link HeroBrain}; quanto pregiato può essere il loot che trova è invece la generosità del
+ * percorso, e vive in {@link TrialLoot}.
  *
  * <p>Fra il protagonista e i suoi combattenti c'è una distinzione che regge tutto il resto: la
  * {@link Hero} è la scheda che sopravvive ai round, il {@code Fighter} è chi scende in campo in un
@@ -341,11 +342,11 @@ public class Arena {
    * è cambiato prima che lo schermo si pulisca per il round successivo.
    *
    * <p>Il livello serve solo a stabilire quanto pregiato può essere il loot, e la tabella con cui
-   * estrarne la rarità la decide il {@link HeroBrain}: qui si passa il numero della prova, non un
-   * criterio.
+   * estrarne la rarità la decide {@link TrialLoot#forTrial(int)}: qui si passa il numero della
+   * prova, non un criterio.
    */
   private HeroProgress applyEndOfFightProcedure(Hero hero, int level) {
-    RarityTable rarityTable = heroBrain.lootRarityTable(level);
+    RarityTable rarityTable = TrialLoot.forTrial(level);
     Loot loot = fighterFactory.rollLoot(rarityTable);
     HeroProgress progress = heroBrain.progressAfterVictory(hero, loot);
 

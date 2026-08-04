@@ -19,15 +19,14 @@ import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkit.jewelgenerator.result.JewelResult;
 import it.fantasytoolkit.weapongenerator.result.WeaponResult;
 import it.fantasytoolkitcore.core.model.Characteristic;
-import it.fantasytoolkitcore.core.model.Rarity;
-import it.fantasytoolkitcore.core.model.RarityTable;
 
 /**
  * Tutte le scelte del protagonista, in un posto solo: se l'unico oggetto trovato a fine livello
- * vale la pena impugnarlo o indossarlo, dove finiscono i tre punti guadagnati con la vittoria. È
- * deliberatamente l'unico punto da toccare per ribilanciare la progressione: l'{@code Arena}
- * scandisce i round e non decide niente, il {@code FighterFactory} genera l'oggetto ma non giudica
- * se vale la pena tenerlo, il motore non sa nemmeno che esista una progressione.
+ * vale la pena impugnarlo o indossarlo, dove finiscono i tre punti guadagnati con la vittoria.
+ * L'{@code Arena} scandisce i round e non decide niente, il {@code FighterFactory} genera
+ * l'oggetto ma non giudica se vale la pena tenerlo, il motore non sa nemmeno che esista una
+ * progressione. Quanto pregiato può essere il loot non è invece una sua scelta: quella generosità
+ * è del percorso, e vive in {@code TrialLoot}, accanto a {@code TrialPlan}.
  *
  * <p>I criteri di scelta per arma, armatura e gioiello sono tre comparatori, ed è lì che si
  * interviene. Per arma e armatura vale di più il pezzo che colpisce o para di più, e per il
@@ -48,50 +47,6 @@ public class HeroBrain {
    * I punti che una vittoria vale. Alzarlo accelera la crescita del protagonista round dopo round.
    */
   private static final int CHARACTERISTIC_POINTS_PER_VICTORY = 3;
-
-  /**
-   * La distribuzione della rarità del loot alle prove 1-2: {@code LEGENDARY} resta accessibile ma
-   * marginale, e il pavimento è {@code UNCOMMON}.
-   */
-  private static final RarityTable OPENING_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.UNCOMMON, 70)
-      .entry(Rarity.RARE, 20)
-      .entry(Rarity.EPIC, 5)
-      .entry(Rarity.LEGENDARY, 5)
-      .build();
-
-  /**
-   * La distribuzione della rarità del loot alle prove 3-5: il pavimento resta {@code UNCOMMON}
-   * come in {@link #OPENING_TRIALS_LOOT_RARITY_TABLE}, ma il peso si sposta verso {@code RARE}.
-   */
-  private static final RarityTable EARLY_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.UNCOMMON, 65)
-      .entry(Rarity.RARE, 20)
-      .entry(Rarity.EPIC, 10)
-      .entry(Rarity.LEGENDARY, 5)
-      .build();
-
-  /**
-   * La distribuzione della rarità del loot alle prove 6-8: qui, e non prima, il pavimento sale a
-   * {@code RARE}, e il peso principale resta su {@code RARE} stesso, con {@code EPIC} minoritario.
-   */
-  private static final RarityTable MID_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.RARE, 85)
-      .entry(Rarity.EPIC, 10)
-      .entry(Rarity.LEGENDARY, 5)
-      .build();
-
-  /**
-   * La distribuzione della rarità del loot alle prove 9-10, l'ultimo tratto del percorso: pesi
-   * identici a {@link #MID_TRIALS_LOOT_RARITY_TABLE}. Il pavimento resta {@code RARE} e
-   * {@code LEGENDARY} non cresce oltre il suo peso dello scaglione precedente: la taratura
-   * empirica non ha richiesto di inasprire ulteriormente il loot dell'eroe in questo tratto.
-   */
-  private static final RarityTable LATE_TRIALS_LOOT_RARITY_TABLE = RarityTable.builder()
-      .entry(Rarity.RARE, 85)
-      .entry(Rarity.EPIC, 10)
-      .entry(Rarity.LEGENDARY, 5)
-      .build();
 
   private static final Comparator<WeaponResult> BY_OFFENSIVE_VALUE = Comparator
       .comparingInt(WeaponResult::attack)
@@ -121,35 +76,6 @@ public class HeroBrain {
       throw new IllegalArgumentException("random must not be null");
     }
     this.random = random;
-  }
-
-  /**
-   * La tabella con cui viene estratta la rarità del loot di quel livello. È il punto unico da
-   * toccare per ritarare la progressione della rarità, a quattro scaglioni sul percorso a dieci
-   * prove: 1-2, 3-5, 6-8, 9-10.
-   *
-   * <p>La distribuzione è pesata, non uniforme: un pavimento espresso come rarità minima
-   * ({@code minRarity}) renderebbe equiprobabili tutti i gradi dalla soglia in su, e un
-   * {@code LEGENDARY} finirebbe per uscire tanto spesso quanto il grado del pavimento stesso — col
-   * risultato che il loot sopra il raro diventa la norma invece dell'eccezione. È il difetto che
-   * ogni scaglione di questa tabella corregge, mantenendo {@code LEGENDARY} minoritario per tutto
-   * il percorso.
-   *
-   * <p>Il pavimento non sale a ogni scaglione: {@code UNCOMMON} resta estraibile fino alla prova
-   * 5, e sale a {@code RARE} solo dalla prova 6 in poi — l'ultimo scaglione (9-10) non alza
-   * ulteriormente il pavimento e condivide con {@link #MID_TRIALS_LOOT_RARITY_TABLE} pesi identici.
-   * La ragione della ritaratura: un'arma {@code LEGENDARY} ha attacco 15-25 contro 3-6 di una
-   * {@code UNCOMMON} e porta buff per una decina di punti, mentre una vittoria di progressione ne
-   * vale solo tre di caratteristica — un solo drop leggendario valeva quindi più di tre vittorie, e
-   * con la distribuzione precedente a questa ritaratura arrivava troppo presto nella corsa.
-   */
-  public RarityTable lootRarityTable(int level) {
-    return switch (level) {
-      case 1, 2 -> OPENING_TRIALS_LOOT_RARITY_TABLE;
-      case 3, 4, 5 -> EARLY_TRIALS_LOOT_RARITY_TABLE;
-      case 6, 7, 8 -> MID_TRIALS_LOOT_RARITY_TABLE;
-      default -> LATE_TRIALS_LOOT_RARITY_TABLE;
-    };
   }
 
   /**
@@ -256,21 +182,13 @@ public class HeroBrain {
   }
 
   /**
-   * Il personaggio con i punti spesi. Il {@code CharacterResult} si ricostruisce a mano perché il
-   * toolkit non espone alcuna API per far crescere un personaggio esistente: rigenerarlo col
-   * {@code CharacterGeneratorTool} ripescherebbe razza, nome e caratteristiche, cioè creerebbe
-   * qualcun altro.
+   * Il personaggio con i punti spesi. La ricostruzione del {@code CharacterResult} è delegata a
+   * {@link Characteristics}.
    */
   private CharacterResult grow(CharacterResult character, List<CharacteristicGain> characteristicGains) {
     Map<Characteristic, Integer> pointsByCharacteristic = characteristicGains.stream()
         .collect(Collectors.toMap(CharacteristicGain::characteristic, CharacteristicGain::points));
-    List<CharacterCharacteristic> grownCharacteristics = character.characteristics().stream()
-        .map(entry -> new CharacterCharacteristic(entry.characteristic(),
-            entry.value() + pointsByCharacteristic.getOrDefault(entry.characteristic(), 0)))
-        .toList();
-
-    return new CharacterResult(character.race(), character.characterClass(), character.name(),
-        grownCharacteristics);
+    return Characteristics.increasedBy(character, pointsByCharacteristic);
   }
 
   private void validate(Hero hero, Loot loot) {

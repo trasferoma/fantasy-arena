@@ -1,6 +1,7 @@
 package it.fantasyarena.combat.hero;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
@@ -11,7 +12,9 @@ import it.fantasycombatsystem.testsupport.CombatFixtures;
 import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
+import it.fantasytoolkitcore.core.model.CharacterClass;
 import it.fantasytoolkitcore.core.model.Characteristic;
+import it.fantasytoolkitcore.core.model.Race;
 
 /**
  * Il punto unico che somma i buff dell'equipaggiamento alle caratteristiche base: più buff sulla
@@ -45,13 +48,18 @@ class EquipmentBonusTest {
 
   @Test
   void ignoraUnBuffSuUnaCaratteristicaNonPresenteNelPersonaggio() {
-    CharacterResult withoutLuck = CombatFixtures.createWarrior("SenzaFortuna", 10, 11, 12, 13, 14);
+    CharacterResult withoutLuck = new CharacterResult(Race.HUMAN, CharacterClass.WARRIOR, "SenzaFortuna",
+        List.of(new CharacterCharacteristic(Characteristic.STRENGTH, 10),
+            new CharacterCharacteristic(Characteristic.AGILITY, 11)));
     List<BuffElement> buffs = List.of(new BuffElement(Characteristic.LUCK, 99));
 
     CharacterResult effective = EquipmentBonus.applyTo(withoutLuck, buffs);
 
-    assertEquals(withoutLuck.characteristics().size(), effective.characteristics().size(),
-        "un buff su una caratteristica assente non deve aggiungere voci alla scheda");
+    boolean containsLuck = effective.characteristics().stream()
+        .anyMatch(entry -> entry.characteristic() == Characteristic.LUCK);
+    assertFalse(containsLuck, "un buff su una caratteristica assente non deve aggiungere una voce per LUCK");
+    assertEquals(10, valueOf(effective, Characteristic.STRENGTH), "le caratteristiche presenti non cambiano");
+    assertEquals(11, valueOf(effective, Characteristic.AGILITY), "le caratteristiche presenti non cambiano");
   }
 
   @Test

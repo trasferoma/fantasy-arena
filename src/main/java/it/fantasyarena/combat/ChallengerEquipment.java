@@ -31,7 +31,7 @@ import it.fantasytoolkitcore.core.model.RarityTable;
  * su più pezzi indossati insieme e cresce in fretta — un solo pezzo {@code EPIC} vale già 14-22
  * punti di {@code DEF}.
  *
- * <p>È il gemello di {@code HeroBrain.lootRarityTable(int)} sul lato degli avversari, e ne condivide
+ * <p>È il gemello di {@link TrialLoot#forTrial(int)} sul lato degli avversari, e ne condivide
  * la forma a quattro scaglioni sul percorso a dieci prove (1-2, 3-5, 6-8, 9-10): il protagonista
  * tiene il meglio di molte estrazioni successive lungo la corsa, lo sfidante nasce da una sola
  * estrazione e non ha una seconda occasione. Le due tabelle di questa classe non seguono però un
@@ -131,7 +131,7 @@ public record ChallengerEquipment(RarityTable weaponRarityTable, RarityTable arm
 
   /**
    * L'equipaggiamento della fascia a cui appartiene questa stazione. Oltre la decima prova si
-   * applica l'ultima fascia, come già fa {@code HeroBrain.lootRarityTable} col suo {@code default}:
+   * applica l'ultima fascia, come già fa {@link TrialLoot#forTrial(int)} col suo {@code default}:
    * un percorso più lungo di dieci stazioni non deve restare senza fascia.
    *
    * @param trialNumber il numero della stazione, quello dichiarato da {@link TrialStation#number()}

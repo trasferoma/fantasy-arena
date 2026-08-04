@@ -2,11 +2,9 @@ package it.fantasyarena.combat.hero;
 
 import java.util.Collection;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 
 import it.fantasytoolkit.buffdebuffgenerator.result.BuffElement;
-import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
 import it.fantasytoolkit.charactergenerator.result.CharacterResult;
 import it.fantasytoolkitcore.core.model.Characteristic;
 
@@ -27,9 +25,9 @@ public final class EquipmentBonus {
   }
 
   /**
-   * Il personaggio con addosso la somma dei buff: il {@code CharacterResult} si ricostruisce a
-   * mano, come già fa {@code HeroBrain.grow}, perché il toolkit non espone API per far crescere un
-   * personaggio esistente.
+   * Il personaggio con addosso la somma dei buff: la ricostruzione del {@code CharacterResult} è
+   * delegata a {@link Characteristics}, unico punto in cui il toolkit viene aggirato per far
+   * crescere un personaggio esistente.
    *
    * @param base caratteristiche base del personaggio, non nullo
    * @param buffs i buff di tutti gli oggetti equipaggiati, non nullo
@@ -40,11 +38,7 @@ public final class EquipmentBonus {
     validate(base, buffs);
 
     Map<Characteristic, Integer> bonusByCharacteristic = totalByCharacteristic(buffs);
-    List<CharacterCharacteristic> effectiveCharacteristics = base.characteristics().stream()
-        .map(characteristic -> withBonus(characteristic, bonusByCharacteristic))
-        .toList();
-
-    return new CharacterResult(base.race(), base.characterClass(), base.name(), effectiveCharacteristics);
+    return Characteristics.increasedBy(base, bonusByCharacteristic);
   }
 
   /**
@@ -56,12 +50,6 @@ public final class EquipmentBonus {
       throw new IllegalArgumentException("buffs must not be null");
     }
     return buffs.stream().mapToInt(BuffElement::value).sum();
-  }
-
-  private static CharacterCharacteristic withBonus(CharacterCharacteristic characteristic,
-      Map<Characteristic, Integer> bonusByCharacteristic) {
-    int bonus = bonusByCharacteristic.getOrDefault(characteristic.characteristic(), 0);
-    return new CharacterCharacteristic(characteristic.characteristic(), characteristic.value() + bonus);
   }
 
   private static Map<Characteristic, Integer> totalByCharacteristic(Collection<BuffElement> buffs) {

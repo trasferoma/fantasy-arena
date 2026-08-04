@@ -39,12 +39,14 @@ public enum LootFate {
   JEWEL_WORN_ON_EMPTY_TYPE,
 
   /**
-   * Il gioiello trovato era più raro di quello già indossato dello stesso tipo: lo ha sostituito.
+   * Il gioiello trovato valeva di più, per la somma dei suoi buff, di quello già indossato dello
+   * stesso tipo: lo ha sostituito.
    */
   JEWEL_REPLACED,
 
   /**
-   * Il gioiello trovato non era più raro di quello già indossato: è stato scartato.
+   * Il gioiello trovato non valeva di più, per la somma dei suoi buff, di quello già indossato:
+   * è stato scartato.
    */
   JEWEL_DISCARDED
 }

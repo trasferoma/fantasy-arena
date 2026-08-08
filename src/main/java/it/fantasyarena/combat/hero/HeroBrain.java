@@ -8,10 +8,9 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import it.fantasyarena.combat.hero.HeroProgress.ArmourUpgrade;
+import it.fantasyarena.combat.hero.HeroProgress.ArmourDecision;
 import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
-import it.fantasyarena.combat.hero.HeroProgress.JewelUpgrade;
-import it.fantasyarena.combat.hero.HeroProgress.NewJewel;
+import it.fantasyarena.combat.hero.HeroProgress.JewelDecision;
 import it.fantasyarena.combat.hero.HeroProgress.WeaponSwap;
 import it.fantasytoolkit.armourgenerator.result.ArmourResult;
 import it.fantasytoolkit.charactergenerator.result.CharacterCharacteristic;
@@ -101,8 +100,7 @@ public class HeroBrain {
         distributeCharacteristicPoints(hero.character(), CHARACTERISTIC_POINTS_PER_VICTORY);
     Hero grownHero = applyGrowth(hero, weaponSwap, armourDecision, jewelDecision, characteristicGains);
 
-    return new HeroProgress(grownHero, loot, weaponSwap, armourDecision.newPiece(), armourDecision.upgrade(),
-        jewelDecision.newJewel(), jewelDecision.upgrade(), characteristicGains);
+    return new HeroProgress(grownHero, loot, weaponSwap, armourDecision, jewelDecision, characteristicGains);
   }
 
   /**
@@ -197,60 +195,6 @@ public class HeroBrain {
     }
     if (loot == null) {
       throw new IllegalArgumentException("loot must not be null");
-    }
-  }
-
-  /**
-   * L'esito della cernita del pezzo d'armatura trovato, distinto fra parte del corpo prima scoperta
-   * e rimpiazzo di un pezzo già indossato: sono due eventi diversi da raccontare, e restano diversi
-   * fino al logger. Nessuno dei due campi è presente quando il pezzo trovato è stato scartato.
-   */
-  private record ArmourDecision(ArmourResult newPiece, ArmourUpgrade upgrade) {
-
-    private static ArmourDecision none() {
-      return new ArmourDecision(null, null);
-    }
-
-    private static ArmourDecision covering(ArmourResult piece) {
-      return new ArmourDecision(piece, null);
-    }
-
-    private static ArmourDecision replacing(ArmourResult dropped, ArmourResult taken) {
-      return new ArmourDecision(null, new ArmourUpgrade(dropped, taken));
-    }
-
-    private ArmourResult takenPiece() {
-      if (newPiece != null) {
-        return newPiece;
-      }
-      return upgrade != null ? upgrade.taken() : null;
-    }
-  }
-
-  /**
-   * L'esito della cernita del gioiello trovato, distinto fra tipo prima scoperto e rimpiazzo di un
-   * gioiello già indossato: sono due eventi diversi da raccontare, e restano diversi fino al
-   * logger. Nessuno dei due campi è presente quando il gioiello trovato è stato scartato.
-   */
-  private record JewelDecision(NewJewel newJewel, JewelUpgrade upgrade) {
-
-    private static JewelDecision none() {
-      return new JewelDecision(null, null);
-    }
-
-    private static JewelDecision wearing(JewelResult jewel) {
-      return new JewelDecision(new NewJewel(jewel), null);
-    }
-
-    private static JewelDecision replacing(JewelResult dropped, JewelResult taken) {
-      return new JewelDecision(null, new JewelUpgrade(dropped, taken));
-    }
-
-    private JewelResult takenJewel() {
-      if (newJewel != null) {
-        return newJewel.jewel();
-      }
-      return upgrade != null ? upgrade.taken() : null;
     }
   }
 }

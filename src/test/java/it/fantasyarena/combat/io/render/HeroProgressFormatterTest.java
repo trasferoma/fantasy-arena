@@ -9,10 +9,9 @@ import org.junit.jupiter.api.Test;
 
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroProgress;
-import it.fantasyarena.combat.hero.HeroProgress.ArmourUpgrade;
+import it.fantasyarena.combat.hero.HeroProgress.ArmourDecision;
 import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
-import it.fantasyarena.combat.hero.HeroProgress.JewelUpgrade;
-import it.fantasyarena.combat.hero.HeroProgress.NewJewel;
+import it.fantasyarena.combat.hero.HeroProgress.JewelDecision;
 import it.fantasyarena.combat.hero.HeroProgress.WeaponSwap;
 import it.fantasyarena.combat.hero.Loot;
 import it.fantasycombatsystem.testsupport.CombatFixtures;
@@ -40,7 +39,7 @@ class HeroProgressFormatterTest {
     HeroProgress progress = new HeroProgress(heroWith(sword(9, Rarity.RARE), chestplate(4)),
         Loot.ofWeapon(sword(9, Rarity.RARE)),
         new WeaponSwap(sword(4, Rarity.COMMON), sword(9, Rarity.RARE)),
-        null, null, null, null,
+        ArmourDecision.none(), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.STRENGTH, 2), new CharacteristicGain(Characteristic.LUCK, 1)));
 
     List<String> lines = formatter.lines(progress);
@@ -60,7 +59,7 @@ class HeroProgressFormatterTest {
     WeaponResult dropped = swordWithBuff(4, Rarity.COMMON, Characteristic.LUCK, 1);
     HeroProgress progress = new HeroProgress(heroWith(found, chestplate(4)),
         Loot.ofWeapon(found), new WeaponSwap(dropped, found),
-        null, null, null, null,
+        ArmourDecision.none(), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
 
     List<String> lines = formatter.lines(progress);
@@ -73,7 +72,7 @@ class HeroProgressFormatterTest {
   void raccontaLArmaScartataQuandoNonBatteLaSua() {
     HeroProgress progress = new HeroProgress(heroWith(sword(6, Rarity.COMMON), chestplate(4)),
         Loot.ofWeapon(sword(3, Rarity.COMMON)),
-        null, null, null, null, null,
+        null, ArmourDecision.none(), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);
@@ -85,7 +84,7 @@ class HeroProgressFormatterTest {
   void raccontaIlPezzoDArmaturaIndossatoSuUnoSlotScoperto() {
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(4)),
         Loot.ofArmourPiece(piece(Armour.HELMET, 3)),
-        null, piece(Armour.HELMET, 3), null, null, null,
+        null, ArmourDecision.covering(piece(Armour.HELMET, 3)), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);
@@ -98,7 +97,7 @@ class HeroProgressFormatterTest {
   void raccontaLaSostituzioneDelPezzoDArmatura() {
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(6)),
         Loot.ofArmourPiece(chestplate(6)),
-        null, null, new ArmourUpgrade(chestplate(2), chestplate(6)), null, null,
+        null, ArmourDecision.replacing(chestplate(2), chestplate(6)), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);
@@ -111,7 +110,7 @@ class HeroProgressFormatterTest {
   void raccontaIlPezzoDArmaturaScartatoQuandoDifendeMenoODellaSua() {
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(6)),
         Loot.ofArmourPiece(chestplate(2)),
-        null, null, null, null, null,
+        null, ArmourDecision.none(), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);
@@ -125,7 +124,7 @@ class HeroProgressFormatterTest {
     JewelResult jewel = jewelWithBuff(Jewel.RING, Rarity.RARE, Characteristic.STRENGTH, 2);
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(4)),
         Loot.ofJewel(jewel),
-        null, null, null, new NewJewel(jewel), null,
+        null, ArmourDecision.none(), JewelDecision.wearing(jewel),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 5)));
 
     List<String> lines = formatter.lines(progress);
@@ -142,7 +141,7 @@ class HeroProgressFormatterTest {
     JewelResult dropped = jewelWithBuff(Jewel.RING, Rarity.UNCOMMON, Characteristic.RESISTANCE, 1);
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(4)),
         Loot.ofJewel(found),
-        null, null, null, null, new JewelUpgrade(dropped, found),
+        null, ArmourDecision.none(), JewelDecision.replacing(dropped, found),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);
@@ -157,7 +156,7 @@ class HeroProgressFormatterTest {
     JewelResult found = jewel(Jewel.RING, Rarity.COMMON);
     HeroProgress progress = new HeroProgress(heroWith(sword(5, Rarity.COMMON), chestplate(4)),
         Loot.ofJewel(found),
-        null, null, null, null, null,
+        null, ArmourDecision.none(), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     List<String> lines = formatter.lines(progress);

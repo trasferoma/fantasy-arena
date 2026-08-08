@@ -12,10 +12,9 @@ import org.junit.jupiter.api.Test;
 import it.fantasyarena.combat.ChallengerBudget;
 import it.fantasyarena.combat.hero.Hero;
 import it.fantasyarena.combat.hero.HeroProgress;
-import it.fantasyarena.combat.hero.HeroProgress.ArmourUpgrade;
+import it.fantasyarena.combat.hero.HeroProgress.ArmourDecision;
 import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
-import it.fantasyarena.combat.hero.HeroProgress.JewelUpgrade;
-import it.fantasyarena.combat.hero.HeroProgress.NewJewel;
+import it.fantasyarena.combat.hero.HeroProgress.JewelDecision;
 import it.fantasyarena.combat.hero.Loot;
 import it.fantasyarena.combat.hero.LootFate;
 import it.fantasycombatsystem.model.Fighter;
@@ -100,8 +99,8 @@ class ChronicleMapperTest {
     Hero hero = heroWithBasicGear();
     ArmourResult dropped = new ArmourResult(Armour.CHESTPLATE, Rarity.COMMON, List.of(), List.of(), 4);
     ArmourResult found = new ArmourResult(Armour.CHESTPLATE, Rarity.RARE, List.of(), List.of(), 9);
-    HeroProgress progress = new HeroProgress(hero, Loot.ofArmourPiece(found), null, null,
-        new ArmourUpgrade(dropped, found), null, null,
+    HeroProgress progress = new HeroProgress(hero, Loot.ofArmourPiece(found), null,
+        ArmourDecision.replacing(dropped, found), JewelDecision.none(),
         List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
 
     ProgressChronicle chronicle = mapper.snapshotProgress(progress);
@@ -119,8 +118,8 @@ class ChronicleMapperTest {
     Hero hero = heroWithBasicGear();
     JewelResult found = new JewelResult(Jewel.RING, Rarity.RARE, List.of(new BuffElement(Characteristic.STRENGTH, 5)),
         List.of());
-    HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, null, null,
-        new NewJewel(found), null, List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
+    HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, ArmourDecision.none(),
+        JewelDecision.wearing(found), List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
 
     ProgressChronicle chronicle = mapper.snapshotProgress(progress);
 
@@ -135,8 +134,8 @@ class ChronicleMapperTest {
     JewelResult dropped = new JewelResult(Jewel.RING, Rarity.RARE, List.of(), List.of());
     JewelResult found = new JewelResult(Jewel.RING, Rarity.EPIC, List.of(new BuffElement(Characteristic.STRENGTH, 8)),
         List.of());
-    HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, null, null, null,
-        new JewelUpgrade(dropped, found), List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
+    HeroProgress progress = new HeroProgress(hero, Loot.ofJewel(found), null, ArmourDecision.none(),
+        JewelDecision.replacing(dropped, found), List.of(new CharacteristicGain(Characteristic.STRENGTH, 3)));
 
     ProgressChronicle chronicle = mapper.snapshotProgress(progress);
 
@@ -151,8 +150,8 @@ class ChronicleMapperTest {
         new WeaponResult(Weapon.SWORD, Rarity.COMMON, List.of(), List.of(), 9),
         List.of(new ArmourResult(Armour.CHESTPLATE, Rarity.COMMON, List.of(), List.of(), 4)));
     WeaponResult found = new WeaponResult(Weapon.SWORD, Rarity.COMMON, List.of(), List.of(), 3);
-    HeroProgress progress = new HeroProgress(hero, Loot.ofWeapon(found), null, null, null, null, null,
-        List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
+    HeroProgress progress = new HeroProgress(hero, Loot.ofWeapon(found), null, ArmourDecision.none(),
+        JewelDecision.none(), List.of(new CharacteristicGain(Characteristic.AGILITY, 3)));
 
     ProgressChronicle chronicle = mapper.snapshotProgress(progress);
 

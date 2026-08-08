@@ -13,6 +13,7 @@ import it.fantasycombatsystem.config.CombatSettings;
  *
  * <p></p>Accedi a http://127.0.0.1:8080/ per la versione web.</p>
  * <p>mvn exec:java -Dexec.args="web" = accende il server</p>
+ * <p>log degli eventi: %temp%/fantasy-arena-01.log (02, 03)</p>
  */
 public class Main {
 

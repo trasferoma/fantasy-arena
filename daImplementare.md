@@ -4,7 +4,10 @@
 ## Nuove idee
 - morte definitiva e salvataggio della progressione fra una partita e l'altra. La cronaca
   (`ArenaChronicle`) è già un registro di soli dati che si serializza in JSON senza annotazioni: è il
-  formato di persistenza naturale, e non va inventato un secondo
+  formato di persistenza naturale, e non va inventato un secondo. Da quando esiste il log analitico
+  (`combat.io.trace`) c'è anche il precedente concreto: la cronaca viene già scritta su file, e
+  `it.fantasyarena.json.JsonSupport` è l'unico serializzatore da cui passare — un salvataggio riusa
+  quello, non se ne fa uno proprio
 - arena a lunghezza variabile. Le prove sono dieci e non più cablate nella scansione: vivono come dato in
   `TrialPlan`, una tabella di stazioni che `Arena` legge senza contenerla. Renderla parametrica —
   scelta dall'utente o da riga di comando — è quindi diventato un lavoro piccolo: la tabella si costruisce
@@ -30,7 +33,13 @@
   equipaggiamento `EPIC` o `LEGENDARY` coi relativi buff: la prova finale è verosimilmente più facile
   delle prove 7-9, cioè il percorso si sgonfia proprio alla fine. Correggerlo vuol dire decidere se lo
   specchio debba pareggiare le caratteristiche **effettive**, che è una scelta di bilanciamento a sé
-- uso degli slot ancora scoperti: scudo e pozioni del toolkit non entrano mai in gioco. I gioielli
+- uso degli slot ancora scoperti: scudo e pozioni del toolkit non entrano mai in gioco. Sulle **pozioni**
+  resta da fare solo la parte di gioco: il motore le gestisce già per intero (il combattente beve al test
+  d'Intelligenza in fascia critica, e la telemetria lo registra), e console e pagina sanno già etichettare
+  la sorsata («beve pozione (+N)»). Manca l'unica cosa che le renderebbe reali, cioè che qualcuno le
+  possieda: `FighterFactory` non ne equipaggia a nessuno, quindi oggi `POTION_DRUNK` non può materialmente
+  accadere in una partita. Deciderlo vuol dire scegliere **chi** le riceve (solo il protagonista? come
+  loot? quante?), che è bilanciamento e non cablaggio. I gioielli
   ci entrano come loot e si indossano uno per tipo; il motore continua a non saperli montare sul
   `Fighter`, ma i loro buff contano lo stesso, perché le caratteristiche passate all'assemblatore
   sono già quelle effettive — arma, armatura e gioielli compresi. Resta scoperto il **debuff**, che
@@ -56,7 +65,11 @@
 - **quello che la cronaca contiene e la pagina web non mostra**, e che quindi è lavoro di solo frontend,
   senza toccare una riga di Java: il dettaglio d'iniziativa (`InitiativeReport` coi suoi breakdown), le
   `Scorecard` della decisione ai punti, i `TurnHighlight` come marcatori dei momenti da ricordare, i
-  punteggi di squadra. Sono stati lasciati fuori di proposito per tenere la prima pagina al minimo utile
+  punteggi di squadra. Da quando esiste il log analitico si sono aggiunti i `CombatSettings` della corsa e
+  la **telemetria di ogni scambio** (tiro d'attacco e soglia, tiro di difesa e soglie, tutti i termini del
+  danno): la pagina li scarica e li ignora. Sono il materiale per mostrare *perché* un colpo è andato come
+  è andato, invece del solo esito. Sono stati lasciati fuori di proposito per tenere la prima pagina al
+  minimo utile
 - test automatici della pagina web. Oggi non ce ne sono, ed è una scelta dichiarata (nessun build step,
   nessun runner JS, nessuna dipendenza): il contratto verso il JavaScript è presidiato dal test sulle
   chiavi del JSON, il resto si verifica a mano. Da rifare da zero come decisione se la pagina cresce

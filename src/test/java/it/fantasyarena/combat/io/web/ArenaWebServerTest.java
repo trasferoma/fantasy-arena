@@ -22,6 +22,7 @@ import it.fantasyarena.combat.RoundOutcome;
 import it.fantasyarena.combat.chronicle.ArenaChronicle;
 import it.fantasyarena.combat.chronicle.HeroSnapshot;
 import it.fantasyarena.combat.chronicle.RunConclusion;
+import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasytoolkitcore.core.model.CharacterClass;
 import it.fantasytoolkitcore.core.model.Race;
 
@@ -188,6 +189,6 @@ class ArenaWebServerTest {
     HeroSnapshot protagonist = new HeroSnapshot(PROTAGONIST_NAME, Race.HUMAN, CharacterClass.WARRIOR, List.of(),
         List.of(), null, List.of(), List.of());
 
-    return new ArenaChronicle(protagonist, 10, List.of(), new RunConclusion(RoundOutcome.WON, 1));
+    return new ArenaChronicle(CombatSettings.defaults(), protagonist, 10, List.of(), new RunConclusion(RoundOutcome.WON, 1));
   }
 }

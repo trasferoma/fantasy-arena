@@ -170,6 +170,7 @@ public class BattleSceneRenderer {
       case PARRIED -> "parato (" + action.damage() + ")";
       case DODGED -> "schivato";
       case REST -> "riposa (+" + action.staminaRecovered() + ")";
+      case POTION_DRUNK -> "beve pozione (+" + action.healthRecovered() + ")";
     };
   }
 

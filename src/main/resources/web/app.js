@@ -55,7 +55,7 @@ const ACTION_KIND_LABELS = {
   REST: 'riposo',
 };
 
-// Le sette formule brevi della colonna centrale, nel registro di BattleSceneRenderer.formulaLabel:
+// Le otto formule brevi della colonna centrale, nel registro di BattleSceneRenderer.formulaLabel:
 // la formula vive due volte, in Java per la console e qui per la pagina, perché combat.io.render
 // è fuori portata e la cronaca non porta stringhe di presentazione — ogni lettore compone le
 // proprie frasi. È la continuazione della decisione già registrata per le frasi del destino del
@@ -66,6 +66,7 @@ const ACTION_FORMULAS = {
   PARRIED: action => `parato (${action.damage})`,
   DODGED: () => 'schivato',
   REST: action => `riposa (+${action.staminaRecovered})`,
+  POTION_DRUNK: action => `beve pozione (+${action.healthRecovered})`,
 };
 
 // Le tre varianti del colpo a segno, come in BattleSceneRenderer.hitLabel: critico e colpo potente
@@ -409,7 +410,7 @@ function buildEngagement(roster, engagementTurn) {
 }
 
 // La formula breve dell'azione, dal registro di ACTION_FORMULAS: stringa vuota se l'azione manca,
-// il valore grezzo se il tipo non è fra i sette noti, come già fa "describeAction" col suo valore
+// il valore grezzo se il tipo non è fra gli otto noti, come già fa "describeAction" col suo valore
 // grezzo di ripiego.
 function formulaLabel(action) {
   if (!action) {

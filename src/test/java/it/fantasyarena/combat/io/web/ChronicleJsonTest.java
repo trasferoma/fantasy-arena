@@ -30,6 +30,7 @@ import it.fantasyarena.combat.hero.HeroProgress.CharacteristicGain;
 import it.fantasyarena.combat.hero.LootFate;
 import it.fantasycombatsystem.battle.EngagementTurn;
 import it.fantasycombatsystem.battle.RoundLogEntry;
+import it.fantasycombatsystem.config.CombatSettings;
 import it.fantasycombatsystem.result.ActionOutcome;
 import it.fantasycombatsystem.result.FighterVitals;
 import it.fantasycombatsystem.result.InitiativeBreakdown;
@@ -61,6 +62,7 @@ class ChronicleJsonTest {
     JsonNode root = parser.readTree(chronicleJson.toJson(chronicle));
 
     assertTrue(root.has("plannedTrials"), "il denominatore dell'intestazione non deve indovinare la lunghezza");
+    assertSettingsKeys(root.get("settings"));
     assertProtagonistKeys(root.get("protagonist"));
     assertBattleTrialKeys(root.get("trials").get(0));
     assertDuelTrialKeys(root.get("trials").get(1));
@@ -124,6 +126,24 @@ class ChronicleJsonTest {
     for (String forbidden : forbiddenFieldNames) {
       assertFalse(fieldNames.contains(forbidden), "chiave riservata al motore trovata nel JSON: " + forbidden);
     }
+  }
+
+  /**
+   * Basta una chiave per ciascun sotto-record dei {@code CombatSettings}, non l'elenco completo dei
+   * pesi: la struttura a nove sotto-record più {@code maxTurns} è quella che il frontend deve poter
+   * attraversare, non il valore di ogni singolo peso.
+   */
+  private void assertSettingsKeys(JsonNode settings) {
+    assertTrue(settings.has("maxTurns"));
+    assertTrue(settings.get("ratingWeights").has("strengthOffenseWeight"));
+    assertTrue(settings.get("momentumWeights").has("effectCap"));
+    assertTrue(settings.get("staminaWeights").has("attackCost"));
+    assertTrue(settings.get("chanceWeights").has("baseHitChance"));
+    assertTrue(settings.get("initiativeWeights").has("wStamina"));
+    assertTrue(settings.get("chronicleWeights").has("heavyBlowHealthRatio"));
+    assertTrue(settings.get("powerStrikeWeights").has("decisionThreshold"));
+    assertTrue(settings.get("scoreWeights").has("healthAdvantage"));
+    assertTrue(settings.get("potionWeights").has("criticalHealthRatio"));
   }
 
   private void assertProtagonistKeys(JsonNode protagonist) {
@@ -225,7 +245,7 @@ class ChronicleJsonTest {
     TrialChronicle duelTrial = duelTrial();
     RunConclusion conclusion = new RunConclusion(RoundOutcome.WON, 2);
 
-    return new ArenaChronicle(protagonist, 10, List.of(battleTrial, duelTrial), conclusion);
+    return new ArenaChronicle(CombatSettings.defaults(), protagonist, 10, List.of(battleTrial, duelTrial), conclusion);
   }
 
   private HeroSnapshot heroSnapshot() {
@@ -251,7 +271,7 @@ class ChronicleJsonTest {
     FighterVitals rivalVitals = new FighterVitals("Rivale", 23, 40, 20, 20);
     List<FighterVitals> vitals = List.of(heroVitals, rivalVitals);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 17, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 17, 0, 0, false, false);
     TurnLogEntry turnLog = new TurnLogEntry(1, "Il protagonista colpisce il rivale").withVitals(vitals)
         .withAction(action);
     EngagementTurn engagementTurn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnLog);
@@ -278,7 +298,7 @@ class ChronicleJsonTest {
     InitiativeReport initiative =
         new InitiativeReport(List.of(breakdown), "Protagonista", "Protagonista", InitiativeOverride.NONE);
     StaminaChange staminaChange = new StaminaChange("Protagonista", 2, 0);
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 30, 0, true, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 30, 0, 0, true, false);
 
     TurnLogEntry turnLog = new TurnLogEntry(1, "Il protagonista abbatte lo specchio").withVitals(vitals)
         .withInitiative(initiative)

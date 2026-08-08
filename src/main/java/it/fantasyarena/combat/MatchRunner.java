@@ -81,4 +81,12 @@ public class MatchRunner {
     presentation.presentBattle(setup, result);
     return result;
   }
+
+  /**
+   * I {@link CombatSettings} con cui questo scontro viene giocato, letti dal {@link CombatSystem}:
+   * servono a chi deve portarli nella cronaca, non alla presentazione.
+   */
+  public CombatSettings settings() {
+    return combatSystem.settings();
+  }
 }

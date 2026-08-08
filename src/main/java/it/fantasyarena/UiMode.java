@@ -1,10 +1,14 @@
 package it.fantasyarena;
 
 import java.net.InetSocketAddress;
+import java.util.function.Supplier;
 
 import it.fantasyarena.combat.Arena;
 import it.fantasyarena.combat.SilentArenaRun;
+import it.fantasyarena.combat.chronicle.ArenaChronicle;
 import it.fantasyarena.combat.io.terminal.ScreenRefresh;
+import it.fantasyarena.combat.io.trace.TraceRecorder;
+import it.fantasyarena.combat.io.trace.TracedChronicleSupplier;
 import it.fantasyarena.combat.io.web.ArenaWebServer;
 import it.fantasycombatsystem.config.CombatSettings;
 
@@ -94,7 +98,8 @@ public interface UiMode {
 
   /**
    * La modalità console: nessun dato oltre alla propria esistenza. {@link #launch} apre l'arena a
-   * schermo, esattamente come faceva {@code Main} prima che la modalità web esistesse.
+   * schermo, esattamente come faceva {@code Main} prima che la modalità web esistesse, e consegna
+   * la cronaca restituita da {@link Arena#run()} al tracciatore del log analitico.
    */
   record ConsoleMode() implements UiMode {
 
@@ -103,13 +108,20 @@ public interface UiMode {
       // ScreenRefresh screenRefresh = new CombatSetupPrompt().askScreenRefresh();
       ScreenRefresh screenRefresh = ScreenRefresh.CLEAR;
 
-      new Arena(settings, screenRefresh).run();
+      ArenaChronicle chronicle = new Arena(settings, screenRefresh).run();
+      new TraceRecorder().record(chronicle);
     }
   }
 
   /**
    * La modalità web, con la porta su cui il server deve mettersi in ascolto. {@link #launch} avvia
    * {@link ArenaWebServer} con una partita muta e stampa soltanto l'indirizzo da aprire.
+   *
+   * <p>Il fornitore passato al server è la partita muta decorata da {@link
+   * TracedChronicleSupplier}, non {@link SilentArenaRun} da sola: è così che ogni corsa giocata per
+   * una richiesta finisce anche nel log analitico, senza che {@link ArenaWebServer} riceva niente di
+   * più di un {@code Supplier<ArenaChronicle>}. Questa classe è l'unico punto che conosce sia il
+   * server web sia il tracciatore, quindi è l'unico punto che può comporli.
    *
    * @param port porta richiesta dall'utente o {@link #DEFAULT_WEB_PORT}, già validata da {@link
    *     #fromArgs(String[])}
@@ -118,7 +130,9 @@ public interface UiMode {
 
     @Override
     public void launch(CombatSettings settings) {
-      ArenaWebServer server = new ArenaWebServer(port, new SilentArenaRun(settings));
+      Supplier<ArenaChronicle> chronicles = new TracedChronicleSupplier(new SilentArenaRun(settings),
+          new TraceRecorder());
+      ArenaWebServer server = new ArenaWebServer(port, chronicles);
       server.start();
 
       InetSocketAddress boundAddress = server.address();

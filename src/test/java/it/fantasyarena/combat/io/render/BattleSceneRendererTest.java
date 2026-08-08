@@ -44,7 +44,7 @@ class BattleSceneRendererTest {
     FighterVitals bobbyVitals = new FighterVitals("Bobby", 40, 40, 20, 20);
     List<FighterVitals> vitals = List.of(aliceVitals, bobbyVitals);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 17, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 17, 0, 0, false, false);
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Alice attacca Bobby").withVitals(vitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnEntry);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), vitals, List.of());
@@ -76,7 +76,7 @@ class BattleSceneRendererTest {
     FighterVitals beaVitals = new FighterVitals("Bea", 30, 30, 10, 10);
     List<FighterVitals> vitals = List.of(amyVitals, allyVitals, beaVitals);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.PARRIED, 5, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.PARRIED, 5, 0, 0, false, false);
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Amy attacca Bea").withVitals(vitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 0, 2, List.of(0, 1, 2), turnEntry);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), vitals, List.of());
@@ -110,7 +110,7 @@ class BattleSceneRendererTest {
     FighterVitals yVitals = new FighterVitals("Y", 20, 20, 5, 5);
     List<FighterVitals> vitals = List.of(xVitals, yVitals);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.DODGED, 0, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.DODGED, 0, 0, 0, false, false);
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Y attacca X").withVitals(vitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 1, 0, List.of(0, 1), turnEntry);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), vitals, List.of());
@@ -143,7 +143,7 @@ class BattleSceneRendererTest {
     FighterVitals kraggEnd = new FighterVitals("Kragg", 22, 39, 11, 16);
     List<FighterVitals> endVitals = List.of(caracallaEnd, kraggEnd);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 17, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 17, 0, 0, false, false);
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Caracalla attacca Kragg").withVitals(startVitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnEntry);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), endVitals, List.of());
@@ -177,7 +177,7 @@ class BattleSceneRendererTest {
     FighterVitals villainEnd = new FighterVitals("Villain", 0, 40, 15, 20);
     List<FighterVitals> endVitals = List.of(heroEnd, villainEnd);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 10, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 10, 0, 0, false, false);
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Hero attacca Villain").withVitals(startVitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnEntry);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), endVitals, List.of());
@@ -198,16 +198,19 @@ class BattleSceneRendererTest {
 
   @Test
   void formulaBreve_copreTutteLeEtichetteDellaTabella() {
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, true, false)).contains("critico (12)"));
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, true, true)).contains("critico (12)"),
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, 0, true, false)).contains("critico (12)"));
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, 0, true, true)).contains("critico (12)"),
         "critico e colpo potente insieme: vince critico");
     assertTrue(
-        vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, false, true)).contains("colpo potente (12)"));
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, false, false)).contains("colpisce (12)"));
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, false, false)).contains("manca"));
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.PARRIED, 4, 0, false, false)).contains("parato (4)"));
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.DODGED, 0, 0, false, false)).contains("schivato"));
-    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.REST, 0, 3, false, false)).contains("riposa (+3)"));
+        vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, 0, false, true)).contains("colpo potente (12)"));
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.HIT, 12, 0, 0, false, false)).contains("colpisce (12)"));
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, 0, false, false)).contains("manca"));
+    assertTrue(
+        vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.PARRIED, 4, 0, 0, false, false)).contains("parato (4)"));
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.DODGED, 0, 0, 0, false, false)).contains("schivato"));
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.REST, 0, 3, 0, false, false)).contains("riposa (+3)"));
+    assertTrue(vitaRigaDi(new ActionOutcome(ActionOutcome.Kind.POTION_DRUNK, 0, 0, 6, false, false))
+        .contains("beve pozione (+6)"));
   }
 
   @Test
@@ -248,7 +251,7 @@ class BattleSceneRendererTest {
     FighterVitals waitingEnd = new FighterVitals("Waiting", 25, 25, 9, 10);
     List<FighterVitals> endVitals = List.of(attackerVitals, targetVitals, waitingEnd);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, false, false);
+    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, 0, false, false);
     TurnLogEntry turnEntry = new TurnLogEntry(1, "Attacker attacca Target").withVitals(startVitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnEntry);
     RoundLogEntry round = new RoundLogEntry(1, List.of(turn), endVitals, List.of());
@@ -289,11 +292,11 @@ class BattleSceneRendererTest {
     List<FighterVitals> startVitals = List.of(al, bo, constantine, xerxesStart);
     List<FighterVitals> endVitals = List.of(al, bo, constantine, xerxesEnd);
 
-    ActionOutcome missAction = new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, false, false);
+    ActionOutcome missAction = new ActionOutcome(ActionOutcome.Kind.MISS, 0, 0, 0, false, false);
     TurnLogEntry turn0Entry = new TurnLogEntry(1, "Al attacca Bo").withVitals(startVitals).withAction(missAction);
     EngagementTurn turn0 = new EngagementTurn(0, 0, 1, List.of(0, 1), turn0Entry);
 
-    ActionOutcome hitAction = new ActionOutcome(ActionOutcome.Kind.HIT, 18, 0, false, false);
+    ActionOutcome hitAction = new ActionOutcome(ActionOutcome.Kind.HIT, 18, 0, 0, false, false);
     TurnLogEntry turn1Entry =
         new TurnLogEntry(1, "Constantine attacca Xerxes").withVitals(startVitals).withAction(hitAction);
     EngagementTurn turn1 = new EngagementTurn(1, 2, 3, List.of(2, 3), turn1Entry);
@@ -352,7 +355,8 @@ class BattleSceneRendererTest {
     FighterVitals defenderEnd = new FighterVitals("Defender", defenderCurrentHealth, 200, 50, 50);
     List<FighterVitals> endVitals = List.of(attackerVitals, defenderEnd);
 
-    ActionOutcome action = new ActionOutcome(ActionOutcome.Kind.HIT, 200 - defenderCurrentHealth, 0, false, false);
+    ActionOutcome action =
+        new ActionOutcome(ActionOutcome.Kind.HIT, 200 - defenderCurrentHealth, 0, 0, false, false);
     TurnLogEntry turnEntry =
         new TurnLogEntry(1, "Attacker attacca Defender").withVitals(startVitals).withAction(action);
     EngagementTurn turn = new EngagementTurn(0, 0, 1, List.of(0, 1), turnEntry);

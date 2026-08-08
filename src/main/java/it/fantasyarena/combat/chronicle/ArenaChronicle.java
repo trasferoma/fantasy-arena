@@ -2,11 +2,20 @@ package it.fantasyarena.combat.chronicle;
 
 import java.util.List;
 
+import it.fantasycombatsystem.config.CombatSettings;
+
 /**
- * Il registro completo di una corsa nell'arena: l'ingresso del protagonista, la lunghezza prevista
- * del percorso, una voce per ogni prova giocata (mai per quelle non giocate) e la conclusione. Soli
- * dati, nessuna stringa di presentazione: le frasi restano dei renderer di {@code combat.io}, che
- * questo package non conosce e da cui non dipende.
+ * Il registro completo di una corsa nell'arena: i {@link CombatSettings} con cui è stata giocata,
+ * l'ingresso del protagonista, la lunghezza prevista del percorso, una voce per ogni prova giocata
+ * (mai per quelle non giocate) e la conclusione. Soli dati, nessuna stringa di presentazione: le
+ * frasi restano dei renderer di {@code combat.io}, che questo package non conosce e da cui non
+ * dipende.
+ *
+ * <p>{@link #settings()} viaggia come lo produce il motore, senza fotografia: è già un record
+ * immutabile, sullo stesso stampo di {@code TurnLogEntry}/{@code RoundLogEntry}/{@code
+ * FighterVitals}, che questa cronaca trasporta altrove tali e quali. Senza questo dato un numero di
+ * danno o una probabilità nel log non sono interpretabili: non si può distinguere una taratura da
+ * un'altra.
  *
  * <p>{@link #plannedTrials()} esiste perché il lettore di questa cronaca ha solo il JSON, non la
  * tabella Java del percorso: senza questo campo dovrebbe indovinare quante prove erano previste dal
@@ -21,8 +30,8 @@ import java.util.List;
  * costruisce questi record ({@link ChronicleMapper}) spiega perché fotografa invece di
  * referenziare.
  */
-public record ArenaChronicle(HeroSnapshot protagonist, int plannedTrials, List<TrialChronicle> trials,
-    RunConclusion conclusion) {
+public record ArenaChronicle(CombatSettings settings, HeroSnapshot protagonist, int plannedTrials,
+    List<TrialChronicle> trials, RunConclusion conclusion) {
 
   public ArenaChronicle {
     trials = List.copyOf(trials);

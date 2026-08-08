@@ -147,6 +147,10 @@ public class Arena {
    *
    * <p>Il trionfo non si deriva da «la catena non si è interrotta»: un pareggio la lascia proseguire
    * quanto una vittoria, quindi va letto l'esito con cui è finita l'ultima prova giocata.
+   *
+   * <p>I {@link it.fantasycombatsystem.config.CombatSettings} della cronaca si leggono da
+   * {@code battleRunner}: battaglia e duello sono sempre costruiti con gli stessi {@code
+   * CombatSettings}, quindi quale dei due {@link MatchRunner} li fornisca è indifferente.
    */
   public ArenaChronicle run() {
     Hero protagonist = enterTheArena();
@@ -162,7 +166,7 @@ public class Arena {
       logger.reportTriumph(lastRound.grownHero(), plan.length());
     }
 
-    return new ArenaChronicle(protagonistSnapshot, plan.length(), lastRound.trials(),
+    return new ArenaChronicle(battleRunner.settings(), protagonistSnapshot, plan.length(), lastRound.trials(),
         new RunConclusion(lastTrial.outcome(), lastTrial.number()));
   }
 

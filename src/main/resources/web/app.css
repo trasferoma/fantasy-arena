@@ -1,7 +1,7 @@
 /* Foglio di stile della pagina di riproduzione: campo di battaglia a tre colonne (squadra,
    colonna centrale con la freccia, squadra) con barre di vita e stamina, timeline nascosta perché
-   spoiler (vedi .timeline-control[hidden] più sotto), nessuna dipendenza grafica esterna e nessuna
-   arte ASCII. */
+   spoiler (vedi .timeline-control[hidden] più sotto), pannello del passo nascosto perché ridondante
+   (vedi .step-panel più sotto), nessuna dipendenza grafica esterna e nessuna arte ASCII. */
 
 :root {
   --color-background: #f4f5f7;
@@ -80,6 +80,15 @@ body {
 .step-panel {
   height: 16rem;
   overflow-y: auto;
+}
+
+/* Il pannello del passo è nascosto: da quando la colonna centrale del campo mostra formula, nomi e
+   verso della freccia, la sua narrazione dello scambio ripete a parole ciò che si vede già. Come per
+   la timeline, il blocco resta nel DOM e "renderStepPanel" continua a riempirlo (app.js): sparisce
+   solo dalla vista, e per rivederlo basta togliere questa regola. Serve un "display: none" d'autore e
+   non l'attributo "hidden", perché la pagina quell'attributo lo toglie a ogni passo di scontro. */
+.step-panel {
+  display: none;
 }
 
 .trial-header {
